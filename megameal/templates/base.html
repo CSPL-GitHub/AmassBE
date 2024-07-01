@@ -1,0 +1,76 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <!-- metadata -->
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+        <title>{% block title %} {% endblock title %}</title>
+        
+        <!-- jQuery -->
+        <script src="{% static 'js/jquery-3.7.1.min.js' %}"></script>
+
+        <!-- Popper.js -->
+        <script src="{% static 'js/popper-2.11.8.min' %}"></script>
+
+        <!-- Fontawesome -->
+        <link rel="stylesheet" href="{% static 'css/fontawesome-free-6.4.2-web/all.min.css' %}" type="text/css">
+        <script src="{% static 'js/fontawesome-free-6.4.2-web/all.min.js' %}"></script>
+        
+        <!-- Bootstrap -->
+        <link rel="stylesheet" href="{% static 'css/bootstrap-5.3.2/bootstrap.min.css' %}" type="text/css">
+        <script src="{% static 'js/bootstrap-5.3.2/bootstrap.min.js' %}"></script>
+        
+        <!-- Toastr.js -->
+        <link rel="stylesheet" href="{% static 'css/toastr-2.1.4/toastr.min.css' %}" type="text/css">
+        <script src="{% static 'js/toastr-2.1.4/toastr.min.js' %}"></script>
+        
+        <!-- Toastr configuration -->
+        <script>
+            toastr.options = {
+                "closeButton": true,
+                "debug": false,
+                "newestOnTop": false,
+                "progressBar": true,
+                "positionClass": "toast-top-right",
+                "preventDuplicates": true,
+                "onclick": null,
+                "showDuration": "300",
+                "hideDuration": "1000",
+                "timeOut": "3000",
+                "extendedTimeOut": "1000",
+                "showEasing": "swing",
+                "hideEasing": "linear",
+                "closeEasing": 'linear',
+                "showMethod": "fadeIn",
+                "hideMethod": "fadeOut",
+                "closeMethod" :'fadeOut',
+            };
+        </script>
+
+        {% block head %} {% endblock head %}
+    </head>
+
+    <body>
+        <!-- Toastr messages -->
+        <script>
+            {% if messages %}
+                {% for message in messages %}
+                    {% if message.tags == 'success' %}
+                        toastr.success('{{ message }}', 'Success');
+                    {% elif message.tags == 'error' %}
+                        toastr.error('{{ message }}', 'Error');
+                    {% elif message.tags == 'info' %}
+                        toastr.info('{{ message }}', 'Info');
+                    {% elif message.tags == 'warning' %}
+                        toastr.warning('{{ message }}', 'Warning');
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        </script>
+
+        {% block body %} {% endblock body%}
+    </body>
+</html>

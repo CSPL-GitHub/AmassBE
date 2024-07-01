@@ -1,0 +1,18 @@
+PENDING = 'pending'
+PROCESSING = 'processing'
+READY = 'ready'
+ONHOLD = 'onhold'
+CANCELED = 'canceled'
+RECALL = 'recall'
+HIGH = 'isHigh'
+
+PENDINGINT=1
+WHEELSTATS="WHEELSTATS"
+STATION="STATION"
+STATIONSIDEBAR="STATIONSIDEBAR"
+STATUSCOUNT="STATUSCOUNT"
+MESSAGE="MESSAGE"
+WOMS="WOMS"
+
+HOST="http://151.80.237.29:8000/"
+DEFAULTIMG="static/images/default/no-image-icon-23494.png"

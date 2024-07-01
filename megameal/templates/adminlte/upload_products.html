@@ -1,0 +1,101 @@
+{% extends 'adminlte/adminlte_base.html' %}
+
+{% block title %} Upload Products {% endblock title %}
+
+{% block sidebar_vendor %} active {% endblock sidebar_vendor %}
+
+{% block page_heading %} Upload Products {% endblock page_heading %}
+
+{% block head %}
+    <script>
+        $(document).ready(function () {
+            // Selectize.js
+            $('#vendor').selectize({
+                maxItems: 1,
+                sortField: 'text',
+                searchField: ['text'],
+            });
+
+            // Submit form with loading modal
+            $('form').submit(function () {
+                $('#loadingModal').modal('show'); // Show the loading modal when form is submitted
+
+                // Hide the loading modal once the response is received
+                $(document).ajaxComplete(function () {
+                    $('#loadingModal').modal('hide'); // Hide the loading modal when AJAX request completes
+                });
+            });
+        });
+    </script>
+{% endblock head %}
+
+{% block content %}
+<!-- Main content -->
+<section class="content">
+    <!-- Default box -->
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Create Products</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'excel_upload' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Excel File">Upload Excel File</label>
+                        <input type="file" accept=".xlsx" class="form-control" id="product_excel_file" name="excel_file" placeholder="Select excel file" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor">Vendor</label>
+                        <select class="form-control" id="vendor" name="vendor" placeholder="Select Vendor" required>
+                            {% for vendor in vendors %}
+                                <option value="{{vendor.id}}">{{vendor.Name}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="d-grid col-sm-2">
+                        <button type="submit" class="btn btn-primary">Upload</button>
+                    </div>
+                </div>
+            </form>
+            <!-- Loading Animation -->
+            <div class="modal fade" id="loadingModal" tabindex="-1" role="dialog" aria-labelledby="loadingModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered" role="document">
+                    <div class="modal-content">
+                        <div class="modal-body text-center">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p>Loading...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- /.card -->
+
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">File Status</h3>
+            <div class="card-tools">
+            </div>
+        </div>
+        <div class="card-body">
+            {% if failed_file_path %}
+                <a href="{{failed_file_path}}" id="downloadLink" download><button id="downloadButton" type="button" class="btn btn-secondary">Download Error File</button></a>
+            {% endif %}
+        </div>
+    </div>
+</section>
+<!-- /.content -->
+{% endblock content %}

@@ -1,0 +1,285 @@
+{% extends 'adminlte/adminlte_base.html' %}
+
+{% block title %} Services {% endblock title %}
+
+{% block sidebar_vendor %} active {% endblock sidebar_vendor %}
+
+{% block head %}
+<style>
+    /* Style the checkbox */
+    .checkbox-container {
+        border: 1px solid #000;
+    }
+
+    #jsGrid {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: scroll;
+        scroll-behavior: sticky;
+    }
+</style>
+
+
+<script>
+    // Selectize.js
+    $(document).ready(function () {
+        $('#vendor_id').selectize({
+            maxItems: 1,
+            sortField: 'text',
+            searchField: ['text'],
+        });
+
+        $('#core_platform_type').selectize({
+            maxItems: 1,
+            sortField: 'text',
+            searchField: ['text'],
+        });
+
+        $('#order_action_type').selectize({
+            maxItems: 1,
+            sortField: 'text',
+            searchField: ['text'],
+        });
+    });
+</script>
+{% endblock head %}
+
+{% block page_heading %} Services Management{% endblock page_heading %}
+
+{% block content %}
+<script>
+    var vendorTypeChoices = [
+        {% for choice in platform_choices %}
+    { value: {{ choice.1 }}, text: '{{ choice.0 }}' },
+    {% endfor %}
+    ];
+
+    var orderActionTypeChoices = [
+        {% for choice in order_choices %}
+    { value: {{ choice.1 }}, text: '{{ choice.0 }}' },
+    {% endfor %}
+    ];
+
+    var vendors = [
+        {% for vendor in vendors %}
+    { value: {{ vendor.id }}, text: '{{ vendor.Name }}' },
+    {% endfor %}
+    ];
+
+
+    // jsGrid
+    $(document).ready(function () {
+        $("#jsGrid").jsGrid({
+            width: "100%",
+            height: "auto",
+            autoload: true,
+            pageLoading: true,
+            paging: true,
+            pageSize: 10,
+            // filtering: true,
+            editing: true,
+            selecting: true,
+            sorting: true,
+            deleteConfirm: "Are you sure you want to delete?",
+            rowClick: function(args) {},
+            rowDoubleClick: function(args) { 
+                $("#jsGrid").jsGrid("editItem", args.item);
+            },
+            controller: {
+                loadData: function (filter) {
+                    return $.ajax({
+                        type: "GET",
+                        url: "/service/get/",
+                        data: filter,
+                    });
+                },
+                updateItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/service/update/${item.id}/`,
+                        data: item,
+                        success: function (resp, status, xyz) {
+                            toastr.success("Service updated successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                },
+                deleteItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/service/delete/${item.id}/`,
+                        success: function (resp, status, xyz) {
+                            toastr.success("Service deleted successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                }
+      },
+            fields: [
+                { name: "id", type: "number", title: "ID" },
+                { name: "Name", type: "text", title: "Name" },
+                { name: "baseUrl", type: "text", title: "Base URL" },
+                { name: "secreateKey", type: "text", title: "Secret Key" },
+                { name: "secreatePass", type: "text", title: "Secret Password" },
+                { name: "APIKey", type: "text", title: "API Key" },
+                { name: "VendorId", type: "select", title: "Vendor", items: vendors, valueField: "value",textField: "text"  },
+                { name: "macId", type: "text", title: "MAC ID" },
+                { name: "isActive", type: "checkbox", title: "Active" },
+                { name: "expiryDate", type: "date", title: "Expiry Date" },
+                { name: "pushMenuUrl", type: "text", title: "Push Menu URL" },
+                { name: "corePlatformType", type: "select", title: "Core Platform Type", items: vendorTypeChoices, valueField: "value",textField: "text" },
+                { name: "className", type: "text", title: "Class Name" },
+                { name: "autoSyncMenu", type: "checkbox", title: "Auto Sync Menu" },
+                { name: "orderActionType", type: "select", title: "Order Action Type", items: orderActionTypeChoices, valueField: "value",textField: "text" },
+                { type: "control" }
+            ],
+
+        });
+    });
+</script>
+
+<!-- Main content -->
+<section class="content">
+    <!-- Default box -->
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Create Service</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'service' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Service Name">Name</label>
+                        <input type="text" class="form-control" id="service_name" name="Name" placeholder="Enter name"
+                            required>
+                        <span class="bg-danger">{{form.name.errors}}</span>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Base URL">Base URL</label>
+                        <input type="url" class="form-control" id="base_url" name="baseUrl" placeholder="Enter URL"
+                            required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Secret Key">Secret Key</label>
+                        <input type="text" class="form-control" id="secret_key" name="secreateKey"
+                            placeholder="Enter secret key" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Secret Pass">Secret Pass</label>
+                        <input type="text" class="form-control" id="secret_pass" name="secreatePass"
+                            placeholder="Enter secret pass" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="API Key">API Key</label>
+                        <input type="text" class="form-control" id="api_key" name="APIKey" placeholder="Enter API key"
+                            required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor ID">Choose Vendor</label>
+                        <select class="form-control" id="vendor_id" name="VendorId" placeholder="Select vendor"
+                            required>
+                            {% for vendor in vendors %}
+                            <option value="{{vendor.id}}">{{vendor.Name}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="MAC Address">MAC Address</label>
+                        <input type="text" class="form-control" id="mac_address" name="macId"
+                            placeholder="Enter MAC address" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Expiry Date">Expiry Date</label>
+                        <div class="input-group date" data-target-input="nearest">
+                            <input type="date" class="form-control" id="expiry_date" name="expiryDate" required />
+                        </div>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Push Menu URL">Push Menu URL</label>
+                        <input type="url" class="form-control" id="push_menu_url" name="pushMenuUrl"
+                            placeholder="Enter Push Menu URL">
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Core Platform Type">Core Platform Type</label>
+                        <select class="form-control" id="core_platform_type" name="corePlatformType"
+                            placeholder="Select core platform type" required>
+                            {% for choice in platform_choices %}
+                            <option value="{{choice.1}}">{{choice.0}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Class Name">Class Name</label>
+                        <input type="text" class="form-control" id="class_name" name="className"
+                            placeholder="Enter class name" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Order Action Type">Order Action Type</label>
+                        <select class="form-control" id="order_action_type" name="orderActionType"
+                            placeholder="Select order action type" required>
+                            {% for choice in order_choices %}
+                            <option value="{{choice.1}}">{{choice.0}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6 form-check align-self-center">
+                        <div class="row pt-4 pl-4">
+                            <label for="Auto Sync Menu">Auto Sync Menu</label>
+                            <input type="checkbox" class="form-check-input checkbox-container" id="auto_sync_menu"
+                                name="autoSyncMenu">
+                        </div>
+                    </div>
+                    <div class="form-group col-sm-6 form-check align-self-center">
+                        <div class="row pt-4 pl-4">
+                            <label for="Is Active">Is Active</label>
+                            <input type="checkbox" class="form-check-input checkbox-container" id="isActive"
+                                name="is_active">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center d-grid gap-2 col-sm-2 mx-auto">
+                    <button type="submit" class="btn btn-primary ">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- /.card -->
+
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Service Management</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body" id="jsGrid">
+
+        </div>
+    </div>
+</section>
+<!-- /.content -->
+{% endblock content %}
