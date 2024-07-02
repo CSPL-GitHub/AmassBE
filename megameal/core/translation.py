@@ -15,3 +15,12 @@ class VendorTranslationOptions(TranslationOptions):
         'address_line_1', 'address_line_2', 'city', 'state', 'country',
         'gst_number', 'contact_person_name', 'contact_person_phone_number',
     )
+
+@register(ProductCategory)
+class ProductCategoryTranslationOptions(TranslationOptions):
+    fields = ('categoryName', 'categoryDescription',)
+
+
+@register(Product)
+class ProductTranslationOptions(TranslationOptions):
+    fields = ('productName', 'productDesc', 'productPrice', 'tag',)

@@ -20,35 +20,45 @@ class VendorAdmin(admin.ModelAdmin):
         'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Password', 'Password_ar', 'address_line_1', 'address_line_1_ar', 'address_line_2', 'address_line_2_ar',
         'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
         'gst_number', 'gst_number_ar', 'contact_person_name', 'contact_person_name_ar',
-        'contact_person_phone_number', 'contact_person_phone_number_ar',
+        'contact_person_phone_number', 'contact_person_phone_number_ar', 'is_active',
     )
     
-    list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
+    list_display = ('id', 'Name', 'Name_ar', 'phone_number', 'Email', 'is_active',)
     list_filter = ('is_active', 'vendor_type', 'state', 'city', )
-    search_fields = ('Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2', 'city', 'state', 'contact_person_name', 'contact_person_phone_number',)
+    search_fields = (
+        'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Email',
+        'address_line_1_ar', 'address_line_2', 'address_line_2_ar', 'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
+        'contact_person_phone_number', 'contact_person_phone_number_ar',
+    )
     ordering = ('Name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'categoryStation', 'categoryName', 'categoryPLU', 'categoryDescription', 'categoryImageUrl', 'is_active')
+    fields = (
+        'vendorId', 'categoryStation', 'categoryName', 'categoryName_ar', 'categoryPLU',
+        'categoryDescription', 'categoryDescription_ar', 'categoryImageUrl', 'is_active'
+    )
     
-    list_display = ('categoryName', 'categoryStation', 'is_active', 'vendorId',)
+    list_display = ('categoryName', 'categoryName_ar','categoryStation', 'is_active', 'vendorId',)
     list_filter = ('is_active', 'vendorId',)
     list_select_related = ('categoryStation', 'vendorId',)
-    search_fields = ('categoryName', 'categoryStation__station_name', 'categoryDescription',)
+    search_fields = ('categoryName', 'categoryName_ar', 'categoryStation__station_name', 'categoryDescription', 'categoryDescription_ar',)
     ordering = ('vendorId', 'categoryName', 'categoryStation',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'productName', 'PLU', 'productDesc', 'productPrice', 'tag', 'preparationTime', 'active', 'is_displayed_online')
+    fields = (
+        'vendorId', 'productName', 'productName_ar', 'PLU', 'productDesc', 'productDesc_ar',
+        'productPrice', 'productPrice_ar', 'tag', 'tag_ar', 'preparationTime', 'active', 'is_displayed_online'
+    )
     
-    list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)
+    list_display = ('productName', 'productName_ar', 'productPrice', 'tag', 'active', 'vendorId',)
     list_filter = ('active', 'tag', 'is_displayed_online', 'vendorId',)
-    search_fields = ('productName', 'productDesc',)
+    search_fields = ('productName', 'productName_ar', 'productDesc', 'productDesc_ar',)
     ordering = ('vendorId', 'productName',)
     # show_facets = admin.ShowFacets.ALWAYS
 
