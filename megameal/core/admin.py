@@ -87,11 +87,11 @@ class ProductModifierGroupAdmin(admin.ModelAdmin):
 
 @admin.register(ProductModifier)
 class ProductModifierAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'modifierName', 'modifierPLU', 'modifierDesc', 'modifierImg', 'modifierPrice', 'active')
+    fields = ('vendorId', 'modifierName', 'modifierName_ar', 'modifierPLU', 'modifierDesc', 'modifierDesc_ar', 'modifierImg', 'modifierPrice', 'active')
     
-    list_display = ('modifierName', 'modifierPrice', 'active', 'vendorId',)
+    list_display = ('modifierName', 'modifierName_ar', 'modifierPrice', 'active', 'vendorId',)
     list_filter = ('active', 'vendorId',)
-    search_fields = ('modifierName', 'modifierDesc',)
+    search_fields = ('modifierName', 'modifierName_ar', 'modifierDesc', 'modifierDesc_ar',)
     ordering = ('vendorId', 'modifierName', 'modifierPrice',)
     # show_facets = admin.ShowFacets.ALWAYS
 
