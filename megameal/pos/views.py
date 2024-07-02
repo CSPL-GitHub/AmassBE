@@ -395,7 +395,7 @@ def allProducts(request,id=0):
     return JsonResponse({"products":[i for i in page],"total_pages": paginator.num_pages,})
 
 @api_view(['GET'])
-def allCategory(request, id=0, language="en"):
+def allCategory(request, language="en"):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -435,12 +435,10 @@ def allCategory(request, id=0, language="en"):
         return JsonResponse({"message": str(e), "categories": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-def productByCategory(request,id=0):
-    print(id)
-
+def productByCategory(request, id=0):
     vendor_id=request.GET.get("vendorId")
 
-    products={}
+    products = {}
 
     data=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)   
     for category in data:
@@ -2977,6 +2975,10 @@ def update_order_koms(request):
                     else:
                         order_status = 8
 
+                    product_category_joint = ProductCategoryJoint.objects.filter(
+                        product__PLU=product["plu"], product__vendorId=vendor_id, vendorId=vendor_id
+                    ).first()
+                    
                     item = Order_content.objects.create(
                         orderId = koms_order_details,
                         name = product["text"],
@@ -2987,11 +2989,12 @@ def update_order_koms(request):
                         SKU = product["plu"],
                         tag = 1,
                         categoryName = product["categoryName"],
-                        stationId = Stations.objects.filter(vendorId=vendor_id).first(),
+                        stationId = product_category_joint.category.categoryStation.pk if product_category_joint else Stations.objects.filter(vendorId=vendor_id).first(),
                         status = order_status,
                         isrecall = False,
                         isEdited = 0,
-                        )
+                    )
+                    
                     if koms_order_details.order_status != 1:
                         koms_order_details.order_status = 8
                         koms_order_details.save()
