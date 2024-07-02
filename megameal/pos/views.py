@@ -427,19 +427,19 @@ def productByCategory(request,id=0):
     print(id)
     vendorId=request.GET.get("vendorId")
     products={}
-    data=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=vendorId)   
+    data=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendorId)   
     for category in data:
         listOfProducts=[]
-        for product in Product.objects.filter(isDeleted=False,vendorId=vendorId,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+        for product in Product.objects.filter(isDeleted=False, vendorId=vendorId, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
             if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,vendorId=vendorId,isDeleted=False):
+                for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendorId, isDeleted=False):
                     images=[]
                     for k in ProductImage.objects.filter(product=prdVariants.pk):
                         if k is not None:
                             images.append(str(k.image))
                     options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk,vendorId=vendorId):
+                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendorId):
                         options.append(
                             {
                                "optionId":varinatJoint.optionId.optionId, 
@@ -461,14 +461,14 @@ def productByCategory(request,id=0):
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendorId):
                 if k is not None:
                     images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendorId):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendorId):
                     mods.append(
                         {
                             "cost":mod.modifier.modifierPrice,
