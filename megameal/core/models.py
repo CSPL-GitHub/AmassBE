@@ -11,6 +11,9 @@ import secrets
 class VendorType(models.Model):
     type = models.CharField(max_length=100)
 
+    def __str__(self):
+        return self.type
+
 
 class Vendor(models.Model):
     Name=models.CharField(max_length=122)
@@ -27,9 +30,6 @@ class Vendor(models.Model):
     contact_person_name = models.CharField(max_length=100, null=True, blank=True)
     contact_person_phone_number = models.PositiveBigIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ('Name', 'Email', 'Password', 'phone_number', 'gst_number', 'vendor_type', 'address_line_1', 'address_line_2', 'city', 'state', 'country', 'contact_person_name', 'contact_person_phone_number', 'is_active')
 
     def __str__(self):
         return self.Name
