@@ -26,7 +26,6 @@ urlpatterns = [
    path('allCategory/<int:id>',views.allCategory), # Single Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>',views.productByCategory), # Single Category product api for POS
-   path('search/<str:search>/',views.searchProduct), # search products by name
    path('dashboard/', views.dashboard, name="dashboard"),
    # path('dashboard/order_status_type_details/', views.order_status_type_details, name="order_status_type_details"),
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
