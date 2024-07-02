@@ -16,6 +16,7 @@ class VendorTranslationOptions(TranslationOptions):
         'gst_number', 'contact_person_name', 'contact_person_phone_number',
     )
 
+
 @register(ProductCategory)
 class ProductCategoryTranslationOptions(TranslationOptions):
     fields = ('categoryName', 'categoryDescription',)
@@ -23,4 +24,9 @@ class ProductCategoryTranslationOptions(TranslationOptions):
 
 @register(Product)
 class ProductTranslationOptions(TranslationOptions):
-    fields = ('productName', 'productDesc', 'productPrice', 'tag',)
+    fields = ('productName', 'productDesc', 'tag',)
+
+
+@register(ProductModifierGroup)
+class ProductModifierGroupTranslationOptions(TranslationOptions):
+    fields = ('name', 'modifier_group_description',)

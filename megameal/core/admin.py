@@ -53,7 +53,7 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     fields = (
         'vendorId', 'productName', 'productName_ar', 'PLU', 'productDesc', 'productDesc_ar',
-        'productPrice', 'productPrice_ar', 'tag', 'tag_ar', 'preparationTime', 'active', 'is_displayed_online'
+        'productPrice', 'tag', 'tag_ar', 'preparationTime', 'active', 'is_displayed_online'
     )
     
     list_display = ('productName', 'productName_ar', 'productPrice', 'tag', 'active', 'vendorId',)
@@ -76,11 +76,11 @@ class ProductCategoryJointAdmin(admin.ModelAdmin):
 
 @admin.register(ProductModifierGroup)
 class ProductModifierGroupAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'name', 'PLU', 'modifier_group_description', 'min', 'max', 'active')
+    fields = ('vendorId', 'name', 'name_ar', 'PLU', 'modifier_group_description', 'modifier_group_description_ar', 'min', 'max', 'active')
     
-    list_display = ('name', 'min', 'max', 'active', 'vendorId',)
+    list_display = ('name', 'name_ar', 'min', 'max', 'active', 'vendorId',)
     list_filter = ('active', 'vendorId',)
-    search_fields = ('name', 'modifier_group_description',)
+    search_fields = ('name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',)
     ordering = ('vendorId', 'name', 'min', 'max',)
     # show_facets = admin.ShowFacets.ALWAYS
 
