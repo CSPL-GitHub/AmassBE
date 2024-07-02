@@ -3,6 +3,30 @@ from .models import *
 
 
 
+@admin.register(VendorType)
+class VendorTypeAdmin(admin.ModelAdmin):
+    fields = ('type',)
+    
+    list_display = ('type',)
+    search_fields = ('type',)
+    ordering = ('type',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+@admin.register(Vendor)
+class VendorAdmin(admin.ModelAdmin):
+    fields = (
+        'vendor_type', 'Name', 'phone_number', 'Email', 'Password', 
+        'address_line_1', 'address_line_2', 'city', 'state', 'country',
+        'gst_number', 'contact_person_name', 'contact_person_phone_number', 'is_active',
+    )
+    
+    list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
+    list_filter = ('is_active', 'vendor_type', 'state', 'city', )
+    search_fields = ('Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2', 'city', 'state', 'contact_person_name', 'contact_person_phone_number',)
+    ordering = ('Name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
     fields = ('vendorId', 'categoryStation', 'categoryName', 'categoryPLU', 'categoryDescription', 'categoryImageUrl', 'is_active')
@@ -96,8 +120,6 @@ class ProductImageAdmin(admin.ModelAdmin):
 admin.site.register(Api_Logs)
 admin.site.register(Vendor_Settings)
 admin.site.register(Platform)
-admin.site.register(Vendor)
-admin.site.register(VendorType)
 admin.site.register(Core_User)
 admin.site.register(POS_Settings)
 admin.site.register(Product_Tax)
