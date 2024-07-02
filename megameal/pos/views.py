@@ -395,32 +395,44 @@ def allProducts(request,id=0):
     return JsonResponse({"products":[i for i in page],"total_pages": paginator.num_pages,})
 
 @api_view(['GET'])
-def allCategory(request,id=0):
-    data = []
-    port = request.META.get("SERVER_PORT")
-    server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
+def allCategory(request, id=0, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
 
-    info = ProductCategory.objects.filter(vendorId=request.GET.get("vendorId"),categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=request.GET.get("vendorId"))
-               
-    for i in info:
-        res = {}
-        res["categoryId"] = i.pk
-        res["categoryPlu"] = i.categoryPLU
-        res["name"] = i.categoryName
-        res["description"] = i.categoryDescription
-        res["sortOrder"] = i.categorySortOrder
-        res["image"] = i.categoryImageUrl if i.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
-        # res["image"] = f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
 
-        # if ProductCategoryJoint.objects.filter(category=i.pk):
-        #     if ProductImage.objects.filter(product=ProductCategoryJoint.objects.filter(category=i.pk).first().product.pk).first():
-        #         res["image"]=ProductImage.objects.filter(product=ProductCategoryJoint.objects.filter(category=i.pk).first().product.pk).first().url
-        #     else:
-        #         res["image"]=""
+        categories = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+        
+        category_list = []
 
-        data.append(res)
+        if language == "ar":
+            for single_category in categories:
+                category_list.append({
+                    "categoryId": single_category.pk,
+                    "categoryPlu": single_category.categoryPLU,
+                    "name": single_category.categoryName_ar,
+                    "description": single_category.categoryDescription_ar,
+                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                    "is_active": single_category.is_active
+                })
 
-    return JsonResponse({"categories":data})
+        else:
+            for single_category in categories:
+                category_list.append({
+                    "categoryId": single_category.pk,
+                    "categoryPlu": single_category.categoryPLU,
+                    "name": single_category.categoryName,
+                    "description": single_category.categoryDescription,
+                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                    "is_active": single_category.is_active
+                })
+
+        return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "categories": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def productByCategory(request,id=0):
