@@ -392,28 +392,37 @@ def allCategory(request,id=0):
     return JsonResponse({"categories":data})
 
  
-def productByCategory(request,id=0):
-    vendorId=request.GET.get("vendorId")
+def productByCategory(request, id=0):
+    vendor_id=request.GET.get("vendorId")
+
     products={}
-    data=ProductCategory.objects.filter(pk=id,vendorId=vendorId,categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=vendorId)   
+
+    data=ProductCategory.objects.filter(pk=id, vendorId=vendor_id, categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)   
+    
     for category in data:
         listOfProducts=[]
-        for product in Product.objects.filter(isDeleted=False,vendorId=vendorId,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+
+        for product in Product.objects.filter(isDeleted=False, vendorId=vendor_id, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
+
             if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,vendorId=vendorId,isDeleted=False):
+                for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
                     images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
+
+                    for k in ProductImage.objects.filter(product=prdVariants.pk, vendorId=vendor_id):
                         if k is not None:
                             images.append(str(k.image))
+
                     options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk,vendorId=vendorId):
+
+                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendor_id):
                         options.append(
                             {
                                "optionId":varinatJoint.optionId.optionId, 
                                "optionValueId":varinatJoint.optionValueId.itemOptionId 
                             }
                         )
+
                     productVariants.append({
                         "text":prdVariants.productName,
                         # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
@@ -429,14 +438,17 @@ def productByCategory(request,id=0):
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+            
+            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
                 if k is not None:
                     images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
                             "cost":mod.modifier.modifierPrice,
@@ -449,11 +461,11 @@ def productByCategory(request,id=0):
                             "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                             # "image":mod.modifier.modifierImg,
                             "active": mod.modifier.active
-
                         }                    
                     )
+                    
                 if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                 modGrp.append(
+                    modGrp.append(
                     {
                         "id": prdModGrpJnt.modifierGroup.pk,
                         "modGroupId": prdModGrpJnt.modifierGroup.pk, # required for next js site
@@ -469,7 +481,6 @@ def productByCategory(request,id=0):
                         "modifiers":mods
                     }
                 )
-                
                 
             listOfProducts.append({
                 "categoryId": category.pk,
@@ -496,7 +507,9 @@ def productByCategory(request,id=0):
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })
+
         products[category.pk]=listOfProducts
+
     return JsonResponse({"products":products})
 
 
@@ -581,22 +594,30 @@ def show_tableCapacity(request, id=0):
 
 
 @api_view(['GET'])
-def searchProduct(request,search):
-    vendorId=request.GET.get("vendorId")
+def searchProduct(request, search):
+    vendor_id = request.GET.get("vendorId")
+
     products={}
-    data= ProductCategory.objects.filter(vendorId=vendorId)   
+
+    data= ProductCategory.objects.filter(vendorId=vendor_id)
+
     listOfProducts=[]
+
     for category in data:
-        for product in Product.objects.filter(vendorId=vendorId,productName__icontains=search,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+        for product in Product.objects.filter(vendorId=vendor_id, productName__icontains=search, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
         # for product in Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
+
             if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(vendorId=vendorId,productParentId=product.pk):
+                for prdVariants in Product.objects.filter(vendorId=vendor_id, productParentId=product.pk):
                     images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
+
+                    for k in ProductImage.objects.filter(product=prdVariants.pk, vendorId=vendor_id):
                         if k is not None:
                             images.append(str(k.image))
+
                     options=[]
+
                     for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
                         options.append(
                             {
@@ -619,14 +640,17 @@ def searchProduct(request,search):
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+
+            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
                 if k is not None:
                     images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
                             "cost":mod.modifier.modifierPrice,
@@ -640,6 +664,7 @@ def searchProduct(request,search):
                             "active": mod.modifier.active
                         }                    
                     )
+
                 modGrp.append(
                     {
                         "name":prdModGrpJnt.modifierGroup.name,
@@ -652,7 +677,6 @@ def searchProduct(request,search):
                         "modifiers":mods
                     }
                 )
-                
                 
             listOfProducts.append({
                 "categoryId": category.pk,
@@ -676,10 +700,11 @@ def searchProduct(request,search):
                 "active":product.active,
                 "modifiersGroup":modGrp,
             })
-        products[category.pk]=listOfProducts
+
+        products[category.pk] = listOfProducts
+
     # return JsonResponse({"products":products})
-# 
-    return JsonResponse({"products":{"1":listOfProducts}})
+    return JsonResponse({"products":{"1": listOfProducts}})
 
 @api_view(["POST"])
 def createOrder(request):
