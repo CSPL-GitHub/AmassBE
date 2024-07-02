@@ -436,122 +436,229 @@ def allCategory(request, language="en"):
 
 
 def productByCategory(request, id=0):
-    vendor_id=request.GET.get("vendorId")
+    try:
+        vendor_id=request.GET.get("vendorId")
+        language = request.GET.get("language")
 
-    products = {}
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
 
-    data=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)   
-    for category in data:
-        listOfProducts=[]
+        if id != 0:
+            data = ProductCategory.objects.filter(pk=id)
 
-        for product in Product.objects.filter(isDeleted=False, vendorId=vendor_id, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
-            productVariants=[]
+        else:
+            data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+        
+        products = {}
 
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
+        if language == "ar":
+            for category in data:
+                listOfProducts=[]
+
+                for product in Product.objects.filter(isDeleted=False, vendorId=vendor_id, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+                    productVariants=[]
+
+                    if product.productType=="Variant":
+                        for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
+                            images=[]
+
+                            for k in ProductImage.objects.filter(product=prdVariants.pk):
+                                if k is not None:
+                                    images.append(str(k.image))
+                            
+                            options=[]
+
+                            for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendor_id):
+                                options.append(
+                                    {
+                                        "optionId":varinatJoint.optionId.optionId, 
+                                        "optionValueId":varinatJoint.optionValueId.itemOptionId 
+                                    }
+                                )
+
+                            productVariants.append({
+                                "text":prdVariants.productName,
+                                # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
+                                # "images":images if len(images)  else [HOST+DEFAULTIMG],
+                                "quantity": prdVariants.productQty,
+                                "cost": prdVariants.productPrice,
+                                "description":prdVariants.productDesc,
+                                "allowCustomerNotes": True,
+                                "plu":prdVariants.PLU,
+                                "type":prdVariants.productType,
+                                "sortOrder":product.sortOrder,
+                                "options":options
+                            })
+
                     images=[]
 
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
+                    for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
                         if k is not None:
-                            images.append(str(k.image))
+                            images.append(str(k.url))
                     
-                    options=[]
+                    modGrp=[]
 
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendor_id):
-                        options.append(
+                    for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
+                        mods=[]
+
+                        for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
+                            mods.append(
+                                {
+                                    "modifierId": mod.modifier.pk,
+                                    "name": mod.modifier.modifierName_ar,
+                                    "plu": mod.modifier.modifierPLU,
+                                    "description": mod.modifier.modifierDesc_ar,
+                                    "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
+                                    # "image":mod.modifier.modifierImg,
+                                    "cost": mod.modifier.modifierPrice,
+                                    "active": mod.modifier.active
+                                }                    
+                            )
+
+                        if prdModGrpJnt.modifierGroup.isDeleted ==False: 
+                            modGrp.append(
                             {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
+                                "id": prdModGrpJnt.modifierGroup.pk,
+                                "name": prdModGrpJnt.modifierGroup.name_ar,
+                                "plu": prdModGrpJnt.modifierGroup.PLU,
+                                "description": prdModGrpJnt.modifierGroup.modifier_group_description_ar,
+                                # "min":prdModGrpJnt.min,
+                                # "max":prdModGrpJnt.max,
+                                "min": prdModGrpJnt.modifierGroup.min,
+                                "max": prdModGrpJnt.modifierGroup.max,
+                                "active": prdModGrpJnt.modifierGroup.active,
+                                "modifiers": mods
                             }
                         )
-
-                    productVariants.append({
-                        "text":prdVariants.productName,
-                        # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-                        # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
-                        "cost": prdVariants.productPrice,
-                        "description":prdVariants.productDesc,
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
-                        "options":options
+                        
+                    listOfProducts.append({
+                        "categoryId": category.pk,
+                        "categoryName": category.categoryName_ar,
+                        "prdouctId": product.pk,
+                        "tags": product.tag_ar or "",
+                        "text": product.productName_ar,
+                        "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                        "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "cost": product.productPrice,
+                        "active": product.active,
+                        "description": product.productDesc_ar,
+                        "plu": product.PLU,
+                        "isTaxable": product.taxable,
+                        "type": product.productType,
+                        "variant": productVariants,
+                        "modifiersGroup": modGrp,
                     })
+                    
+                products[category.pk] = listOfProducts
 
-            images=[]
+        else:
+            for category in data:
+                listOfProducts=[]
 
-            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
-                if k is not None:
-                    images.append(str(k.url))
-            
-            modGrp=[]
+                for product in Product.objects.filter(isDeleted=False, vendorId=vendor_id, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+                    productVariants=[]
 
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
-                mods=[]
+                    if product.productType=="Variant":
+                        for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
+                            images=[]
 
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
-                    mods.append(
-                        {
-                            "cost":mod.modifier.modifierPrice,
-                            "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
-                            "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
-                            "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                            # "image":mod.modifier.modifierImg,
-                            "active": mod.modifier.active
-                        }                    
-                    )
+                            for k in ProductImage.objects.filter(product=prdVariants.pk):
+                                if k is not None:
+                                    images.append(str(k.image))
+                            
+                            options=[]
 
-                if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                    modGrp.append(
-                    {
-                        "id": prdModGrpJnt.modifierGroup.pk,
-                        "name":prdModGrpJnt.modifierGroup.name,
-                        "plu":prdModGrpJnt.modifierGroup.PLU,
-                        # "min":prdModGrpJnt.min,
-                        # "max":prdModGrpJnt.max,
-                        "min":prdModGrpJnt.modifierGroup.min,
-                        "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
-                        "type":prdModGrpJnt.modifierGroup.modGrptype,
-                        "active":prdModGrpJnt.modifierGroup.active,
-                        "modifiers":mods
-                    }
-                )
-                
-            listOfProducts.append({
-                "categoryId": category.pk,
-                "categoryName":category.categoryName,
-                "prdouctId": product.pk,
-                "tags": product.tag or "",
-                "text":product.productName,
-                "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                "quantity": 1,
-                "cost": product.productPrice,
-                "active": product.active,
-                "description":product.productDesc,
-                "allowCustomerNotes": True,
-                "totalSale":0,
-                "totalSaleCount":0,
-                "totalSaleQty":0,
-                # "vendorId": product.vendorId.pk,
-                "plu":product.PLU,
-                "note":'',
-                "isTaxable":product.taxable,
-                "type":product.productType,
-                "sortOrder":product.sortOrder,
-                "variant":productVariants,
-                "modifiersGroup":modGrp,
-            })
-            
-        products[category.pk]=listOfProducts
+                            for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendor_id):
+                                options.append(
+                                    {
+                                        "optionId":varinatJoint.optionId.optionId, 
+                                        "optionValueId":varinatJoint.optionValueId.itemOptionId 
+                                    }
+                                )
 
-    return JsonResponse({"products":products})
+                            productVariants.append({
+                                "text":prdVariants.productName,
+                                # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
+                                # "images":images if len(images)  else [HOST+DEFAULTIMG],
+                                "quantity": prdVariants.productQty,
+                                "cost": prdVariants.productPrice,
+                                "description":prdVariants.productDesc,
+                                "allowCustomerNotes": True,
+                                "plu":prdVariants.PLU,
+                                "type":prdVariants.productType,
+                                "sortOrder":product.sortOrder,
+                                "options":options
+                            })
+
+                    images=[]
+
+                    for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
+                        if k is not None:
+                            images.append(str(k.url))
+                    
+                    modGrp=[]
+
+                    for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
+                        mods=[]
+
+                        for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
+                            mods.append(
+                                {
+                                    "cost":mod.modifier.modifierPrice,
+                                    "modifierId": mod.modifier.pk,
+                                    "name":mod.modifier.modifierName,
+                                    "description": mod.modifier.modifierDesc,
+                                    "quantity": mod.modifier.modifierQty,
+                                    "plu": mod.modifier.modifierPLU,
+                                    "status":mod.modifier.modifierStatus,
+                                    "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
+                                    # "image":mod.modifier.modifierImg,
+                                    "active": mod.modifier.active
+                                }                    
+                            )
+
+                        if prdModGrpJnt.modifierGroup.isDeleted ==False: 
+                            modGrp.append(
+                            {
+                                "id": prdModGrpJnt.modifierGroup.pk,
+                                "name":prdModGrpJnt.modifierGroup.name,
+                                "plu":prdModGrpJnt.modifierGroup.PLU,
+                                # "min":prdModGrpJnt.min,
+                                # "max":prdModGrpJnt.max,
+                                "min":prdModGrpJnt.modifierGroup.min,
+                                "max":prdModGrpJnt.modifierGroup.max,
+                                "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
+                                "type":prdModGrpJnt.modifierGroup.modGrptype,
+                                "active":prdModGrpJnt.modifierGroup.active,
+                                "modifiers":mods
+                            }
+                        )
+                        
+                    listOfProducts.append({
+                        "categoryId": category.pk,
+                        "categoryName": category.categoryName,
+                        "prdouctId": product.pk,
+                        "tags": product.tag or "",
+                        "text": product.productName,
+                        "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                        "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "cost": product.productPrice,
+                        "active": product.active,
+                        "description": product.productDesc,
+                        "plu": product.PLU,
+                        "isTaxable": product.taxable,
+                        "type": product.productType,
+                        "sortOrder": product.sortOrder,
+                        "variant": productVariants,
+                        "modifiersGroup": modGrp,
+                    })
+                    
+                products[category.pk] = listOfProducts
+
+        return JsonResponse({"message": "", "products": products}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "products": {}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -2994,7 +3101,7 @@ def update_order_koms(request):
                         isrecall = False,
                         isEdited = 0,
                     )
-                    
+
                     if koms_order_details.order_status != 1:
                         koms_order_details.order_status = 8
                         koms_order_details.save()
