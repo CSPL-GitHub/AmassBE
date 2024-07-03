@@ -59,7 +59,7 @@ class FloorSerializer(serializers.ModelSerializer):
     table_count = serializers.SerializerMethodField(read_only=True)
 
     def get_table_count(self, floor):
-        return floor.hotal_tables_set.count()
+        return floor.hoteltable_set.count()
 
     class Meta:
         model = Floor
