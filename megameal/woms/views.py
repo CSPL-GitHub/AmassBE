@@ -103,7 +103,7 @@ def waiter_login(request):
 def get_waiters(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language", "en")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
