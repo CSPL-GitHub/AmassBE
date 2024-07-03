@@ -16,10 +16,10 @@ class WaiterAdmin(admin.ModelAdmin):
 
 @admin.register(Floor)
 class FloorAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'name', 'is_active',)
+    fields = ('vendorId', 'name', 'name_ar', 'is_active',)
     
-    list_display = ('name', 'is_active', 'vendorId',)
+    list_display = ('name', 'name_ar', 'is_active', 'vendorId',)
     list_filter = ('is_active', 'vendorId',)
-    search_fields = ('name',)
+    search_fields = ('name', 'name_ar',)
     ordering = ('vendorId', 'name', 'is_active',)
     # show_facets = admin.ShowFacets.ALWAYS
