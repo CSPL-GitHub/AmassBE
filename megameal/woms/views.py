@@ -102,7 +102,8 @@ def waiter_login(request):
 @api_view(['GET'])
 def get_waiters(request):
     try:
-        vendor_id = request.GET.get("vendor")
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
@@ -111,10 +112,17 @@ def get_waiters(request):
         
         waiter_list = []
 
+        waiter_name = ""
+        
         for waiter in waiters:
+            waiter_name = waiter.name
+
+            if language == "ar":
+                waiter_name = waiter.name_ar
+
             waiter_info = {
                 "id": waiter.pk,
-                "name": waiter.name,
+                "name": waiter_name,
                 "image": waiter.image.name,
                 "is_waiter_head": waiter.is_waiter_head
             }
