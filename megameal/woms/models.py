@@ -24,6 +24,9 @@ class Waiter(models.Model):
     is_active = models.BooleanField(default=False)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+    def __str__(self):
+        return self.name
+
 
 class Hotal_Tables(models.Model):
     floor = models.ForeignKey(Floor, on_delete=models.CASCADE)
