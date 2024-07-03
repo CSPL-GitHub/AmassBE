@@ -197,7 +197,7 @@ def getTableData(hotelTable,vendorId):
 
 def  gettable(id,vendorId):
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+        data=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
         data=data.order_by('tableNumber')
         return[ getTableData(i) for i in data ] 
     except Exception as e :
@@ -207,10 +207,10 @@ def  gettable(id,vendorId):
 def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
     try:
         if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
-            data = Hotal_Tables.objects.filter(vendorId=vendorId)
+            data = HotelTable.objects.filter(vendorId=vendorId)
             # print(data.count())
         else:
-            data = Hotal_Tables.objects.filter(waiterId=waiterId, vendorId=vendorId)
+            data = HotelTable.objects.filter(waiterId=waiterId, vendorId=vendorId)
 
         if filter != 'All':
             data = data.filter(tableCapacity=filter)
@@ -265,16 +265,16 @@ def assinTableupdate(request):
     # search=requestJson.get('search') if requestJson.get('search') else ''
     
     try:
-        updatetable=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
+        updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
         
-        if Hotal_Tables.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
+        if HotelTable.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
             result=  getTableData(hotelTable=updatetable,vendorId=vendorId)
-            oldWaiter=str(Hotal_Tables.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+            oldWaiter=str(HotelTable.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
             webSocketPush(message={"result":result,"UPDATE": "REMOVE",},room_name=WOMS+str(oldWaiter)+"------"+str(vendorId),username="CORE",)#remove table from old waiter
         
-        Hotal_Tables.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
+        HotelTable.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
         
-        updatetable=Hotal_Tables.objects.get(pk=id,  vendorId=vendorId)
+        updatetable=HotelTable.objects.get(pk=id,  vendorId=vendorId)
         res=getTableData(hotelTable=updatetable,vendorId=vendorId)
 
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(waiterId)+"------"+str(vendorId),username="CORE",)#update table for new waiter
@@ -344,14 +344,14 @@ def deleteTables(request):
     try:
         vendorId=request.GET.get("vendorId")
         data = JSONParser().parse(request)
-        tableData=Hotal_Tables.objects.get(pk=data.get('tableId'))
+        tableData=HotelTable.objects.get(pk=data.get('tableId'))
         if tableData:
             res=  getTableData(hotelTable=tableData,vendorId=vendorId)
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
             for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(i.pk)+"-----"+str(vendorId),username="CORE",)
-            Hotal_Tables.objects.filter(pk=data.get('tableId')).delete()
+            HotelTable.objects.filter(pk=data.get('tableId')).delete()
             return JsonResponse({"data":tableData.pk})
         else:
             return JsonResponse({"error":'table not found'},status=400)
@@ -369,12 +369,12 @@ def Table_update_api(request):
         # filter=requestJson.get('filter')
         # search=requestJson.get('search')
 
-        oldTableData=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
+        oldTableData=HotelTable.objects.get(pk=id, vendorId=vendorId)
         status = oldTableData.status if requestJson.get('tableStatus')==None  else requestJson.get('tableStatus')
         guestCount = oldTableData.guestCount if requestJson.get('guestCount')==None else requestJson.get('guestCount') 
         floor = oldTableData.floor if requestJson.get('floor')==None else floorId
-        data=Hotal_Tables.objects.filter(pk =id, vendorId=vendorId).update(status=status,guestCount=guestCount)
-        updatetable=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
+        data=HotelTable.objects.filter(pk =id, vendorId=vendorId).update(status=status,guestCount=guestCount)
+        updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
         res=getTableData(hotelTable=updatetable,vendorId=vendorId)
         print("status ",status )
 
@@ -607,7 +607,7 @@ def switchOrderTables(request):
 def show_tableCapacity(request, id=0):
     vendorId=request.GET.get("vendorId")
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+        data=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
         tableCapacity =list(set([ i.tableCapacity for i in data]))
         table = [str(i) for i in tableCapacity]
         return JsonResponse({ "tableCapacity": table}, safe=False)

@@ -1,7 +1,7 @@
 from order import order_helper
 from core.utils import API_Messages, PaymentType, UpdatePoint, OrderType
 from core.models import Product, ProductImage,Platform,ProductModifier,Product_Tax,ProductModifierGroup,ProductCategory
-from woms.models import Hotal_Tables, Waiter
+from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
@@ -757,7 +757,7 @@ def waiteOrderUpdate(orderid, vendorId):
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i.pk)+"---"+str(vendorId),username="CORE",)
         
         for table in listOrder:
-            hotelTable = Hotal_Tables.objects.get(pk=table.tableId.pk)
+            hotelTable = HotelTable.objects.get(pk=table.tableId.pk)
 
             table_data={ 
                 "tableId":hotelTable.pk, 
@@ -1139,7 +1139,7 @@ def getOrder(ticketId,vendorId):
             mapOfSingleOrder["tableIds"] = []
             mapOfSingleOrder["tableNo"]=""
 
-    mapOfSingleOrder["tableId"] = 1#Hotal_Tables.objects.filter(tableNumber=singleOrder.tableNo).first().pk
+    mapOfSingleOrder["tableId"] = 1#HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
     mapOfSingleOrder["isHigh"] = singleOrder.isHigh
 
     orderContentList = Order_content.objects.filter(orderId=singleOrder.pk).order_by('-pk') 
@@ -1362,7 +1362,7 @@ def stationdata(id,vendorId):
 
 def waiterdata(id,filter,search,vendorId):
     stationWise={}
-    tableOfWaiter=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+    tableOfWaiter=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
     tableIds=[str(i.pk) for i in tableOfWaiter ]
     date = datetime.today().strftime("20%y-%m-%d")
     
@@ -1374,7 +1374,7 @@ def waiterdata(id,filter,search,vendorId):
     data=data if filter == 'All' else  data.filter(order_status=filter) if filter!="7" else data.filter(isHigh=True)
     orderId=[]
     if search!='All':
-        orderId=Order_tables.objects.filter(tableId__in=Hotal_Tables.objects.filter(tableNumber=search,vendorId=vendorId).values_list('pk', flat=True)).values_list('orderId', flat=True)
+        orderId=Order_tables.objects.filter(tableId__in=HotelTable.objects.filter(tableNumber=search,vendorId=vendorId).values_list('pk', flat=True)).values_list('orderId', flat=True)
     data=data if search == 'All' else data.filter(id__in=orderId) #tableNumber__contains=str(search)
     print("Content count , ", Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).count())
     for single_content in Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).order_by("-orderId"):

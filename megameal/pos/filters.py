@@ -1,5 +1,5 @@
 import django_filters
-from woms.models import Waiter, Hotal_Tables
+from woms.models import Waiter, HotelTable
 from core.models import ProductCategory, Product, ProductModifierGroup
 from order.models import Order_Discount
 from koms.models import Stations, Staff
@@ -17,7 +17,7 @@ class HotelTableFilter(django_filters.FilterSet):
     floor = django_filters.NumberFilter(field_name="floor", lookup_expr="exact")
 
     class Meta:
-        model = Hotal_Tables
+        model = HotelTable
         fields = ["floor"]
 
 

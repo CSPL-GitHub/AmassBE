@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from woms.models import Waiter, Floor, Hotal_Tables
+from woms.models import Waiter, Floor, HotelTable
 from pos.models import StoreTiming, Banner, CoreUserCategory, CoreUser, Department
 from order.models import Order_Discount
 from core.models import (
@@ -79,7 +79,7 @@ class HotelTableSerializer(serializers.ModelSerializer):
     floorName = serializers.CharField(source="floor.name", read_only=True)
 
     class Meta:
-        model = Hotal_Tables
+        model = HotelTable
         fields = "__all__"
 
 

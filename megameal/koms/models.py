@@ -1,11 +1,9 @@
 from django.db import models
-import secrets
 from core.models import Vendor
 from order.models import Order as MasterOrder
-from woms.models import Hotal_Tables
+from woms.models import HotelTable
 
 
-# All KOMS model here.
 
 class Order_point(models.Model):
     name = models.CharField(max_length=50)
@@ -17,7 +15,6 @@ class Order_point_cred(models.Model):
     pointId = models.ForeignKey(Order_point, on_delete=models.CASCADE)
     key = models.CharField(max_length=100)
     value = models.CharField(max_length=500)
-    
 
 
 class Stations(models.Model):
@@ -81,6 +78,7 @@ class Order_content(models.Model):
     isrecall=models.BooleanField(default=False)
     isEdited=models.BooleanField(default=False)
 
+
 class Order_modifer(models.Model):
     contentID = models.ForeignKey(Order_content, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
@@ -108,7 +106,7 @@ class Modifer_history(models.Model):
 
 class Order_tables(models.Model):
     orderId=models.ForeignKey(Order,on_delete=models.CASCADE)
-    tableId=models.ForeignKey(Hotal_Tables,on_delete=models.CASCADE)
+    tableId=models.ForeignKey(HotelTable,on_delete=models.CASCADE)
 
 class KOMS_config(models.Model):
     print_or_display = models.IntegerField()
@@ -126,12 +124,14 @@ class Prepration_time(models.Model):
     prepration_time = models.CharField(max_length=100)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+
 class Staff(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
     station_id = models.ForeignKey(Stations, on_delete=models.CASCADE, null=True, blank=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
 
 class Content_assign(models.Model):
     staffId = models.ForeignKey(Staff, on_delete=models.CASCADE)
@@ -151,9 +151,11 @@ class UserSettings(models.Model):
     stationId = models.ForeignKey(Stations, on_delete=models.CASCADE, default=1, unique=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+
 class OrderStatusName(models.Model):
     orderName = models.CharField(max_length=50)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
 
 class OrderHistory(models.Model):
     order_id=models.ForeignKey(Order,on_delete=models.CASCADE)
@@ -164,9 +166,11 @@ class OrderHistory(models.Model):
     staff_id=models.ForeignKey(Staff,on_delete=models.CASCADE,default=1)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+
 class Message_type(models.Model):
     massage_type=models.CharField(max_length=50)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
 
 class massage_history(models.Model):
     massage_type=models.ForeignKey(Message_type, on_delete=models.CASCADE,default=3)

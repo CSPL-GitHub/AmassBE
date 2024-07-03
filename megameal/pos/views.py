@@ -10,7 +10,7 @@ from core.models import (
     ProductModifierAndModifierGroupJoint, Product_Tax, POS_Settings
 )
 from order import order_helper
-from woms.models import Hotal_Tables, Waiter, Floor
+from woms.models import HotelTable, Waiter, Floor
 from woms.views import getTableData
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
@@ -976,7 +976,7 @@ def order_status_type_summary(request):
 @api_view(["GET"])
 def showtabledetails(request):
     try:
-        data=Hotal_Tables.objects.filter(vendorId=request.GET.get('vendorId'))
+        data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
         data=data.order_by('tableNumber')
         return Response([ getTableData(i,request.GET.get('vendorId')) for i in data ]) 
     except Exception as e :
@@ -987,7 +987,7 @@ def showtabledetails(request):
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId)
+        data=HotelTable.objects.filter(vendorId=vendorId)
         tableCapacity =list(set([ i.tableCapacity for i in data]))
         table = [str(i) for i in tableCapacity]
         return JsonResponse({ "tableCapacity": table}, safe=False)
@@ -1657,7 +1657,7 @@ class FloorViewSet(viewsets.ModelViewSet):
     
 
 class HotelTableViewSet(viewsets.ModelViewSet):
-    queryset = Hotal_Tables.objects.all()
+    queryset = HotelTable.objects.all()
     serializer_class = HotelTableSerializer
     filter_class = HotelTableFilter
     filter_backends = [DjangoFilterBackend]
@@ -1666,12 +1666,12 @@ class HotelTableViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = Hotal_Tables.objects.filter(vendorId=vendor_id).order_by('tableNumber')
+            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
 
             return queryset
         
         else:
-            return Hotal_Tables.objects.none()
+            return HotelTable.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
