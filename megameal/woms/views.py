@@ -162,53 +162,91 @@ def get_total_amount(external_order_id, vendor_id):
     return float(total_amount)
 
 
-def getTableData(hotelTable,vendorId):
-    data={ 
-                "tableId":hotelTable.pk, 
-                "tableNumber": hotelTable.tableNumber,
-                "waiterId":hotelTable.waiterId.pk if hotelTable.waiterId else 0,
-                "status":hotelTable.status,
-                "waiterName":hotelTable.waiterId.name if hotelTable.waiterId else "",
-                "tableCapacity":hotelTable.tableCapacity, 
-                "guestCount":hotelTable.guestCount,
-                "floorId":hotelTable.floor.pk,
-                "floorName":hotelTable.floor.name
-        }
+def getTableData(hotelTable, vendorId, language="en"):
+    waiter_name = ""
+    floor_name = ""
+
+    if hotelTable:
+        if hotelTable.waiterId:
+            if language == "ar":
+                waiter_name = hotelTable.waiterId.name_ar
+                floor_name = hotelTable.floor.name_ar
+
+            else:
+                waiter_name = hotelTable.waiterId.name
+                floor_name = hotelTable.floor.name
+    
+    data = { 
+        "tableId": hotelTable.pk, 
+        "tableNumber": hotelTable.tableNumber,
+        "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
+        "status": hotelTable.status,
+        "waiterName": waiter_name,
+        "tableCapacity": hotelTable.tableCapacity, 
+        "guestCount": hotelTable.guestCount,
+        "floorId": hotelTable.floor.pk,
+        "floorName": floor_name
+    }
     
     try:
-        test=Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
+        test = Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
+
         latest_order = Order.objects.filter(id__in=test,vendorId=vendorId).order_by('-arrival_time').first()
-        data["order"]=latest_order.externalOrderId if latest_order else 0
-        data["total_amount"] = latest_order.master_order.subtotal
+
+        if latest_order:
+            data["order"] = latest_order.externalOrderId
+            data["total_amount"] = latest_order.master_order.subtotal
+
+        else:
+            data["order"] = 0
+            data["total_amount"] = 0.0
+
     except Order_tables.DoesNotExist:
         print("Table not found")
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
+
     except Order.DoesNotExist:
         print("Order not found")
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
+
     except Exception as e:
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
         print(f"Unexpected {e=}, {type(e)=}")
+
     return data
 
 
-def  gettable(id,vendorId):
+def gettable(id, vendorId, language="en"):
     try:
-        data=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
-        data=data.order_by('tableNumber')
-        return[ getTableData(i) for i in data ] 
-    except Exception as e :
-            print(e)
-            return []
+        waiter = Waiter.objects.get(pk=id, vendorId=vendorId)
+        
+        if waiter.is_waiter_head:
+            data = HotelTable.objects.filter(vendorId=vendorId).order_by('tableNumber')
+
+        else:
+            data = HotelTable.objects.filter(waiterId=id, vendorId=vendorId).order_by('tableNumber')
+        
+        result = []
+
+        for table in data:
+            table_data = getTableData(table, language)
+            result.append(table_data)
+        
+        return result
+    
+    except Exception as e:
+        print(e)
+        return []
  
-def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
+def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="en"):
     try:
         if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
             data = HotelTable.objects.filter(vendorId=vendorId)
             # print(data.count())
+        
         else:
             data = HotelTable.objects.filter(waiterId=waiterId, vendorId=vendorId)
 
@@ -231,12 +269,14 @@ def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
         data = data.order_by('tableNumber')
         
         table_data = []
-        for table in data:
-            table_data.append(getTableData(hotelTable=table, vendorId=vendorId))
         
-        # print(len(table_data))
+        for table in data:
+            table_info = getTableData(hotelTable=table, vendorId=vendorId, language=language)
+
+            table_data.append(table_info)
         
         return table_data
+    
     except Exception as e:
         print(e)
         return []
