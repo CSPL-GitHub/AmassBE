@@ -283,6 +283,8 @@ def login(request):
         username = request.data.get("name")
         password = request.data.get("password")
 
+        language = request.GET.get("language", "en")
+
         user = POSUser.objects.filter(username=username, password=password).first()
 
         if not user:
@@ -309,11 +311,16 @@ def login(request):
                 "vendor_id": 0
             }, status=status.HTTP_400_BAD_REQUEST)
 
+        user_name = user.name
+
+        if language == "ar":
+            user_name = user.name_ar
+        
         return JsonResponse({
             "message": "",
             "user_id": user.pk,
             "token": "",
-            "name": user.name,
+            "name": user_name,
             "email": user.email,
             "vendor_id": vendor_id,
         }, status=status.HTTP_200_OK)

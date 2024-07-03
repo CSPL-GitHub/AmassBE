@@ -13,10 +13,10 @@ admin.site.register(Setting)
 
 @admin.register(POSUser)
 class POSUserAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'username', 'password', 'name', 'phone_number', 'email', 'is_active',)
+    fields = ('vendor', 'username', 'password', 'name', 'name_ar', 'phone_number', 'email', 'is_active',)
     
-    list_display = ('name', 'phone_number', 'is_active', 'vendor',)
+    list_display = ('name', 'name_ar', 'phone_number', 'is_active', 'vendor',)
     list_filter = ('is_active', 'vendor',)
-    search_fields = ('name', 'phone_number', 'email',)
+    search_fields = ('name', 'name_ar', 'phone_number', 'email',)
     ordering = ('vendor', 'name', 'is_active',)
     # show_facets = admin.ShowFacets.ALWAYS
