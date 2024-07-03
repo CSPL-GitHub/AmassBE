@@ -36,12 +36,13 @@ class WaiterSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
-            "mobile",
+            "phone_number",
             "email",
             "username",
             "password",
             "image",
-            "waiterHead",
+            "is_waiter_head",
+            "is_active",
             "vendorId",
         )
 

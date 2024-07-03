@@ -1705,7 +1705,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username="CORE",
         )
 
-        waiter_heads = Waiter.objects.filter(waiterHead=True, vendorId=instance.vendorId.pk)
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
 
         if waiter_heads:
             for head in waiter_heads:
@@ -1734,7 +1734,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             vendorId=instance.vendorId.pk
         )
 
-        waiter_heads = Waiter.objects.filter(waiterHead=True, vendorId=instance.vendorId.pk)
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
 
         if waiter_heads:
             for head in waiter_heads:
@@ -2247,7 +2247,7 @@ def updatePaymentDetails(request):
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
             
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
                 webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(i.pk)+"------"+str(vendorId),username="CORE",)
 

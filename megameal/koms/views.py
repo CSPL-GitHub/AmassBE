@@ -753,7 +753,7 @@ def waiteOrderUpdate(orderid, vendorId):
             for i in waiters:
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i)+"---"+str(vendorId),username="CORE",)
             
-            for i in Waiter.objects.filter(waiterHead=True):
+            for i in Waiter.objects.filter(is_waiter_head=True):
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i.pk)+"---"+str(vendorId),username="CORE",)
         
         for table in listOrder:
@@ -1362,7 +1362,7 @@ def stationdata(id,vendorId):
 
 def waiterdata(id,filter,search,vendorId):
     stationWise={}
-    tableOfWaiter=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+    tableOfWaiter=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
     tableIds=[str(i.pk) for i in tableOfWaiter ]
     date = datetime.today().strftime("20%y-%m-%d")
     

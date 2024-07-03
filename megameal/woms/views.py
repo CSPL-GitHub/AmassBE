@@ -28,7 +28,7 @@ import socket
 #             "name":data.name,
 #             "email":data.email,
 #             "status":data.status,
-#             "waiterHead":data.waiterHead,
+#             "waiterHead":data.is_waiter_head,
 #             "image" :f"http://{server_ip}:8000{data.image.url}",
 #             }
 #         return Response(res)
@@ -83,7 +83,7 @@ def waiter_login(request):
                 "name": waiter.name,
                 "email": waiter.email,
                 "status": waiter.status,
-                "waiterHead": waiter.waiterHead,
+                "waiterHead": waiter.is_waiter_head,
                 "vendorId": waiter.vendorId.pk,
                 "image": f"http://{server_ip}:{port}{waiter.image.url}",
             }
@@ -101,15 +101,32 @@ def waiter_login(request):
  
 @api_view(['GET'])
 def showallWaiterscreen(request):
-    res=[ { 
-           "id":w.pk,
-            "name": w.name,
-            "status": w.status,
-            "image" : w.image.name,
-            "waiterHead":w.waiterHead,
-            "token":w.token,
-                    } for w in Waiter.objects.filter(vendorId=request.GET.get("vendorId")) ] 
-    return JsonResponse({"waiters":res})
+    try:
+        vendor_id = request.GET.get("vendorId")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
+        
+        waiters = Waiter.objects.filter(vendorId=vendor_id)
+        
+        waiter_list = []
+
+        for waiter in waiters:
+            waiter_info = {
+                "id": waiter.pk,
+                "name": waiter.name,
+                "status": waiter.status,
+                "image": waiter.image.name,
+                "waiterHead": waiter.is_waiter_head,
+                "token": waiter.token,
+            }
+
+            waiter_list.append(waiter_info)
+
+        return JsonResponse({"message": "", "waiters": waiter_list}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "waiters": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
  
 def get_total_amount(external_order_id, vendor_id):
@@ -175,7 +192,7 @@ def getTableData(hotelTable,vendorId):
 
 def  gettable(id,vendorId):
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
         data=data.order_by('tableNumber')
         return[ getTableData(i) for i in data ] 
     except Exception as e :
@@ -184,7 +201,7 @@ def  gettable(id,vendorId):
  
 def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
     try:
-        if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).waiterHead:
+        if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
             data = Hotal_Tables.objects.filter(vendorId=vendorId)
             # print(data.count())
         else:
@@ -258,7 +275,7 @@ def assinTableupdate(request):
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(waiterId)+"------"+str(vendorId),username="CORE",)#update table for new waiter
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
         
-        for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
         
         return JsonResponse(res,safe=False)
@@ -308,7 +325,7 @@ def createTables(request):
             print("status ",status )
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(i.pk)+"-----"+str(vendorId),username="CORE",)
             return JsonResponse({"data":tableData.pk})
         else:
@@ -327,7 +344,7 @@ def deleteTables(request):
             res=  getTableData(hotelTable=tableData,vendorId=vendorId)
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(i.pk)+"-----"+str(vendorId),username="CORE",)
             Hotal_Tables.objects.filter(pk=data.get('tableId')).delete()
             return JsonResponse({"data":tableData.pk})
@@ -360,7 +377,7 @@ def Table_update_api(request):
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(updatetable.waiterId.pk if updatetable.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
         
-        for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
 
@@ -585,7 +602,7 @@ def switchOrderTables(request):
 def show_tableCapacity(request, id=0):
     vendorId=request.GET.get("vendorId")
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
         tableCapacity =list(set([ i.tableCapacity for i in data]))
         table = [str(i) for i in tableCapacity]
         return JsonResponse({ "tableCapacity": table}, safe=False)

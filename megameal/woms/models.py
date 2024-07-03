@@ -15,13 +15,13 @@ class Floor(models.Model):
 class Waiter(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
-    name = models.CharField(max_length=100, null=True, blank=True)
-    mobile = models.PositiveBigIntegerField()
-    email = models.CharField(max_length=100, null=True, blank=True)
-    status = models.BooleanField(max_length=100, default=False)
-    image = models.ImageField(max_length=100, null=True, blank=True, upload_to="waiterprofile")
-    waiterHead = models.BooleanField(default=False) 
     token = models.TextField(max_length=100, null=True, blank=True, default='')
+    name = models.CharField(max_length=100, null=True, blank=True)
+    phone_number = models.PositiveBigIntegerField()
+    email = models.CharField(max_length=100, null=True, blank=True)
+    image = models.ImageField(max_length=100, null=True, blank=True, upload_to="waiter")
+    is_waiter_head = models.BooleanField(default=False) 
+    is_active = models.BooleanField(default=False)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
