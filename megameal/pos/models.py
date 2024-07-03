@@ -41,6 +41,9 @@ class POSUser(models.Model):
     is_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+    def __str__(self):
+        return self.name
+
 
 class Banner(models.Model):
     image = models.URLField(max_length=200)
