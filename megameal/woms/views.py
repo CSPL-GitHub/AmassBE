@@ -100,14 +100,14 @@ def waiter_login(request):
  
  
 @api_view(['GET'])
-def showallWaiterscreen(request):
+def get_waiters(request):
     try:
-        vendor_id = request.GET.get("vendorId")
+        vendor_id = request.GET.get("vendor")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
         
-        waiters = Waiter.objects.filter(vendorId=vendor_id)
+        waiters = Waiter.objects.filter(is_active=True, vendorId=vendor_id)
         
         waiter_list = []
 
@@ -115,10 +115,8 @@ def showallWaiterscreen(request):
             waiter_info = {
                 "id": waiter.pk,
                 "name": waiter.name,
-                "status": waiter.status,
                 "image": waiter.image.name,
-                "waiterHead": waiter.is_waiter_head,
-                "token": waiter.token,
+                "is_waiter_head": waiter.is_waiter_head
             }
 
             waiter_list.append(waiter_info)
