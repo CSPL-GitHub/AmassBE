@@ -48,7 +48,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.shortcuts import render, redirect
-from pos.models import PosUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
+from pos.models import POSUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
 from pos.forms import PosUserForm
 from django.conf import settings
 from base64 import b64encode
@@ -283,7 +283,7 @@ def login(request):
         username = request.data.get("name")
         password = request.data.get("password")
 
-        user = PosUser.objects.filter(username=username, password=password).first()
+        user = POSUser.objects.filter(username=username, password=password).first()
 
         if not user:
             return JsonResponse({
@@ -3064,7 +3064,7 @@ def get_pos_user(request):
     page = int(request.GET.get('pageIndex', 1)) # pageIndex variable should not be renamed as it is required for jsGrid plugin
     page_size = int(request.GET.get('pageSize', 10)) # pageSize variable should not be renamed as it is required for jsGrid plugin
 
-    vendors = PosUser.objects.all().order_by('pk')
+    vendors = POSUser.objects.all().order_by('pk')
 
     paginated_data = []
     
@@ -3112,7 +3112,7 @@ def create_pos_user(request):
 
 
 def update_pos_user(request, pos_user_id):
-    pos_user = get_object_or_404(PosUser, id=pos_user_id)
+    pos_user = get_object_or_404(POSUser, id=pos_user_id)
 
     if request.method == "POST":
         form = PosUserForm(request.POST, instance=pos_user)
@@ -3148,7 +3148,7 @@ def update_pos_user(request, pos_user_id):
 def delete_pos_user(request, pos_user_id):
     try:
         if request.method == "POST":
-            pos_user = PosUser.objects.filter(pk=pos_user_id)
+            pos_user = POSUser.objects.filter(pk=pos_user_id)
 
             pos_user.delete()
 

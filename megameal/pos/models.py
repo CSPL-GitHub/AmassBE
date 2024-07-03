@@ -32,10 +32,11 @@ class StoreTiming(models.Model):
     platform = models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
     
 
-class PosUser(models.Model):
+class POSUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     name =  models.CharField(max_length=100)
+    phone_number = models.CharField(max_length=20)
     email = models.EmailField()
     is_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
@@ -79,5 +80,5 @@ class Department(models.Model):
 def deactivate_related_users(sender, instance, **kwargs):
     if not kwargs.get('raw', False):  # To avoid signal firing during bulk operations
         if instance.is_active is False:  # When is_active of Vendor changes to False
-            related_users = PosUser.objects.filter(vendor=instance)
+            related_users = POSUser.objects.filter(vendor=instance)
             related_users.update(is_active=False)
