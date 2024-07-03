@@ -285,16 +285,48 @@ def login(request):
 
         user = PosUser.objects.filter(username=username, password=password).first()
 
+        if not user:
+            return JsonResponse({
+                "message": "User not found",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_id = user.vendor.pk
+
+        platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+
+        if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+            return JsonResponse({
+                "message": "Contact your administrator",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         return JsonResponse({
+            "message": "",
             "user_id": user.pk,
-            "vendorid": user.vendor.pk,
-            "token":"",
-            "name":user.name,
-            "email":user.email,
-            "image":''
-            })
-    except:
-        return JsonResponse({"error":"Not found"}, status=400)   
+            "token": "",
+            "name": user.name,
+            "email": user.email,
+            "vendor_id": vendor_id,
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({
+            "message": str(e),
+            "user_id": 0,
+            "token": "",
+            "name": "",
+            "email": "",
+            "vendor_id": 0
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
 @api_view(['GET'])
