@@ -3,6 +3,13 @@ from .models import *
 
 
 
+admin.site.register(Api_Logs)
+admin.site.register(Vendor_Settings)
+admin.site.register(Core_User)
+admin.site.register(POS_Settings)
+admin.site.register(Product_Tax)
+
+
 @admin.register(VendorType)
 class VendorTypeAdmin(admin.ModelAdmin):
     required_languages = ('en', 'ar')
@@ -31,6 +38,20 @@ class VendorAdmin(admin.ModelAdmin):
         'contact_person_phone_number', 'contact_person_phone_number_ar',
     )
     ordering = ('Name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(Platform)
+class PlatformAdmin(admin.ModelAdmin):
+    fields = (
+        'VendorId', 'Name', 'isActive', 'expiryDate', 'corePlatformType', 'className', 'orderActionType',
+        'baseUrl', 'secreateKey', 'secreatePass', 'APIKey', 'macId', 'pushMenuUrl', 'autoSyncMenu',
+    )
+    
+    list_display = ('Name', 'expiryDate', 'isActive', 'VendorId',)
+    list_filter = ('VendorId', 'Name', 'isActive',)
+    search_fields = ('Name',)
+    ordering = ('VendorId', 'Name', 'isActive',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -127,12 +148,3 @@ class ProductImageAdmin(admin.ModelAdmin):
     search_fields = ('product__productName', 'product__productDesc',)
     ordering = ('vendorId', 'product',)
     # show_facets = admin.ShowFacets.ALWAYS
-
-
-
-admin.site.register(Api_Logs)
-admin.site.register(Vendor_Settings)
-admin.site.register(Platform)
-admin.site.register(Core_User)
-admin.site.register(POS_Settings)
-admin.site.register(Product_Tax)

@@ -306,20 +306,23 @@ class POS_Settings(models.Model):
 
 
 class Platform(models.Model):
-    Name=models.CharField(max_length=122)
-    baseUrl=models.CharField(max_length=122)
-    secreateKey=models.CharField(max_length=122)
-    secreatePass=models.CharField(max_length=122)
-    APIKey=models.CharField(max_length=122)
-    VendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    macId=models.CharField(max_length=122)
-    isActive=models.BooleanField(default=False)
-    expiryDate=models.DateTimeField(auto_now=False)
-    pushMenuUrl=models.URLField(null=True,blank=True)
+    Name = models.CharField(max_length=122, choices=(
+        ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
+        ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
+    ))
     corePlatformType = models.IntegerField(choices=CorePlatform.choices)
-    className=models.CharField(max_length=122)
-    autoSyncMenu=models.BooleanField(default=False)
-    orderActionType=models.IntegerField(choices=OrderAction.choices,blank=True,null=True)
+    className = models.CharField(max_length=122)
+    orderActionType = models.IntegerField(choices=OrderAction.choices, blank=True, null=True)
+    baseUrl = models.CharField(max_length=122, blank=True)
+    secreateKey = models.CharField(max_length=122, blank=True)
+    secreatePass = models.CharField(max_length=122, blank=True)
+    APIKey = models.CharField(max_length=122, blank=True)
+    macId = models.CharField(max_length=122, blank=True)
+    pushMenuUrl = models.URLField(null=True, blank=True)
+    autoSyncMenu = models.BooleanField(default=False)
+    expiryDate = models.DateTimeField(auto_now=False)
+    isActive = models.BooleanField(default=False)
+    VendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
     
     def to_dict(self):
         return {
@@ -339,7 +342,7 @@ class Platform(models.Model):
         }
     
     def __str__(self):
-        return f"{self.Name} ({self.VendorId.pk}, {self.VendorId.Name})"
+        return self.Name
        
        
 class Api_Logs(models.Model):
