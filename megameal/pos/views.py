@@ -285,7 +285,7 @@ def login(request):
 
         language = request.GET.get("language", "en")
 
-        user = POSUser.objects.filter(username=username, password=password).first()
+        user = POSUser.objects.filter(username=username, password=password, is_active=True).first()
 
         if not user:
             return JsonResponse({
