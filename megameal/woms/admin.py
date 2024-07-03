@@ -1,5 +1,5 @@
 from django.contrib import admin
-from woms.models import Waiter, Floor
+from woms.models import Waiter, Floor, HotelTable
 
 
 
@@ -22,4 +22,15 @@ class FloorAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'vendorId',)
     search_fields = ('name', 'name_ar',)
     ordering = ('vendorId', 'name', 'is_active',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(HotelTable)
+class HotelTableAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'floor', 'tableNumber', 'tableCapacity', 'guestCount', 'status', 'waiterId')
+    
+    list_display = ('tableNumber', 'floor', 'tableCapacity', 'vendorId',)
+    list_filter = ('floor', 'tableCapacity', 'status', 'vendorId',)
+    search_fields = ('tableNumber',)
+    ordering = ('vendorId', 'floor', 'tableNumber',)
     # show_facets = admin.ShowFacets.ALWAYS
