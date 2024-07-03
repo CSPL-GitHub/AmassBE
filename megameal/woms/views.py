@@ -123,7 +123,6 @@ def get_waiters(request):
             waiter_info = {
                 "id": waiter.pk,
                 "name": waiter_name,
-                "image": waiter.image.name,
                 "is_waiter_head": waiter.is_waiter_head
             }
 
