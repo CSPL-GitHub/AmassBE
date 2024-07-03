@@ -36,9 +36,9 @@ class POSUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     name =  models.CharField(max_length=100)
-    phone_number = models.CharField(max_length=20)
+    phone_number = models.PositiveBigIntegerField()
     email = models.EmailField()
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     def __str__(self):
