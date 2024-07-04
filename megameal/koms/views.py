@@ -804,7 +804,7 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
             
             webSocketPush(
                 message={"result":table_data, "UPDATE": "UPDATE"},
-                room_name=WOMS + "POS------" + str(vendorId),
+                room_name=WOMS + f"POS------{language}-{str(vendorId)}",
                 username="CORE",
             )
         
