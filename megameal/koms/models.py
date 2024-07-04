@@ -154,7 +154,6 @@ class UserSettings(models.Model):
 
 class OrderStatusName(models.Model):
     orderName = models.CharField(max_length=50)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
 class OrderHistory(models.Model):

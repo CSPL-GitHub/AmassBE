@@ -396,7 +396,7 @@ def orderCount(request):
     requestJson = JSONParser().parse(request)
     start = requestJson.get("start")
     end = requestJson.get("end")
-    order_status = OrderStatusName.objects.filter(vendorId=request.GET.get("vendorId"))
+    order_status = OrderStatusName.objects.all()
     s_date = start + " 00:00:00.000000"
     e_date = end + " 23:59:59.000000"
     total = Order.objects.filter(arrival_time__range=(s_date, e_date),vendorId=request.GET.get("vendorId")).count()
@@ -1200,7 +1200,7 @@ def stationQueueCount(vendorId):
         )
         all_orders = Order.objects.filter(arrival_time__contains=date,vendorId=vendorId).values_list("id")
         stationList = Stations.objects.filter(isStation=True,vendorId=vendorId)
-        statusName = OrderStatusName.objects.filter(vendorId=1)
+        statusName = OrderStatusName.objects.all()
         response = {}
         for station in stationList:
             station_details = {

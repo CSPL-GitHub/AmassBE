@@ -1949,7 +1949,7 @@ def order_details(request):
         return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
 
     koms_order_status_list = []
-    koms_order_status = OrderStatusName.objects.filter(vendorId=1)
+    koms_order_status = OrderStatusName.objects.all()
 
     for status in koms_order_status:
         name = status.orderName.lower()
