@@ -609,9 +609,9 @@ def webSocketPush(message, room_name, username):
   
 
 # from order.models import Order as coreOrder, OrderPayment
-def waiteOrderUpdate(orderid, vendorId):
+def waiteOrderUpdate(orderid, vendorId, language="en"):
     try:
-        data = getOrder(ticketId=orderid,vendorId=vendorId)
+        data = getOrder(ticketId=orderid, language=language, vendorId=vendorId)
 
         listOrder = Order_tables.objects.filter(orderId_id=orderid)
 
@@ -619,13 +619,20 @@ def waiteOrderUpdate(orderid, vendorId):
 
         master_order = coreOrder.objects.filter(Q(externalOrderld=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
-        payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
-
         try:
             payment_type = OrderPayment.objects.filter(orderId=master_order.pk)
             
-            if payment_type:
-                payment_mode = PaymentType.get_payment_str(payment_type.last().type)
+            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            
+            if language == "ar":
+                if payment_mode == "CASH":
+                    payment_mode = "نقدي"
+
+                elif payment_mode == "CARD":
+                    payment_mode = "بطاقة"
+
+                elif payment_mode == "ONLINE":
+                    payment_mode = "متصل"
             
             payment_details ={
                 "total": master_order.TotalAmount,
@@ -641,6 +648,11 @@ def waiteOrderUpdate(orderid, vendorId):
             }
                 
         except Exception as e:
+            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+
+            if language == "ar":
+                payment_mode = "نقدي"
+
             payment_details ={
                 "total":0.0,
                 "subtotal":0.0,
@@ -656,7 +668,7 @@ def waiteOrderUpdate(orderid, vendorId):
 
             print("Error", e)
 
-        data['payment']=payment_details
+        data['payment'] = payment_details
 
         try:
             platform_details = {
@@ -746,18 +758,26 @@ def waiteOrderUpdate(orderid, vendorId):
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i.pk)+"---"+str(vendorId),username="CORE",)
         
         for table in listOrder:
+            waiter_name = ""
+
             hotelTable = HotelTable.objects.get(pk=table.tableId.pk)
 
-            table_data={ 
-                "tableId":hotelTable.pk, 
+            if hotelTable and hotelTable.waiterId:
+                waiter_name = hotelTable.waiterId.name
+
+                if language == "ar":
+                    waiter_name = hotelTable.waiterId.name_ar
+            
+            table_data = { 
+                "tableId": hotelTable.pk, 
                 "tableNumber": hotelTable.tableNumber,
-                "waiterId":hotelTable.waiterId.pk if hotelTable.waiterId else 0,
-                "status":hotelTable.status,
-                "waiterName":hotelTable.waiterId.name if hotelTable.waiterId else "",
-                "tableCapacity":hotelTable.tableCapacity, 
-                "guestCount":hotelTable.guestCount,
-                "floorId":hotelTable.floor.pk,
-                "floorName":hotelTable.floor.name
+                "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
+                "status": hotelTable.status,
+                "waiterName": waiter_name,
+                "tableCapacity": hotelTable.tableCapacity, 
+                "guestCount": hotelTable.guestCount,
+                "floorId": hotelTable.floor.pk,
+                "floorName": hotelTable.floor.name
             }
     
             try:
@@ -788,9 +808,11 @@ def waiteOrderUpdate(orderid, vendorId):
                 username="CORE",
             )
         
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name="POS-------0-"+str(vendorId),username="CORE",)
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name="POS-------1-"+str(vendorId),username="CORE",)
+        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------0-{language}-{str(vendorId)}", username="CORE",)
+        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------1-{language}-{str(vendorId)}", username="CORE",)
+
         webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]),username= "CORE")
+
         webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
         webSocketPush(message=statuscount(vendorId=vendorId),room_name= STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
         webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR,username= "CORE")

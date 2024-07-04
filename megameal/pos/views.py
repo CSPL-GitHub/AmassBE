@@ -2221,6 +2221,7 @@ def updatePaymentDetails(request):
     data = request.data
 
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get('language', 'en')
 
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
@@ -2304,7 +2305,7 @@ def updatePaymentDetails(request):
     # processStation(oldStatus=str(oldStatus),currentStatus=str(orderStatus),orderId=content.orderId.pk,station=content.stationId,vendorId=vendorId)
     allStationWiseRemove(id=order.pk,old=str(oldStatus),current=str(oldStatus),vendorId=vendorId)
     allStationWiseSingle(id=order.pk,vendorId=vendorId)
-    waiteOrderUpdate(orderid=order.pk,vendorId=vendorId)
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
     allStationWiseCategory(vendorId=vendorId) 
 
     return JsonResponse({})
@@ -2316,9 +2317,11 @@ def update_order_koms(request):
 
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
+    language = request.GET.get("language", "en")
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
         return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+    
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
         return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
 
@@ -2540,7 +2543,7 @@ def update_order_koms(request):
             webSocketPush(message={"id": koms_order_id,"orderId": koms_order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendor_id)+'-'+str(old_status_of_order),username="CORE",) 
             allStationWiseRemove(id=koms_order_id, old=str(old_status_of_order), current=str(new_status_of_order), vendorId=vendor_id)
             allStationWiseSingle(id=koms_order_id,vendorId=vendor_id)
-            waiteOrderUpdate(orderid=koms_order_id,vendorId=vendor_id)
+            waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
             allStationWiseCategory(vendorId=vendor_id)
             
             return JsonResponse({"message": "Success"}, status=200)
@@ -5858,6 +5861,7 @@ def redeem_loyalty_points(request):
     customer_id = body_data.get('customer_id')
     external_order_id = body_data.get('external_order_id')
     is_wordpress = body_data.get('is_wordpress')
+    language = body_data.get('language')
 
     if not all((vendor_id, customer_id, external_order_id)):
         return Response("Vendor ID, Customer ID, Order ID or is_wordpress is empty", status=status.HTTP_400_BAD_REQUEST)
@@ -6012,7 +6016,7 @@ def redeem_loyalty_points(request):
 
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
             
-                    waiteOrderUpdate(orderid=koms_order.pk, vendorId=vendor_id) # call socket
+                    waiteOrderUpdate(orderid=koms_order.pk, language=language, vendorId=vendor_id) # call socket
                     
                     return Response("Points redeemed", status=status.HTTP_200_OK)
 
