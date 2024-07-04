@@ -44,7 +44,7 @@ class VendorAdmin(admin.ModelAdmin):
 @admin.register(Platform)
 class PlatformAdmin(admin.ModelAdmin):
     fields = (
-        'VendorId', 'Name', 'isActive', 'expiryDate', 'corePlatformType', 'className', 'orderActionType',
+        'VendorId', 'Name', 'Name_ar', 'isActive', 'expiryDate', 'corePlatformType', 'className', 'orderActionType',
         'baseUrl', 'secreateKey', 'secreatePass', 'APIKey', 'macId', 'pushMenuUrl', 'autoSyncMenu',
     )
     

@@ -306,9 +306,13 @@ class POS_Settings(models.Model):
 
 
 class Platform(models.Model):
-    Name = models.CharField(max_length=122, choices=(
+    Name = models.CharField(max_length=20, choices=(
         ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
         ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
+    ))
+    Name_ar = models.CharField(max_length=100, choices=(
+        ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
+        ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website'),
     ))
     corePlatformType = models.IntegerField(choices=CorePlatform.choices)
     className = models.CharField(max_length=122)

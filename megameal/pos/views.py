@@ -1896,27 +1896,44 @@ def createOrder(request):
 
 @api_view(['GET'])
 def platform_list(request):
-    vendor_id = request.GET.get('vendorId', None)
+    vendor_id = request.GET.get('vendorId')
+    language = request.GET.get('language', 'en')
 
     if vendor_id == None:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
-
-    platforms = Platform.objects.filter(VendorId=vendor_id, isActive=True).exclude(orderActionType=2)
+        return JsonResponse({"error": "Vendor Id cannot be empty"}, safe=False, status=status.HTTP_400_BAD_REQUEST)
 
     platform_details = []
 
-    platform_details.append({
+    if language == "ar":
+        platform_details.append({
+            "id": "",
+            "name": "الجميع"
+        })
+
+    else:
+        platform_details.append({
             "id": "",
             "name": "All"
         })
+    
+    platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
 
-    for platform in platforms:
-        platform_details.append({
-            "id": platform.pk,
-            "name": "order online" if platform.Name == "WooCommerce" else platform.Name
-        })
+    platform_name = ""
+    
+    if platforms:
+        for platform in platforms:
+            if language == "ar":
+                platform_name = platform.Name_ar
 
-    return JsonResponse({'platforms':platform_details}, status=200)
+            else:
+                platform_name = platform.Name
+
+            platform_details.append({
+                "id": platform.pk,
+                "name": platform_name
+            })
+
+    return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 def order_details(request):
