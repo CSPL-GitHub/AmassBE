@@ -19,7 +19,7 @@ from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT,
 from koms.serializers.order_history_serializer import Order_History_serializer
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Stations, Staff, UserSettings,
-    OrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
+    KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
 )
 from django.http.response import JsonResponse
 from rest_framework.parsers import JSONParser
@@ -396,7 +396,7 @@ def orderCount(request):
     requestJson = JSONParser().parse(request)
     start = requestJson.get("start")
     end = requestJson.get("end")
-    order_status = OrderStatus.objects.all()
+    order_status = KOMSOrderStatus.objects.all()
     s_date = start + " 00:00:00.000000"
     e_date = end + " 23:59:59.000000"
     total = Order.objects.filter(arrival_time__range=(s_date, e_date),vendorId=request.GET.get("vendorId")).count()
@@ -1081,7 +1081,7 @@ def assignChef(request):
 def statuscount(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     result = {}
-    for i in OrderStatus.objects.all():
+    for i in KOMSOrderStatus.objects.all():
         result[i.status] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
     return result
 
@@ -1200,7 +1200,7 @@ def stationQueueCount(vendorId):
         )
         all_orders = Order.objects.filter(arrival_time__contains=date,vendorId=vendorId).values_list("id")
         stationList = Stations.objects.filter(isStation=True,vendorId=vendorId)
-        statusName = OrderStatus.objects.all()
+        statusName = KOMSOrderStatus.objects.all()
         response = {}
         for station in stationList:
             station_details = {

@@ -152,7 +152,7 @@ class UserSettings(models.Model):
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
-class OrderStatus(models.Model):
+class KOMSOrderStatus(models.Model):
     status = models.CharField(max_length=50)
 
     def __str__(self):
@@ -161,7 +161,7 @@ class OrderStatus(models.Model):
 
 class OrderHistory(models.Model):
     order_id=models.ForeignKey(Order,on_delete=models.CASCADE)
-    order_status=models.ForeignKey(OrderStatus,on_delete=models.CASCADE)
+    order_status=models.ForeignKey(KOMSOrderStatus,on_delete=models.CASCADE)
     timestamp=models.DateTimeField(auto_now=False)
     delay=models.IntegerField()
     recall=models.IntegerField()
@@ -178,7 +178,7 @@ class massage_history(models.Model):
     massage_type=models.ForeignKey(Message_type, on_delete=models.CASCADE,default=3)
     order_id=models.ForeignKey(Order, on_delete=models.CASCADE)
     recallno=models.IntegerField()
-    status=models.ForeignKey(OrderStatus, on_delete=models.CASCADE)
+    status=models.ForeignKey(KOMSOrderStatus, on_delete=models.CASCADE)
     staffid=models.ForeignKey(Staff, on_delete=models.CASCADE,null=True)
     mgs=models.TextField()
     isdelayed=models.BooleanField(default=False)

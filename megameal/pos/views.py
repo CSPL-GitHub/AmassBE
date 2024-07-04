@@ -26,7 +26,7 @@ from django.db.models import Sum, Value, FloatField, Q, IntegerField, Expression
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
-    Order_tables, Order_content, Order as KOMSOrder, OrderStatus, Order_modifer, Stations, Staff,
+    Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Stations, Staff,
 )
 from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
 from django.utils import timezone
@@ -1949,7 +1949,7 @@ def order_details(request):
         return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
 
     koms_order_status_list = []
-    koms_order_status = OrderStatus.objects.all()
+    koms_order_status = KOMSOrderStatus.objects.all()
 
     for status in koms_order_status:
         name = status.status.lower()
@@ -7091,52 +7091,6 @@ def customers_redeemed_most_points_report(request):
         vendorId=vendor_id,
     )
     
-    # if order_type == "all":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "delivery":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('DELIVERY'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "pickup":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('PICKUP'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-
-    # elif order_type == "dinein":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('DINEIN'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "online":
-    #     if platform:
-    #         orders = Order.objects.filter(
-    #             platform=platform.pk,
-    #             Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #             OrderDate__date__range=(start_date, end_date),
-    #             vendorId=vendor_id
-    #         )
-        
-    #     else:
-    #         return Response("Contact you administrator to activate the platform", status=status.HTTP_400_BAD_REQUEST)
-    
-    # else:
-    #     return Response("Invalid type parameter", status=status.HTTP_400_BAD_REQUEST)
-    
     top_customers = LoyaltyPointsRedeemHistory.objects.filter(
         vendor=vendor_id,
         redeem_datetime__date__range=(start_date, end_date)
@@ -7166,50 +7120,6 @@ def customers_redeemed_most_points_report(request):
                 orderId__master_order__vendorId=vendor_id,
                 orderId__vendorId=vendor_id,
             ).exclude(status=5)
-
-            # if order_type == "all":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-            
-            # elif order_type == "delivery":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DELIVERY'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "pickup":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('PICKUP'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "dinein":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DINEIN'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "online":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__platform=platform.pk,
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
             
             list_of_items = []
 
@@ -7388,50 +7298,6 @@ def customers_redeemed_most_points_report(request):
                 orderId__master_order__vendorId=vendor_id,
                 orderId__vendorId=vendor_id,
             ).exclude(status=5)
-
-            # if order_type == "all":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-            
-            # elif order_type == "delivery":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DELIVERY'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "pickup":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('PICKUP'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "dinein":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DINEIN'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "online":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__platform=platform.pk,
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
 
             top_selling_items = order_items.values('SKU').distinct() \
                                 .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
