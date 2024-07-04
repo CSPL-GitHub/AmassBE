@@ -3,25 +3,83 @@ from .models import *
 
 
 
+admin.site.register(Api_Logs)
+admin.site.register(Vendor_Settings)
+admin.site.register(Core_User)
+admin.site.register(POS_Settings)
+admin.site.register(Product_Tax)
+
+
+@admin.register(VendorType)
+class VendorTypeAdmin(admin.ModelAdmin):
+    required_languages = ('en', 'ar')
+    fields = ('type', 'type_ar')
+    
+    list_display = ('type', 'type_ar')
+    search_fields = ('type', 'type_ar')
+    ordering = ('type',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+@admin.register(Vendor)
+class VendorAdmin(admin.ModelAdmin):
+    required_languages = ('en', 'ar')
+    fields = (
+        'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Password', 'Password_ar', 'address_line_1', 'address_line_1_ar', 'address_line_2', 'address_line_2_ar',
+        'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
+        'gst_number', 'gst_number_ar', 'contact_person_name', 'contact_person_name_ar',
+        'contact_person_phone_number', 'contact_person_phone_number_ar', 'is_active',
+    )
+    
+    list_display = ('id', 'Name', 'Name_ar', 'phone_number', 'Email', 'is_active',)
+    list_filter = ('is_active', 'vendor_type', 'state', 'city', )
+    search_fields = (
+        'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Email',
+        'address_line_1_ar', 'address_line_2', 'address_line_2_ar', 'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
+        'contact_person_phone_number', 'contact_person_phone_number_ar',
+    )
+    ordering = ('Name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(Platform)
+class PlatformAdmin(admin.ModelAdmin):
+    fields = (
+        'VendorId', 'Name', 'Name_ar', 'isActive', 'expiryDate', 'corePlatformType', 'className', 'orderActionType',
+        'baseUrl', 'secreateKey', 'secreatePass', 'APIKey', 'macId', 'pushMenuUrl', 'autoSyncMenu',
+    )
+    
+    list_display = ('Name', 'expiryDate', 'isActive', 'VendorId',)
+    list_filter = ('VendorId', 'Name', 'isActive',)
+    search_fields = ('Name',)
+    ordering = ('VendorId', 'Name', 'isActive',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'categoryStation', 'categoryName', 'categoryPLU', 'categoryDescription', 'categoryImageUrl', 'is_active')
+    fields = (
+        'vendorId', 'categoryStation', 'categoryName', 'categoryName_ar', 'categoryPLU',
+        'categoryDescription', 'categoryDescription_ar', 'categoryImageUrl', 'is_active'
+    )
     
-    list_display = ('categoryName', 'categoryStation', 'is_active', 'vendorId',)
+    list_display = ('categoryName', 'categoryName_ar','categoryStation', 'is_active', 'vendorId',)
     list_filter = ('is_active', 'vendorId',)
     list_select_related = ('categoryStation', 'vendorId',)
-    search_fields = ('categoryName', 'categoryStation__station_name', 'categoryDescription',)
+    search_fields = ('categoryName', 'categoryName_ar', 'categoryStation__station_name', 'categoryDescription', 'categoryDescription_ar',)
     ordering = ('vendorId', 'categoryName', 'categoryStation',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'productName', 'PLU', 'productDesc', 'productPrice', 'tag', 'preparationTime', 'active', 'is_displayed_online')
+    fields = (
+        'vendorId', 'productName', 'productName_ar', 'PLU', 'productDesc', 'productDesc_ar',
+        'productPrice', 'tag', 'tag_ar', 'preparationTime', 'active', 'is_displayed_online'
+    )
     
-    list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)
+    list_display = ('productName', 'productName_ar', 'productPrice', 'tag', 'active', 'vendorId',)
     list_filter = ('active', 'tag', 'is_displayed_online', 'vendorId',)
-    search_fields = ('productName', 'productDesc',)
+    search_fields = ('productName', 'productName_ar', 'productDesc', 'productDesc_ar',)
     ordering = ('vendorId', 'productName',)
     # show_facets = admin.ShowFacets.ALWAYS
 
@@ -39,22 +97,22 @@ class ProductCategoryJointAdmin(admin.ModelAdmin):
 
 @admin.register(ProductModifierGroup)
 class ProductModifierGroupAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'name', 'PLU', 'modifier_group_description', 'min', 'max', 'active')
+    fields = ('vendorId', 'name', 'name_ar', 'PLU', 'modifier_group_description', 'modifier_group_description_ar', 'min', 'max', 'active')
     
-    list_display = ('name', 'min', 'max', 'active', 'vendorId',)
+    list_display = ('name', 'name_ar', 'min', 'max', 'active', 'vendorId',)
     list_filter = ('active', 'vendorId',)
-    search_fields = ('name', 'modifier_group_description',)
+    search_fields = ('name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',)
     ordering = ('vendorId', 'name', 'min', 'max',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(ProductModifier)
 class ProductModifierAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'modifierName', 'modifierPLU', 'modifierDesc', 'modifierImg', 'modifierPrice', 'active')
+    fields = ('vendorId', 'modifierName', 'modifierName_ar', 'modifierPLU', 'modifierDesc', 'modifierDesc_ar', 'modifierImg', 'modifierPrice', 'active')
     
-    list_display = ('modifierName', 'modifierPrice', 'active', 'vendorId',)
+    list_display = ('modifierName', 'modifierName_ar', 'modifierPrice', 'active', 'vendorId',)
     list_filter = ('active', 'vendorId',)
-    search_fields = ('modifierName', 'modifierDesc',)
+    search_fields = ('modifierName', 'modifierName_ar', 'modifierDesc', 'modifierDesc_ar',)
     ordering = ('vendorId', 'modifierName', 'modifierPrice',)
     # show_facets = admin.ShowFacets.ALWAYS
 
@@ -90,14 +148,3 @@ class ProductImageAdmin(admin.ModelAdmin):
     search_fields = ('product__productName', 'product__productDesc',)
     ordering = ('vendorId', 'product',)
     # show_facets = admin.ShowFacets.ALWAYS
-
-
-
-admin.site.register(Api_Logs)
-admin.site.register(Vendor_Settings)
-admin.site.register(Platform)
-admin.site.register(Vendor)
-admin.site.register(VendorType)
-admin.site.register(Core_User)
-admin.site.register(POS_Settings)
-admin.site.register(Product_Tax)

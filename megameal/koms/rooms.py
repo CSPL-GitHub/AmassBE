@@ -4,12 +4,12 @@ from datetime import datetime
 
 from asgiref.sync import async_to_sync
 
-from koms.models import Stations
+from koms.models import Station
 import socket
 
 class Rooms:
     def connect(self):
-        stationList = Stations.objects.filter().all()#TODO addVendor
+        stationList = Station.objects.filter().all()#TODO addVendor
         for station in stationList:
             station.station_name
             WebSocket(

@@ -5,5 +5,5 @@ from .models import *
 
 class Hotal_Tables_serializers(serializers.ModelSerializer):
     class Meta:
-         model =  Hotal_Tables
+         model =  HotelTable
          fields = "__all__"

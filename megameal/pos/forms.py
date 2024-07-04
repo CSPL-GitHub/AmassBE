@@ -1,8 +1,8 @@
 from django import forms
-from pos.models import PosUser
+from pos.models import POSUser
 
 
 class PosUserForm(forms.ModelForm):
     class Meta:
-        model = PosUser
+        model = POSUser
         fields = "__all__"

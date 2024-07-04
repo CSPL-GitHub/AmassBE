@@ -892,7 +892,7 @@ class StagingIntegration(AbstractPOSIntegration):
             # +++++++
 
             # ++++++ Discounts
-            platform = POS_Settings.objects.get(VendorId=vendorId)
+            # platform = POS_Settings.objects.get(VendorId=vendorId)
             if data.get("discount"):
                 try:
                     discount = Order_Discount.objects.get(vendorId=vendorId, discountCode=data["discount"].get("discountCode"))

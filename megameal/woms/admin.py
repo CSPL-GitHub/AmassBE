@@ -1,8 +1,36 @@
 from django.contrib import admin
-from .models import *
-# Register your models here.
+from woms.models import Waiter, Floor, HotelTable
 
 
-admin.site.register(Waiter)
-admin.site.register(Hotal_Tables)
-admin.site.register(Floor)
+
+@admin.register(Waiter)
+class WaiterAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'name', 'name_ar', 'username', 'password', 'phone_number', 'email', 'image', 'is_waiter_head', 'is_active',)
+    
+    list_display = ('name', 'name_ar', 'phone_number', 'is_active', 'vendorId',)
+    list_filter = ('is_active', 'vendorId',)
+    search_fields = ('name', 'name_ar', 'phone_number', 'email', 'username',)
+    ordering = ('vendorId', 'name', 'is_active',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(Floor)
+class FloorAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'name', 'name_ar', 'is_active',)
+    
+    list_display = ('name', 'name_ar', 'is_active', 'vendorId',)
+    list_filter = ('is_active', 'vendorId',)
+    search_fields = ('name', 'name_ar',)
+    ordering = ('vendorId', 'name', 'is_active',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(HotelTable)
+class HotelTableAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'floor', 'tableNumber', 'tableCapacity', 'guestCount', 'status', 'waiterId')
+    
+    list_display = ('tableNumber', 'floor', 'tableCapacity', 'vendorId',)
+    list_filter = ('floor', 'tableCapacity', 'status', 'vendorId',)
+    search_fields = ('tableNumber',)
+    ordering = ('vendorId', 'floor', 'tableNumber',)
+    # show_facets = admin.ShowFacets.ALWAYS

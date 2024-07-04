@@ -1,5 +1,5 @@
 from rest_framework.authentication import TokenAuthentication
-from koms.models import Stations
+from koms.models import Station
 from rest_framework import HTTP_HEADER_ENCODING, exceptions
 
 class UserAuthentication(TokenAuthentication):
@@ -9,8 +9,8 @@ class UserAuthentication(TokenAuthentication):
         if not secret_token:
             return None
         try:
-            ua = Stations.objects.get(key=secret_token)
-        except Stations.DoesNotExist:
+            ua = Station.objects.get(key=secret_token)
+        except Station.DoesNotExist:
             print('fail')
-            ua = Stations.objects.all().first()#TODO addVendor
+            ua = Station.objects.all().first()#TODO addVendor
         return (ua, None)

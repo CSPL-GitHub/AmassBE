@@ -12,7 +12,7 @@ import copy
 
 
 class OrderHelper():
-    def openOrder(data,vendorId):
+    def openOrder(data, vendorId):
         # +++++ response template
         coreResponse = {
             API_Messages.STATUS: API_Messages.ERROR,
@@ -21,13 +21,6 @@ class OrderHelper():
         print(data)
         order=copy.deepcopy(data)
         try:
-            # ++++ pick all the channels of vendor
-            try:
-                platform = POS_Settings.objects.get(VendorId=vendorId)
-            except POS_Settings.DoesNotExist:
-                coreResponse["msg"] = "POS settings not found"
-                return coreResponse,200
-
             # ++++++---- Stage The Order
             # stagingPos = StagingIntegration()
             with transaction.atomic():
@@ -35,13 +28,7 @@ class OrderHelper():
                 print("stageOrder  ",order)
                 data["master_id"] = order["master_id"]
                 if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-                    posService = globals()[platform.className]
-                    # posResponse = posService.openOrder(data)
-                    # print("posResponse   ",posResponse)
-                    # if posResponse[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-                    #     posResponse["response"]["core"] = stageOrder["response"]
-                    for reciver in Platform.objects.filter(isActive=True,orderActionType=OrderAction.get_order_action_value("RECIEVE")): # type: ignore
-                        print("reciver.Name",reciver.Name)
+                    for reciver in Platform.objects.filter(isActive=True, orderActionType=OrderAction.get_order_action_value("RECIEVE")):
                         if data.get('orderPointName') == 'WOOCOMMERCE':
                             data = KomsEcom().startOrderThread(order)
                         else:

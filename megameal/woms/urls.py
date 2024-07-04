@@ -8,7 +8,7 @@ urlpatterns = [
    path('table/',views.showtabledetals), # show tables details
    path('assingwaiter/',views.assinTableupdate), # assign tables details
    path('onbording/',views.womsonbordingscreen), # onborading tables details
-   path('getwaiter/',views.showallWaiterscreen), # onborading tables detail 
+   path('getwaiter/', views.get_waiters),
    path('createTables/',views.createTables), # onborading tables detail 
    path('deleteTables/',views.deleteTables), # onborading tables detail 
    path('tableUpdate/',views.Table_update_api), # tableupdate  tables detail 

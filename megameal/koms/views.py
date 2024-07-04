@@ -1,7 +1,7 @@
 from order import order_helper
 from core.utils import API_Messages, PaymentType, UpdatePoint, OrderType
 from core.models import Product, ProductImage,Platform,ProductModifier,Product_Tax,ProductModifierGroup,ProductCategory
-from woms.models import Hotal_Tables, Waiter
+from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view
@@ -18,8 +18,8 @@ from koms.serializers.staff_serializer import (StaffReaderSerializer,StaffWriter
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
 from koms.serializers.order_history_serializer import Order_History_serializer
 from .models import (
-    Order_point, Order, Order_content, Order_modifer, Order_tables, Stations, Staff, UserSettings,
-    OrderStatusName, Content_assign, OrderHistory, massage_history, Message_type,
+    Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
+    KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
 )
 from django.http.response import JsonResponse
 from rest_framework.parsers import JSONParser
@@ -111,7 +111,7 @@ class TestingViewSet(viewsets.ModelViewSet):
 class StationsView(APIView):
     # 1. List all
     def get(self,request, *args, **kwargs):
-        stationList = Stations.objects.filter(isStation=True,vendorId=request.GET.get("vendorId")).all()
+        stationList = Station.objects.filter(isStation=True,vendorId=request.GET.get("vendorId")).all()
         serializers = StationsReadSerializer(stationList, many=True)
         return JsonResponse(serializers.data, safe=False)
 
@@ -142,8 +142,8 @@ class StationsView(APIView):
 class StationsDetailView(APIView):
     def get_object(self,stationId,vendorId):
         try:
-            return Stations.objects.get(id=stationId,vendorId=vendorId)
-        except Stations.DoesNotExist:
+            return Station.objects.get(id=stationId,vendorId=vendorId)
+        except Station.DoesNotExist:
             return None
 
     # 3. Retrieve
@@ -370,7 +370,7 @@ def stationOrder(request):
         vendorId=vendor_id
     ).values_list("id", flat=True)
 
-    stations = Stations.objects.filter(isStation=True, vendorId=vendor_id)
+    stations = Station.objects.filter(isStation=True, vendorId=vendor_id)
 
     response = []
 
@@ -396,7 +396,7 @@ def orderCount(request):
     requestJson = JSONParser().parse(request)
     start = requestJson.get("start")
     end = requestJson.get("end")
-    order_status = OrderStatusName.objects.filter(vendorId=request.GET.get("vendorId"))
+    order_status = KOMSOrderStatus.objects.all()
     s_date = start + " 00:00:00.000000"
     e_date = end + " 23:59:59.000000"
     total = Order.objects.filter(arrival_time__range=(s_date, e_date),vendorId=request.GET.get("vendorId")).count()
@@ -405,7 +405,7 @@ def orderCount(request):
         for orderStatus in order_status:
             data = {
                 "status": orderStatus.id,
-                "name": orderStatus.orderName,
+                "name": orderStatus.status,
                 "count": Order.objects.filter(Q(order_status=orderStatus.id) & Q(arrival_time__range=(s_date, e_date)) & Q(vendorId=request.GET.get("vendorId"))
                 ).count(),
             }
@@ -509,17 +509,6 @@ def createOrderInKomsAndWoms(orderJson):
             return  {
                 API_Messages.STATUS:API_Messages.ERROR,
                 API_Messages.RESPONSE: order_serializers.errors}
-            
-        orderhist = {}
-        orderhist["order_id"] = order_save_data.id
-        orderhist["timestamp"] = order_save_data.arrival_time
-        orderhist["order_status"] = order_save_data.order_status
-        orderhist["delay"] = 0
-        orderhist["recall"] = 0
-        orderhist["vendorId"]=vendorId
-        orderhist_serializer = Order_History_serializer(data=orderhist, partial=True)
-        if orderhist_serializer.is_valid():
-            od = orderhist_serializer.save()
 
         #  product section
         for key, value in order_data["items"].items():
@@ -535,14 +524,14 @@ def createOrderInKomsAndWoms(orderJson):
                     if category.categoryStation is not None:
                         singleProduct["stationId"] = category.categoryStation.pk
                         singleProduct["stationName"] = category.categoryStation.station_name
-                # singleProduct["stationName"] = Stations.objects.get(
+                # singleProduct["stationName"] = Station.objects.get(
                 #     pk=singleProduct["tag"],
                 #     vendorId=order_data["vendorId"]
                 # ).station_name
                 singleProduct["chefId"] = 0
                 singleProduct["note"] = singleProduct["itemRemark"]
                 singleProduct["SKU"] = singleProduct["plu"]
-                singleProduct["status"] = 1 if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive else 8 # pending order
+                singleProduct["status"] = '1' if Platform.objects.filter(Name="KOMS", VendorId= vendorId).first().isActive else '8' # pending order
                 singleProduct["categoryName"] = key
                 single_product_serializer = Order_content_serializer(
                     data=singleProduct, partial=True
@@ -585,7 +574,7 @@ def createOrderInKomsAndWoms(orderJson):
         except Order_tables.DoesNotExist:
             print("Order table not found")
             values_list=""
-        wheelman=[i.pk for i in Stations.objects.filter(isStation=False,vendorId=vendorId) ]
+        wheelman=[i.pk for i in Station.objects.filter(isStation=False,vendorId=vendorId) ]
         if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive :
                 webSocketPush(message=order_data, room_name=str(vendorId)+"-"+str(PENDINGINT), username="CORE")  # wheelMan Pending section
                 notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } on Table No {values_list} is arrived",stn=[4],vendorId=vendorId)
@@ -620,9 +609,9 @@ def webSocketPush(message, room_name, username):
   
 
 # from order.models import Order as coreOrder, OrderPayment
-def waiteOrderUpdate(orderid, vendorId):
+def waiteOrderUpdate(orderid, vendorId, language="en"):
     try:
-        data = getOrder(ticketId=orderid,vendorId=vendorId)
+        data = getOrder(ticketId=orderid, language=language, vendorId=vendorId)
 
         listOrder = Order_tables.objects.filter(orderId_id=orderid)
 
@@ -630,13 +619,20 @@ def waiteOrderUpdate(orderid, vendorId):
 
         master_order = coreOrder.objects.filter(Q(externalOrderld=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
-        payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
-
         try:
             payment_type = OrderPayment.objects.filter(orderId=master_order.pk)
             
-            if payment_type:
-                payment_mode = PaymentType.get_payment_str(payment_type.last().type)
+            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            
+            if language == "ar":
+                if payment_mode == "CASH":
+                    payment_mode = "نقدي"
+
+                elif payment_mode == "CARD":
+                    payment_mode = "بطاقة"
+
+                elif payment_mode == "ONLINE":
+                    payment_mode = "متصل"
             
             payment_details ={
                 "total": master_order.TotalAmount,
@@ -652,6 +648,11 @@ def waiteOrderUpdate(orderid, vendorId):
             }
                 
         except Exception as e:
+            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+
+            if language == "ar":
+                payment_mode = "نقدي"
+
             payment_details ={
                 "total":0.0,
                 "subtotal":0.0,
@@ -667,7 +668,7 @@ def waiteOrderUpdate(orderid, vendorId):
 
             print("Error", e)
 
-        data['payment']=payment_details
+        data['payment'] = payment_details
 
         try:
             platform_details = {
@@ -753,22 +754,30 @@ def waiteOrderUpdate(orderid, vendorId):
             for i in waiters:
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i)+"---"+str(vendorId),username="CORE",)
             
-            for i in Waiter.objects.filter(waiterHead=True):
+            for i in Waiter.objects.filter(is_waiter_head=True):
                 webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i.pk)+"---"+str(vendorId),username="CORE",)
         
         for table in listOrder:
-            hotelTable = Hotal_Tables.objects.get(pk=table.tableId.pk)
+            waiter_name = ""
 
-            table_data={ 
-                "tableId":hotelTable.pk, 
+            hotelTable = HotelTable.objects.get(pk=table.tableId.pk)
+
+            if hotelTable and hotelTable.waiterId:
+                waiter_name = hotelTable.waiterId.name
+
+                if language == "ar":
+                    waiter_name = hotelTable.waiterId.name_ar
+            
+            table_data = { 
+                "tableId": hotelTable.pk, 
                 "tableNumber": hotelTable.tableNumber,
-                "waiterId":hotelTable.waiterId.pk if hotelTable.waiterId else 0,
-                "status":hotelTable.status,
-                "waiterName":hotelTable.waiterId.name if hotelTable.waiterId else "",
-                "tableCapacity":hotelTable.tableCapacity, 
-                "guestCount":hotelTable.guestCount,
-                "floorId":hotelTable.floor.pk,
-                "floorName":hotelTable.floor.name
+                "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
+                "status": hotelTable.status,
+                "waiterName": waiter_name,
+                "tableCapacity": hotelTable.tableCapacity, 
+                "guestCount": hotelTable.guestCount,
+                "floorId": hotelTable.floor.pk,
+                "floorName": hotelTable.floor.name
             }
     
             try:
@@ -795,13 +804,15 @@ def waiteOrderUpdate(orderid, vendorId):
             
             webSocketPush(
                 message={"result":table_data, "UPDATE": "UPDATE"},
-                room_name=WOMS + "POS------" + str(vendorId),
+                room_name=WOMS + f"POS------{language}-{str(vendorId)}",
                 username="CORE",
             )
         
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name="POS-------0-"+str(vendorId),username="CORE",)
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name="POS-------1-"+str(vendorId),username="CORE",)
+        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------0-{language}-{str(vendorId)}", username="CORE",)
+        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------1-{language}-{str(vendorId)}", username="CORE",)
+
         webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]),username= "CORE")
+
         webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
         webSocketPush(message=statuscount(vendorId=vendorId),room_name= STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
         webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR,username= "CORE")
@@ -1092,28 +1103,31 @@ def assignChef(request):
 def statuscount(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     result = {}
-    for i in OrderStatusName.objects.all():
-        result[i.orderName] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
+    for i in KOMSOrderStatus.objects.all():
+        result[i.status] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
     return result
 
 
-def getOrder(ticketId,vendorId):
+def getOrder(ticketId, vendorId, language="en"):
     try:
         singleOrder = Order.objects.get(pk=ticketId,vendorId=vendorId)
+    
     except:
         singleOrder = Order.objects.filter(pk=ticketId,vendorId=vendorId).first()
+
     mapOfSingleOrder = {}
+
     mapOfSingleOrder["id"] = singleOrder.pk
     mapOfSingleOrder["orderId"] = singleOrder.externalOrderId
     mapOfSingleOrder["master_order_id"] = singleOrder.master_order.pk
     mapOfSingleOrder["orderType"] = singleOrder.order_type
+
     pickupTime = singleOrder.pickupTime
+
     if pickupTime == singleOrder.arrival_time:
         pickupTime += timedelta(minutes=30)
+
     mapOfSingleOrder["pickupTime"] =  pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
-    # mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.strftime(
-    #     "20%y-%m-%dT%H:%M:%S"
-    # )
     mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["deliveryIsAsap"] = singleOrder.deliveryIsAsap
@@ -1123,84 +1137,121 @@ def getOrder(ticketId,vendorId):
     mapOfSingleOrder["status"] = singleOrder.order_status
     mapOfSingleOrder["guest"] = singleOrder.guest
     mapOfSingleOrder["server"] = singleOrder.server
+
     try:
-            orderTables=Order_tables.objects.filter(
-                orderId_id=singleOrder.pk
-            )
-            listOfTableNumber=" "
-            listOfTableIds=[]
-            for orderTable in orderTables:
-                listOfTableNumber+=str(orderTable.tableId.tableNumber)+","
-                listOfTableIds.append(orderTable.tableId.pk)
-            mapOfSingleOrder["tableIds"] = listOfTableIds
-            mapOfSingleOrder["tableNo"]=listOfTableNumber[:-1]
+        orderTables = Order_tables.objects.filter(orderId_id=singleOrder.pk)
+
+        listOfTableNumber = " "
+
+        listOfTableIds = []
+
+        for orderTable in orderTables:
+            listOfTableNumber += str(orderTable.tableId.tableNumber) + ","
+            listOfTableIds.append(orderTable.tableId.pk)
+
+        mapOfSingleOrder["tableIds"] = listOfTableIds
+        mapOfSingleOrder["tableNo"] = listOfTableNumber[:-1]
+
     except Order_tables.DoesNotExist:
             print("Order table not found")
             mapOfSingleOrder["tableIds"] = []
-            mapOfSingleOrder["tableNo"]=""
+            mapOfSingleOrder["tableNo"] = ""
 
-    mapOfSingleOrder["tableId"] = 1#Hotal_Tables.objects.filter(tableNumber=singleOrder.tableNo).first().pk
+    mapOfSingleOrder["tableId"] = 1#HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
     mapOfSingleOrder["isHigh"] = singleOrder.isHigh
 
-    orderContentList = Order_content.objects.filter(orderId=singleOrder.pk).order_by('-pk') 
+    orderContentList = Order_content.objects.filter(orderId=singleOrder.pk).order_by('-pk')
+
     items = {}
+
     for singleContent in orderContentList:
         mapOfSingleContent = {}
+
+        product_name = singleContent.name
+        station_name = singleContent.stationId.station_name
+
+        if language == "ar":
+            product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
+            station_instance = Station.objects.filter(pk=singleContent.stationId.pk, vendorId=vendorId).first()
+            
+            product_name = product_instance.productName_ar
+            station_name = singleContent.stationId.station_name_ar
+
         mapOfSingleContent["id"] = singleContent.pk
         mapOfSingleContent["plu"] = singleContent.SKU
-        mapOfSingleContent["name"] = singleContent.name
+        mapOfSingleContent["name"] = product_name
         mapOfSingleContent["quantity"] = singleContent.quantity
         mapOfSingleContent["status"] = singleContent.status
         mapOfSingleContent["stationId"] = singleContent.stationId.pk
-        mapOfSingleContent["stationName"] = singleContent.stationId.station_name
+        mapOfSingleContent["stationName"] = station_name
         mapOfSingleContent["isRecall"] = singleContent.isrecall
         mapOfSingleContent["isEdited"] = singleContent.isEdited
+
         try:
             mapOfSingleContent["image"] = ProductImage.objects.filter(product=Product.objects.get(PLU=singleContent.SKU,vendorId=vendorId).pk).first().url
+        
         except:
-            mapOfSingleContent["image"]=''
+            mapOfSingleContent["image"] = ''
         
         try:
-            mapOfSingleContent["price"]=Product.objects.filter(PLU=singleContent.SKU,vendorId=vendorId).last().productPrice
+            mapOfSingleContent["price"] = Product.objects.filter(PLU=singleContent.SKU,vendorId=vendorId).last().productPrice
+        
         except Exception as e:
-            mapOfSingleContent["price"]=0
+            mapOfSingleContent["price"] = 0
+        
         try:
             conAssign = Content_assign.objects.get(contentID=singleContent.pk)
             mapOfSingleContent["chefId"] = conAssign.staffId.pk
             mapOfSingleContent["assignedChef"] = conAssign.staffId.last_name
+        
         except Content_assign.DoesNotExist:
             mapOfSingleContent["chefId"] = 0
 
         mapOfSingleContent["quantityStatus"] = singleContent.quantityStatus
         mapOfSingleContent["itemRemark"] = singleContent.note if singleContent.note and singleContent.note!="" and singleContent.note is not None  else "NONE"
 
-        orderContentModifierList = Order_modifer.objects.filter(
-            contentID=singleContent.pk,
-            status="1"
-        )
+        orderContentModifierList = Order_modifer.objects.filter(contentID=singleContent.pk, status="1")
+
         modList = []
+
         for singleContentModifier in orderContentModifierList:
-            if singleContentModifier.quantity>0 :
+            if singleContentModifier.quantity > 0 :
                 mapOfSingleModifier = {}
+
+                modifier_name = singleContentModifier.name
+
+                if language == "ar":
+                    modifier_instance = ProductModifier.objects.filter(
+                        modifierPLU=singleContentModifier.SKU, vendorId=vendorId
+                    ).first()
+
+                    modifier_name = modifier_instance.modifierName_ar
+
                 mapOfSingleModifier["id"] = singleContentModifier.pk
                 mapOfSingleModifier["plu"] = singleContentModifier.SKU
-                mapOfSingleModifier["name"] = singleContentModifier.name
+                mapOfSingleModifier["name"] = modifier_name
                 mapOfSingleModifier["quantityStatus"] = singleContentModifier.quantityStatus
                 mapOfSingleModifier["quantity"] = singleContentModifier.quantity
+
                 try:
-                    mapOfSingleModifier["price"]=ProductModifier.objects.filter(modifierPLU=singleContentModifier.SKU,vendorId=vendorId).last().modifierPrice
+                    mapOfSingleModifier["price"] = ProductModifier.objects.filter(modifierPLU=singleContentModifier.SKU,vendorId=vendorId).last().modifierPrice
+                
                 except:
-                    mapOfSingleModifier["price"]=0
+                    mapOfSingleModifier["price"] = 0
+
                 modList.append(mapOfSingleModifier)
+
         mapOfSingleContent["subItems"] = modList
 
         if singleContent.categoryName in items.keys():
             alreayList = items[singleContent.categoryName]
             alreayList.append(mapOfSingleContent)
+        
         else:
             items[singleContent.categoryName] = [mapOfSingleContent]
 
     mapOfSingleOrder["items"] = items
+
     return mapOfSingleOrder
 
 
@@ -1210,8 +1261,8 @@ def stationQueueCount(vendorId):
             "20%y-%m-%d"
         )
         all_orders = Order.objects.filter(arrival_time__contains=date,vendorId=vendorId).values_list("id")
-        stationList = Stations.objects.filter(isStation=True,vendorId=vendorId)
-        statusName = OrderStatusName.objects.filter(vendorId=1)
+        stationList = Station.objects.filter(isStation=True,vendorId=vendorId)
+        statusName = KOMSOrderStatus.objects.all()
         response = {}
         for station in stationList:
             station_details = {
@@ -1223,7 +1274,7 @@ def stationQueueCount(vendorId):
                 test = Order_content.objects.filter(
                     orderId__in=all_orders, stationId=station.pk, status=singleStatus.pk
                 )
-                station_details[singleStatus.orderName] = len(test)
+                station_details[singleStatus.status] = len(test)
                 response[station.station_name] = station_details
         return response
     except:
@@ -1270,7 +1321,7 @@ def CategoryWise(vendorId):
 
 
 def allStationWiseCategory(vendorId):
-    stationList = Stations.objects.filter(vendorId=vendorId)
+    stationList = Station.objects.filter(vendorId=vendorId)
     for station in stationList:
         webSocketPush(
             message=stationCategoryWise(id=station.pk,vendorId=vendorId),room_name= STATIONSIDEBAR + str(station.pk),username= "CORE"
@@ -1362,7 +1413,7 @@ def stationdata(id,vendorId):
 
 def waiterdata(id,filter,search,vendorId):
     stationWise={}
-    tableOfWaiter=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+    tableOfWaiter=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
     tableIds=[str(i.pk) for i in tableOfWaiter ]
     date = datetime.today().strftime("20%y-%m-%d")
     
@@ -1374,7 +1425,7 @@ def waiterdata(id,filter,search,vendorId):
     data=data if filter == 'All' else  data.filter(order_status=filter) if filter!="7" else data.filter(isHigh=True)
     orderId=[]
     if search!='All':
-        orderId=Order_tables.objects.filter(tableId__in=Hotal_Tables.objects.filter(tableNumber=search,vendorId=vendorId).values_list('pk', flat=True)).values_list('orderId', flat=True)
+        orderId=Order_tables.objects.filter(tableId__in=HotelTable.objects.filter(tableNumber=search,vendorId=vendorId).values_list('pk', flat=True)).values_list('orderId', flat=True)
     data=data if search == 'All' else data.filter(id__in=orderId) #tableNumber__contains=str(search)
     print("Content count , ", Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).count())
     for single_content in Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).order_by("-orderId"):
@@ -1392,7 +1443,7 @@ def processStation(oldStatus,currentStatus,orderId,station,vendorId):
 
     ##++++ Update order to all station
     
-    for station in Stations.objects.filter(vendorId=vendorId):#TODO temp id added
+    for station in Station.objects.filter(vendorId=vendorId):#TODO temp id added
             orderContents=Order_content.objects.filter(stationId=station,orderId=singleOrder)
             if orderContents:
                 totalContentsCount=orderContents.count()
@@ -1440,14 +1491,14 @@ def removeFromInqueueAndInsertInProcessing(id,old,current,stn):
 
 
 def allStationWiseData(vendorId):
-    for i in Stations.objects.filter(vendorId=vendorId):
+    for i in Station.objects.filter(vendorId=vendorId):
         webSocketPush(message=stationdata(i.pk),room_name= STATION+str(i.pk),username= "CORE") 
         
         
 def allStationWiseSingle(id,vendorId):
     ####+++++++
         singleOrder= Order.objects.get(pk=id)
-        for station in Stations.objects.filter(vendorId=vendorId):
+        for station in Station.objects.filter(vendorId=vendorId):
             orderContents=Order_content.objects.filter(stationId=station,orderId=singleOrder)
             if orderContents:
                 totalContentsCount=orderContents.count()
@@ -1473,7 +1524,7 @@ def allStationWiseSingle(id,vendorId):
 
     ###++++++++
 
-    # for i in Stations.objects.filter(vendorId=vendorId):
+    # for i in Station.objects.filter(vendorId=vendorId):
     #     mapOfSingleOrder = getOrder(ticketId=id,vendorId=vendorId)
     #     data= dict(sorted(mapOfSingleOrder['items'].items(), key=lambda x: x[1][0]["stationId"] != int(i.pk)))
     #     mapOfSingleOrder['items']=data
@@ -1481,7 +1532,7 @@ def allStationWiseSingle(id,vendorId):
 
 
 def allStationWiseRemove(id,old,current,vendorId):  
-    for i in Stations.objects.filter(vendorId=vendorId):
+    for i in Station.objects.filter(vendorId=vendorId):
         webSocketPush(message={"oldStatus": old,"newStatus": current,"id": id,"orderId": Order.objects.get(pk=id).externalOrderId,"UPDATE": "REMOVE",},room_name=STATION+str(i.pk),username="CORE",)
         print("oldStatus : ", old,"newStatus : " ,current,"id : ", id,"orderId : ", Order.objects.get(pk=id).externalOrderId,)
 
@@ -1522,7 +1573,7 @@ def total_order_history_by_stations(request):
         o = Order_content.objects.filter(orderId=i.pk).count()
         order += o
         stationchart["total"] = order
-    for x in Stations.objects.filter(isStation=1,vendorId=request.GET.get('vendorId')):
+    for x in Station.objects.filter(isStation=1,vendorId=request.GET.get('vendorId')):
         content = 0
         for i in Order.objects.filter(vendorId=request.GET.get("vendorId")):
             count = Order_content.objects.filter(
@@ -1580,7 +1631,7 @@ def total_order_by_stations_and_date(request, start, end):
         o = Order_content.objects.filter(orderId=i.pk).count()
         order += o
         stationchart["total"] = order
-    for x in Stations.objects.filter(isStation=1,vendorId=request.GET.get('vendorId')):
+    for x in Station.objects.filter(isStation=1,vendorId=request.GET.get('vendorId')):
         content = 0
         for i in Order.objects.filter(arrival_time__range=(s_date, e_date),vendorId=request.GET.get("vendorId")):
             count = Order_content.objects.filter(
@@ -1659,7 +1710,7 @@ def chart_api(request, start_date, end_date):
         for i in total_orders:
             order = order + Order_content.objects.filter(orderId=i.pk).count()
         
-        for x in Stations.objects.filter(isStation=1, vendorId=vendor_id):
+        for x in Station.objects.filter(isStation=1, vendorId=vendor_id):
             content = 0
 
             for i in total_orders:
@@ -1817,14 +1868,14 @@ def additem(request):
                         mod["group"]=ProductModifierGroup.objects.filter(PLU=i['plu'],vendorId=vendorId).first().pk
                         mods.append(mod)
 
-                prodData = Product.objects.get(pk=singleProduct['prdouctId'], vendorId=vendorId)
+                prodData = Product.objects.get(pk=singleProduct['productId'], vendorId=vendorId)
 
                 singleProduct["orderId"] = newitems['orderId']
                 singleProduct['name'] = prodData.productName
                 singleProduct["quantityStatus"] = 1  # quantityStatus
-                singleProduct["stationId"] = Stations.objects.filter(vendorId=vendorId).first().pk
+                singleProduct["stationId"] = Station.objects.filter(vendorId=vendorId).first().pk
                 singleProduct['unit'] = "qty"
-                singleProduct["stationName"] = Stations.objects.filter(vendorId=vendorId).first().station_name
+                singleProduct["stationName"] = Station.objects.filter(vendorId=vendorId).first().station_name
                 singleProduct["chefId"] = 0
                 singleProduct["note"] = singleProduct['note'] if singleProduct['note'] else "NONE"
                 singleProduct["SKU"] = singleProduct["plu"]
@@ -1883,7 +1934,7 @@ def additem(request):
             oldStatus=oldStatus,
             currentStatus=order.order_status,
             orderId=order.pk,
-            station=Stations.objects.filter(vendorId=vendorId).first(),
+            station=Station.objects.filter(vendorId=vendorId).first(),
             vendorId=vendorId
         )
         
@@ -1920,7 +1971,7 @@ def additem2(request):
                 singleProduct["orderId"] = newitems['ordeId']
                 singleProduct["quantityStatus"] = 1  # quantityStatus
                 singleProduct["stationId"] = singleProduct["tag"]
-                singleProduct["stationName"] = Stations.objects.get(pk=singleProduct["tag"],vendorId=vendorId).station_name
+                singleProduct["stationName"] = Station.objects.get(pk=singleProduct["tag"],vendorId=vendorId).station_name
                 singleProduct["chefId"] = 0
                 singleProduct["note"] = singleProduct["itemRemark"]
                 singleProduct["SKU"] = singleProduct["plu"]
@@ -1970,8 +2021,8 @@ def additem2(request):
 # def getstationauthkey(request):
 #     requestJson = JSONParser().parse(request)
 #     try:
-#         Stations.objects.filter(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password')).update(key=secrets.token_hex(8))
-#         data=Stations.objects.get(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password'))
+#         Station.objects.filter(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password')).update(key=secrets.token_hex(8))
+#         data=Station.objects.get(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password'))
 #         res={
 #             "token":data.key,
 #             "stationId":data.pk,
@@ -1989,7 +2040,7 @@ def koms_login(request):
     request_json = JSONParser().parse(request)
 
     try:
-        station = Stations.objects.filter(
+        station = Station.objects.filter(
             client_id=request_json.get('username'),
             client_secrete=request_json.get('password')
         ).first()

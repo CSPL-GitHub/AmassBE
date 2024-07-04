@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from woms.models import Waiter, Floor, Hotal_Tables
+from woms.models import Waiter, Floor, HotelTable
 from pos.models import StoreTiming, Banner, CoreUserCategory, CoreUser, Department
 from order.models import Order_Discount
 from core.models import (
@@ -11,7 +11,7 @@ from core.models import (
     ProductModifierGroup,
     ProductModifier,
 )
-from koms.models import Stations, Staff
+from koms.models import Station, Staff
 
 
 
@@ -36,12 +36,13 @@ class WaiterSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
-            "mobile",
+            "phone_number",
             "email",
             "username",
             "password",
             "image",
-            "waiterHead",
+            "is_waiter_head",
+            "is_active",
             "vendorId",
         )
 
@@ -58,11 +59,11 @@ class FloorSerializer(serializers.ModelSerializer):
     table_count = serializers.SerializerMethodField(read_only=True)
 
     def get_table_count(self, floor):
-        return floor.hotal_tables_set.count()
+        return floor.hoteltable_set.count()
 
     class Meta:
         model = Floor
-        fields = ("id", "floorId", "name", "is_active", "table_count", "vendorId")
+        fields = ("id", "floorId", "name", "name_ar", "is_active", "table_count", "vendorId")
 
 
 class HotelTableSerializer(serializers.ModelSerializer):
@@ -78,7 +79,7 @@ class HotelTableSerializer(serializers.ModelSerializer):
     floorName = serializers.CharField(source="floor.name", read_only=True)
 
     class Meta:
-        model = Hotal_Tables
+        model = HotelTable
         fields = "__all__"
 
 
@@ -198,7 +199,7 @@ class StationModelSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
-        model = Stations
+        model = Station
         fields = (
             "id",
             "station_name",

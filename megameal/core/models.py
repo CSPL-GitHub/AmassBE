@@ -11,6 +11,9 @@ import secrets
 class VendorType(models.Model):
     type = models.CharField(max_length=100)
 
+    def __str__(self):
+        return self.type
+
 
 class Vendor(models.Model):
     Name=models.CharField(max_length=122)
@@ -27,9 +30,6 @@ class Vendor(models.Model):
     contact_person_name = models.CharField(max_length=100, null=True, blank=True)
     contact_person_phone_number = models.PositiveBigIntegerField(null=True, blank=True)
     is_active = models.BooleanField(default=False)
-
-    class Meta:
-        ordering = ('Name', 'Email', 'Password', 'phone_number', 'gst_number', 'vendor_type', 'address_line_1', 'address_line_2', 'city', 'state', 'country', 'contact_person_name', 'contact_person_phone_number', 'is_active')
 
     def __str__(self):
         return self.Name
@@ -54,7 +54,7 @@ class ProductCategory(models.Model):
     categoryPLU=models.CharField(null=True,blank=True,max_length=122)
     categoryIsDeleted=models.BooleanField(default=False)
     categorySlug=models.SlugField(blank=True,null=True)
-    categoryStation=models.ForeignKey("koms.Stations", on_delete=models.CASCADE,null=True,blank=True)
+    categoryStation=models.ForeignKey("koms.Station", on_delete=models.CASCADE,null=True,blank=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True, related_name="vendor_category")
     image_selection = models.CharField(max_length=20, null=True, blank=True, choices = (("image", "image"), ("url", "url")))
     is_active = models.BooleanField(default=True)
@@ -306,20 +306,27 @@ class POS_Settings(models.Model):
 
 
 class Platform(models.Model):
-    Name=models.CharField(max_length=122)
-    baseUrl=models.CharField(max_length=122)
-    secreateKey=models.CharField(max_length=122)
-    secreatePass=models.CharField(max_length=122)
-    APIKey=models.CharField(max_length=122)
-    VendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    macId=models.CharField(max_length=122)
-    isActive=models.BooleanField(default=False)
-    expiryDate=models.DateTimeField(auto_now=False)
-    pushMenuUrl=models.URLField(null=True,blank=True)
+    Name = models.CharField(max_length=20, choices=(
+        ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
+        ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
+    ))
+    Name_ar = models.CharField(max_length=100, choices=(
+        ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
+        ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website'),
+    ))
     corePlatformType = models.IntegerField(choices=CorePlatform.choices)
-    className=models.CharField(max_length=122)
-    autoSyncMenu=models.BooleanField(default=False)
-    orderActionType=models.IntegerField(choices=OrderAction.choices,blank=True,null=True)
+    className = models.CharField(max_length=122)
+    orderActionType = models.IntegerField(choices=OrderAction.choices, blank=True, null=True)
+    baseUrl = models.CharField(max_length=122, blank=True)
+    secreateKey = models.CharField(max_length=122, blank=True)
+    secreatePass = models.CharField(max_length=122, blank=True)
+    APIKey = models.CharField(max_length=122, blank=True)
+    macId = models.CharField(max_length=122, blank=True)
+    pushMenuUrl = models.URLField(null=True, blank=True)
+    autoSyncMenu = models.BooleanField(default=False)
+    expiryDate = models.DateTimeField(auto_now=False)
+    isActive = models.BooleanField(default=False)
+    VendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
     
     def to_dict(self):
         return {
@@ -339,7 +346,7 @@ class Platform(models.Model):
         }
     
     def __str__(self):
-        return f"{self.Name} ({self.VendorId.pk}, {self.VendorId.Name})"
+        return self.Name
        
        
 class Api_Logs(models.Model):
