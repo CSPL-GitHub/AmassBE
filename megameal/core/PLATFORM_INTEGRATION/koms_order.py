@@ -46,7 +46,18 @@ class KomsEcom():
                 new_time = current_time + timedelta(minutes=totalPrepTime)
                 res["pickupTime"]=f"{str(datetime.today().date())}T{new_time.strftime('%H:%M:%S')}"
             #############
-            itemCategories = list(set(ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=i['plu'],vendorId_id=data["vendorId"]).first().pk).category.categoryName for i in data['items']))
+            # itemCategories = list(set(ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=i['plu'],vendorId_id=data["vendorId"]).first().pk).category.categoryName for i in data['items']))
+            
+            itemCategoriesSet = set()
+
+            for i in data['items']:
+                product = Product.objects.filter(PLU=i['plu'], vendorId_id=data["vendorId"]).first()
+                if product is not None:
+                    productCategoryJoint = ProductCategoryJoint.objects.get(product=product.pk)
+                    itemCategoriesSet.add(productCategoryJoint.category.categoryName)
+
+            itemCategories = list(itemCategoriesSet)
+            
             for item in itemCategories:
                 prods=[]
                 for i in data['items'] :

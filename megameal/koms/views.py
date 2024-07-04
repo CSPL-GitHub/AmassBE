@@ -509,17 +509,6 @@ def createOrderInKomsAndWoms(orderJson):
             return  {
                 API_Messages.STATUS:API_Messages.ERROR,
                 API_Messages.RESPONSE: order_serializers.errors}
-            
-        orderhist = {}
-        orderhist["order_id"] = order_save_data.id
-        orderhist["timestamp"] = order_save_data.arrival_time
-        orderhist["order_status"] = order_save_data.order_status
-        orderhist["delay"] = 0
-        orderhist["recall"] = 0
-        orderhist["vendorId"]=vendorId
-        orderhist_serializer = Order_History_serializer(data=orderhist, partial=True)
-        if orderhist_serializer.is_valid():
-            od = orderhist_serializer.save()
 
         #  product section
         for key, value in order_data["items"].items():

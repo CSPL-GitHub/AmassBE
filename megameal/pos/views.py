@@ -1842,7 +1842,7 @@ def createOrder(request):
                     # Variation Id instead of name
                     "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
                     "quantity": item["quantity"],
-                    "tag": ProductCategoryJoint.objects.get(product=corePrd.pk).category.pk,  # Station tag will be handled in koms
+                    # "tag": ProductCategoryJoint.objects.get(product=corePrd.pk).category.pk,  # Station tag will be handled in koms
                     "subItems":  [
                            {
                         "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
