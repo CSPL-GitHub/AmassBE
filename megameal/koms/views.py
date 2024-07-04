@@ -531,7 +531,7 @@ def createOrderInKomsAndWoms(orderJson):
                 singleProduct["chefId"] = 0
                 singleProduct["note"] = singleProduct["itemRemark"]
                 singleProduct["SKU"] = singleProduct["plu"]
-                singleProduct["status"] = 1 if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive else 8 # pending order
+                singleProduct["status"] = '1' if Platform.objects.filter(Name="KOMS", VendorId= vendorId).first().isActive else '8' # pending order
                 singleProduct["categoryName"] = key
                 single_product_serializer = Order_content_serializer(
                     data=singleProduct, partial=True

@@ -1835,6 +1835,7 @@ def createOrder(request):
                         )
                 except Product.DoesNotExist:
                     return {API_Messages.ERROR:" Not found"}
+                
                 itemData = {
                     "plu": corePrd.productParentId.PLU if corePrd.productParentId != None else corePrd.PLU,
                     "sku": item.get("sku"),
@@ -1842,7 +1843,6 @@ def createOrder(request):
                     # Variation Id instead of name
                     "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
                     "quantity": item["quantity"],
-                    # "tag": ProductCategoryJoint.objects.get(product=corePrd.pk).category.pk,  # Station tag will be handled in koms
                     "subItems":  [
                            {
                         "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
