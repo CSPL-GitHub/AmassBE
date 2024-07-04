@@ -1806,7 +1806,7 @@ def additem(request):
                         mod["group"]=ProductModifierGroup.objects.filter(PLU=i['plu'],vendorId=vendorId).first().pk
                         mods.append(mod)
 
-                prodData = Product.objects.get(pk=singleProduct['prdouctId'], vendorId=vendorId)
+                prodData = Product.objects.get(pk=singleProduct['productId'], vendorId=vendorId)
 
                 singleProduct["orderId"] = newitems['orderId']
                 singleProduct['name'] = prodData.productName

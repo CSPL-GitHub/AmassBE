@@ -547,7 +547,7 @@ def productByCategory(request, id=0):
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "tags": product.tag or "",
                 "text":product.productName,
                 "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
@@ -608,7 +608,7 @@ def search_Prod_categ(request,id=0,search=''):#TODO
                 )
                 li.append(
                     {
-                    "prdouctId": j.pk,
+                    "productId": j.pk,
                     "text": j.name,
                     "imagePath":str(j.tumbnail),
                     "images":images,
@@ -743,7 +743,7 @@ def searchProduct(request, search):
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "tags": product.tag if product.tag else "",
                 "text":product.productName,
                 "imagePath": HOST+product.productThumb.name if product.productThumb !="" else images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
@@ -816,7 +816,7 @@ def singleProdMod(request,prod=None,order=None):
                     
                     
         listOfProducts={
-                    "prdouctId": product.pk,
+                    "productId": product.pk,
                     "text":product.productName,
                     "plu":product.PLU,
                     "quantity":content.quantity,

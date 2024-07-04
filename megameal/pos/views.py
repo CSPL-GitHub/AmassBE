@@ -533,7 +533,7 @@ def productByCategory(request, id=0):
                 product_list.append({
                     "categoryId": category.pk,
                     "categoryName": category_name,
-                    "prdouctId": product.pk,
+                    "productId": product.pk,
                     "plu": product.PLU,
                     "name": product_name,
                     "description": product_description,
@@ -1830,7 +1830,7 @@ def createOrder(request):
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
                 except Product.DoesNotExist:

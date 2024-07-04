@@ -307,7 +307,7 @@ def womsCreateOrder(request):
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
                 except Product.DoesNotExist:

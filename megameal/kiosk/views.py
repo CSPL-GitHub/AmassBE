@@ -198,7 +198,7 @@ def productByCategory(request, id=0, vendorId=-1):
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":trans(category.categoryName),
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
@@ -293,7 +293,7 @@ def productDetails(request,id=0,search=''):
             listOfProducts.append({
                 "categoryId": category.pk,
                 # "categoryName":trans(category.categoryName),
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images,
@@ -450,7 +450,7 @@ def createOrder(request,vendorId=1):
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
                 except Product.DoesNotExist:
@@ -603,7 +603,7 @@ def productByCategoryTemp(request,id=0):
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":product.productName,
                 "imagePath": HOST+product.productThumb.name if product.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                 "images":images if len(images)>0  else [HOST+DEFAULTIMG],

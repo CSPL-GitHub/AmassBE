@@ -244,7 +244,7 @@ def check_order_items_status(request):
         return JsonResponse({"msg": f"store is already closed"}, status=400)
     
     for item in order_details.get('items', []):
-        product = Product.objects.filter(pk=item['prdouctId'])
+        product = Product.objects.filter(pk=item['productId'])
 
         if product.exists() and product.first().active == False:
             return JsonResponse({"msg": f"{product.first().productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
@@ -305,7 +305,7 @@ def CreateOrder(request):
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
         for item in result['items']:
-            prod = Product.objects.filter(pk=item['prdouctId'])
+            prod = Product.objects.filter(pk=item['productId'])
             if prod.exists() and prod.first().active == False:
                 return JsonResponse({"msg": f"{prod.first().productName} is no longer availabe"}, status=400)
             item["modifiers"] = [
@@ -670,7 +670,7 @@ def get_banner(request):
                         product_list.append({
                             "categoryId": product_category.category.pk,
                             "categoryName":product_category.category.categoryName,
-                            "prdouctId": product.pk,
+                            "productId": product.pk,
                             "tags": product.tag or "",
                             "text": product.productName,
                             "imagePath": product_image_list[0] if len(product_image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
