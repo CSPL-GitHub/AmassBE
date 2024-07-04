@@ -26,7 +26,7 @@ from django.db.models import Sum, Value, FloatField, Q, IntegerField, Expression
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
-    Order_tables, Order_content, Order as KOMSOrder, OrderStatusName, Order_modifer, Stations, Staff,
+    Order_tables, Order_content, Order as KOMSOrder, OrderStatus, Order_modifer, Stations, Staff,
 )
 from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
 from django.utils import timezone
@@ -1949,10 +1949,10 @@ def order_details(request):
         return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
 
     koms_order_status_list = []
-    koms_order_status = OrderStatusName.objects.all()
+    koms_order_status = OrderStatus.objects.all()
 
     for status in koms_order_status:
-        name = status.orderName.lower()
+        name = status.status.lower()
 
         if name!="closed" or name!="canceled":
            koms_order_status_list.append(status.pk)
