@@ -1199,7 +1199,11 @@ def getOrder(ticketId, vendorId, language="en"):
                 modifier_name = singleContentModifier.name
 
                 if language == "ar":
-                    modifier_name = singleContentModifier.name_ar
+                    modifier_instance = ProductModifier.objects.filter(
+                        modifierPLU=singleContentModifier.SKU, vendorId=vendorId
+                    ).first()
+
+                    modifier_name = modifier_instance.modifierName_ar
 
                 mapOfSingleModifier["id"] = singleContentModifier.pk
                 mapOfSingleModifier["plu"] = singleContentModifier.SKU
