@@ -26,7 +26,7 @@ from django.db.models import Sum, Value, FloatField, Q, IntegerField, Expression
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
-    Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Stations, Staff,
+    Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Station, Staff,
 )
 from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
 from django.utils import timezone
@@ -1018,12 +1018,10 @@ def productStatusChange(request):
             return JsonResponse({'error': e}, status=400)
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None):
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
         print("Starting koms thread...")
         thr = threading.Thread(
-                target=order_data,
-                args=(),
-                kwargs={
+                target=order_data, args=(), kwargs={
                     "vendor_id":vendor_id,
                     "page_number":page_number,
                     "search":search,
@@ -1034,15 +1032,18 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
                     "platform":platform,
                     "s_date":s_date,
                     "e_date":e_date,
-                    "is_dashboard":is_dashboard
+                    "is_dashboard":is_dashboard,
+                    "language": language
                 }
             )
+        
         thr.setDaemon(True)
         thr.start()
+
         return {"connecting":False}
 
 
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None):
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
         return error_message
@@ -1190,27 +1191,46 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
     orders_for_page = page_obj.object_list
 
     for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
+        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
         
         try:
             payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
             
+            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            
+            if language == "ar":
+                if payment_mode == "CASH":
+                    payment_mode = "نقدي"
+
+                elif payment_mode == "CARD":
+                    payment_mode = "بطاقة"
+
+                elif payment_mode == "ONLINE":
+                    payment_mode = "متصل"
+            
             payment_details ={
-                "total":payment_details_order.TotalAmount,
-                "subtotal":payment_details_order.subtotal,
-                "tax":payment_details_order.tax,
-                "delivery_charge":payment_details_order.delivery_charge,
-                "discount":payment_details_order.discount,
-                "tip":payment_details_order.tip,
-                "paymentKey":payment_type.last().paymentKey,
-                "platform":payment_type.last().platform,
-                "status":payment_type.last().status,
-                "mode":PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+                "total": payment_details_order.TotalAmount,
+                "subtotal": payment_details_order.subtotal,
+                "tax": payment_details_order.tax,
+                "delivery_charge": payment_details_order.delivery_charge,
+                "discount": payment_details_order.discount,
+                "tip": payment_details_order.tip,
+                "paymentKey": payment_type.last().paymentKey,
+                "platform": payment_type.last().platform,
+                "status": payment_type.last().status,
+                "mode": payment_mode
             }
             
         except Exception as e:
             print("Error", e)
+
+            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+
+            if language == "ar":
+                payment_mode = "نقدي"
+
             payment_details ={
                 "total":0.0,
                 "subtotal":0.0,
@@ -1221,17 +1241,22 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 "paymentKey":"",
                 "platform":"",
                 "status":False,
-                "mode": PaymentType.get_payment_str(PaymentType.CASH)
+                "mode": payment_mode
             }
             
-        single_order['payment']=payment_details
+        single_order['payment'] = payment_details
 
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
+            platform_name = platform.platform.Name
+
+            if language == "ar":
+                platform_name = platform.platform.Name_ar
+            
             platform_details = {
-                "id" : platform.platform.pk,
-                "name" :"order online" if platform.platform.Name == "WooCommerce" else platform.platform.Name
+                "id": platform.platform.pk,
+                "name": platform_name
             }
 
         except Exception as e:
@@ -1312,8 +1337,8 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         'order_details': order_details,
     }
     
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-"+str(vendor_id), username="CORE",)
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-"+str(vendor_id), username="CORE",)
+    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
+    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
     
     return response_data
 
@@ -2470,7 +2495,7 @@ def update_order_koms(request):
                         SKU = product["plu"],
                         tag = 1,
                         categoryName = product["categoryName"],
-                        stationId = product_category_joint.category.categoryStation.pk if product_category_joint else Stations.objects.filter(vendorId=vendor_id).first(),
+                        stationId = product_category_joint.category.categoryStation.pk if product_category_joint else Station.objects.filter(vendorId=vendor_id).first(),
                         status = order_status,
                         isrecall = False,
                         isEdited = 0,
@@ -6215,7 +6240,7 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
 
 
 class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Stations.objects.all().order_by('-pk')
+    queryset = Station.objects.all().order_by('-pk')
     serializer_class = StationModelSerializer
     filter_class = StationFilter
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
@@ -6229,9 +6254,9 @@ class StationModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Stations.objects.filter(vendorId=vendor_id).order_by("-pk")
+            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
         
-        return Stations.objects.none()
+        return Station.objects.none()
 
     
     def list(self, request, *args, **kwargs):

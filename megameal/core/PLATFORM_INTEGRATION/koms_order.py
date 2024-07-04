@@ -4,7 +4,7 @@ import pytz
 import requests
 from datetime import datetime,timedelta
 from core.utils import * 
-from koms.models import Stations
+from koms.models import Station
 
 
 
@@ -90,7 +90,7 @@ class KomsEcom():
                             station_id = categoryJoint.category.categoryStation.pk
 
                         else:
-                            station = Stations.objects.filter(vendorId=vendor_id).first()
+                            station = Station.objects.filter(vendorId=vendor_id).first()
 
                             if station:
                                 station_id = station.pk

@@ -11,7 +11,7 @@ from core.models import (
     ProductModifierGroup,
     ProductModifier,
 )
-from koms.models import Stations, Staff
+from koms.models import Station, Staff
 
 
 
@@ -199,7 +199,7 @@ class StationModelSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
-        model = Stations
+        model = Station
         fields = (
             "id",
             "station_name",

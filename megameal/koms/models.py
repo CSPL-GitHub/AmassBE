@@ -17,7 +17,7 @@ class Order_point_cred(models.Model):
     value = models.CharField(max_length=500)
 
 
-class Stations(models.Model):
+class Station(models.Model):
     station_name = models.CharField(max_length=50)
     client_id = models.CharField(max_length=200, unique=True) #username
     client_secrete = models.CharField(max_length=200) #password
@@ -73,7 +73,7 @@ class Order_content(models.Model):
     SKU = models.CharField(max_length=30)
     tag = models.CharField(max_length=30)
     categoryName = models.CharField(max_length=30)
-    stationId = models.ForeignKey(Stations, on_delete=models.CASCADE)
+    stationId = models.ForeignKey(Station, on_delete=models.CASCADE)
     status = models.CharField(max_length=30)
     isrecall=models.BooleanField(default=False)
     isEdited=models.BooleanField(default=False)
@@ -129,7 +129,7 @@ class Staff(models.Model):
     first_name = models.CharField(max_length=100)
     last_name = models.CharField(max_length=100)
     is_active = models.BooleanField(default=True)
-    station_id = models.ForeignKey(Stations, on_delete=models.CASCADE, null=True, blank=True)
+    station_id = models.ForeignKey(Station, on_delete=models.CASCADE, null=True, blank=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
@@ -148,7 +148,7 @@ class UserSettings(models.Model):
     recall = models.CharField(max_length=100, default=0xFF2E2E48)
     priority = models.CharField(max_length=100, default=0xFF2E2E48)
     nearTo = models.CharField(max_length=100, default=0xFF2E2E48)
-    stationId = models.ForeignKey(Stations, on_delete=models.CASCADE, default=1, unique=True)
+    stationId = models.ForeignKey(Station, on_delete=models.CASCADE, default=1, unique=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 

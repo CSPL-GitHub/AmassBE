@@ -54,7 +54,7 @@ class ProductCategory(models.Model):
     categoryPLU=models.CharField(null=True,blank=True,max_length=122)
     categoryIsDeleted=models.BooleanField(default=False)
     categorySlug=models.SlugField(blank=True,null=True)
-    categoryStation=models.ForeignKey("koms.Stations", on_delete=models.CASCADE,null=True,blank=True)
+    categoryStation=models.ForeignKey("koms.Station", on_delete=models.CASCADE,null=True,blank=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True, related_name="vendor_category")
     image_selection = models.CharField(max_length=20, null=True, blank=True, choices = (("image", "image"), ("url", "url")))
     is_active = models.BooleanField(default=True)

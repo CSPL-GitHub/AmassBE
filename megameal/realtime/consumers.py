@@ -74,20 +74,31 @@ class ChatConsumer(WebsocketConsumer):
                     s_date = data[5]
                 else:
                     s_date = None
+
                 if data[6]:
                     e_date = data[6]
                 else:
                     e_date = None
+
                 if data[7]:
                     is_dashboard = int(data[7])
                 else:
                     is_dashboard = 0
+
                 if data[8]:
-                    vendorId = int(data[8])
+                    language = data[8]
+                else:
+                    language = "en"
+                
+                if data[9]:
+                    vendorId = int(data[9])
                 else:
                     vendorId = None
 
-                result = order_data_start_thread(vendor_id=vendorId, page_number=page_number, search=search, order_status=order_status, order_type=order_type, platform=platform ,s_date=s_date,e_date=e_date, is_dashboard=is_dashboard)
+                result = order_data_start_thread(
+                    vendor_id=vendorId, page_number=page_number, search=search, order_status=order_status, order_type=order_type,
+                    platform=platform ,s_date=s_date,e_date=e_date, is_dashboard=is_dashboard, language=language
+                )
 
         elif str(self.room_name) == STATIONSIDEBAR:
             result=CategoryWise()
