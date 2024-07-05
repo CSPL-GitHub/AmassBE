@@ -1775,14 +1775,18 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def createOrder(request):
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get("language", "en")
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
     
     try:
         print(request.data)
-        orderid=vendorId+str(CorePlatform.POS)+datetime.now().strftime("%H%M%S")
+
+        orderid = vendorId + str(CorePlatform.POS) + datetime.now().strftime("%H%M%S")
+
         result = {
+                "language": language,
                 "internalOrderId": orderid,
                 "vendorId": vendorId,
                 "externalOrderId":orderid,
@@ -1841,6 +1845,7 @@ def createOrder(request):
                 "points_redeemed": request.data.get("points_redeemed"),
                 "points_redeemed_by": request.data.get("points_redeemed_by"),
             }
+        
         # if request.data.get('promocodes'):
         #     discount=Order_Discount.objects.get(pk=request.data.get('promocodes')[0]['id'])
         #     result['discount']={
@@ -1850,14 +1855,17 @@ def createOrder(request):
         #                     "discountName": discount.discountName,
         #                     "discountCost": discount.value
         #                 }
-            # +++++++++++ Item In order
+        
+        # +++++++++++ Item In order
         items = []
+
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
                         pk=item['productId']
                         # , vendorId=vendorId
                         )
+                    
                 except Product.DoesNotExist:
                     return {API_Messages.ERROR:" Not found"}
                 
@@ -1890,34 +1898,42 @@ def createOrder(request):
                 }
                 
                 if corePrd.productParentId != None:
-                    itemData["variant"] = {
-                        "plu": corePrd.PLU
-                    }
+                    itemData["variant"] = {"plu": corePrd.PLU}
+
                 #####++++++++ Modifiers
                 items.append(itemData)
+
         result["items"] = items
-            # +++++++++++ Item In order
+
+        # +++++++++++ Item In order
         result["tip"] = request.data['tip'] 
+
         # return JsonResponse(result)
         tokenlist=KioskOrderData.objects.filter(date=datetime.today().date()).values_list('token')
-        token=1 if len(tokenlist)==0 else max(tokenlist)[0]+1
+
+        token=1 if len(tokenlist)==0 else max(tokenlist)[0] + 1
+
         # res=KomsEcom().openOrder(result)
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
-        saveData=KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
+        res = order_helper.OrderHelper.openOrder(result, vendorId)
+        
+        saveData = KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
         if saveData.is_valid():
             saveData.save()
+
             if Order.objects.filter(externalOrderld=orderid).exists():
                 return JsonResponse({'token':token, "external_order_id":orderid})
+            
             else:
                 return JsonResponse({'token':token, "external_order_id":""})
-        return JsonResponse(
-                {"msg": "Something went wrong"}, status=400
-            )
+        
+        return JsonResponse({"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
+
 
 @api_view(['GET'])
 def platform_list(request):

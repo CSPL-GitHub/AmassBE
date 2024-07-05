@@ -464,8 +464,10 @@ def saveOrder(request):
 def createOrderInKomsAndWoms(orderJson):
     try:
         #  order section
-        vendorId=orderJson.get("vendorId")
+        vendorId = orderJson.get("vendorId")
+
         order_data = orderJson
+
         order_data["externalOrderId"] = order_data["orderId"]
         order_data["master_order"] = order_data["master_id"]
         order_data["order_status"] = 1  if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive else 8 # pending order
@@ -571,19 +573,31 @@ def createOrderInKomsAndWoms(orderJson):
             )
             values_list = [str(item.tableId.tableNumber) for item in orderTables]
             values_list= ', '.join(values_list) 
+        
         except Order_tables.DoesNotExist:
             print("Order table not found")
             values_list=""
+        
         wheelman=[i.pk for i in Station.objects.filter(isStation=False,vendorId=vendorId) ]
+        
         if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive :
                 webSocketPush(message=order_data, room_name=str(vendorId)+"-"+str(PENDINGINT), username="CORE")  # wheelMan Pending section
                 notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } on Table No {values_list} is arrived",stn=[4],vendorId=vendorId)
+        
         else :
                 # processStation(oldStatus=str(8),currentStatus=str(8),orderId=order_save_data.id,station=content.stationId,vendorId=vendorId)
                 stnlist=[i.stationId.pk for i in Order_content.objects.filter(orderId=order_save_data.id)]
                 allStationWiseSingle(id=order_save_data.id,vendorId=vendorId)
                 notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=stnlist,vendorId=vendorId)
-        notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=['POS'],vendorId=vendorId)
+        
+        language = order_data.get("language", "en")
+
+        if language == "ar":
+            notify(type=1,msg=order_save_data.id,desc=f"انه وصل .. او انها وصلت { order_save_data.externalOrderId } رقم الأمر",stn=['POS'],vendorId=vendorId)
+        
+        else:
+            notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=['POS'],vendorId=vendorId)
+            
         waiteOrderUpdate(orderid=order_save_data.id,vendorId=vendorId)
         allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
         

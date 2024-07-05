@@ -17,7 +17,10 @@ class KomsEcom():
 
             vendor_id = data["vendorId"]
 
+            language = data.get("language", "en")
+
             res = {
+                "language": language,
                 "orderId": data.get('internalOrderId') ,
                 "master_id": data.get('master_id'),
                 "externalOrderId": data.get('externalOrderId'),
