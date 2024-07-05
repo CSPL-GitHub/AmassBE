@@ -31,6 +31,27 @@ class OrderStatus(models.IntegerChoices):
             return order_status[0]
       return None
   
+
+class KOMSOrderStatus(models.IntegerChoices):
+  PENDING = 1, 'PENDING'
+  PROCESSING = 2, 'PROCESSING'
+  READY = 3, 'READY'
+  ONHOLD = 4, 'ONHOLD'
+  CANCELED = 5, 'CANCELED'
+  RECALL = 6, 'RECALL'
+  HIGH = 7, 'HIGH'
+  ASSIGN = 8, 'ASSIGN'
+  INCOMING = 9, 'INCOMING'
+  CLOSE = 10, 'CLOSE'
+
+  def get_koms_order_status_value(order_status_string):
+    for order_status in KOMSOrderStatus.choices:
+      if order_status[1] == order_status_string:
+        return order_status[0]
+      
+    return None
+
+  
 class OrderType(models.IntegerChoices):
     PICKUP = 1, 'PICKUP'
     DELIVERY = 2, 'DELIVERY'
