@@ -101,12 +101,20 @@ class ProductCategorySerializer(serializers.ModelSerializer):
             "id",
             "categoryPLU",
             "categoryName",
+            "categoryName_ar",
             "categoryDescription",
+            "categoryDescription_ar",
             # "categoryImage",
             "categoryImageUrl",
             # "image_selection",
             "vendorId",
         )
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if representation.get('categoryImageUrl') is None:
+            representation['categoryImageUrl'] = ""
+        return representation
 
 
 class ProductSerializer(serializers.ModelSerializer):

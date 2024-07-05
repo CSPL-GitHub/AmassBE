@@ -3375,28 +3375,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to create Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -3433,27 +3411,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to update Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = serializer.instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -3476,31 +3433,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 instance = self.get_object()
-
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteCategoryUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' will be deleted. response::{wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Category deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Category not found in wordpress")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Category not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 vendor_id = instance.vendorId.pk
                 

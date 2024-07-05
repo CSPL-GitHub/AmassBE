@@ -459,7 +459,6 @@ def allCategory(request,id=0):
             # "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
             # "image":f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image":i.categoryImageUrl if i.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     data = sorted(data, key=lambda x: x["categoryId"])
     return JsonResponse({"categories":data})

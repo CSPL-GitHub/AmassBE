@@ -42,11 +42,9 @@ class Core_User(models.Model):
 
 
 class ProductCategory(models.Model):
-    categoryName=models.CharField( max_length=500,null=True,blank=True)
-    categoryParentId=models.ForeignKey('ProductCategory', on_delete=models.CASCADE,null=True,blank=True)
-    categoryDescription=models.TextField(null=True,blank=True)
-    categoryStatus=models.IntegerField(default=0,null=True,blank=True)
-    categorySortOrder=models.IntegerField(default=0,null=True,blank=True)
+    categoryName=models.CharField(max_length=500)
+    categoryParentId=models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True, blank=True)
+    categoryDescription=models.TextField(null=True, blank=True)
     categoryImage=models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None ,null=True,blank=True)
     categoryImageUrl=models.URLField(null=True,blank=True)
     categoryCreatedAt=models.DateTimeField(auto_now_add=True,null=True,blank=True)

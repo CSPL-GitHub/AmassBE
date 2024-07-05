@@ -274,7 +274,7 @@ class WooCommerce():
             payload = {
                 "name": categoryObj.categoryName,
                 "slug": categoryObj.categorySlug,
-                "menu_order": categoryObj.categorySortOrder
+                # "menu_order": categoryObj.categorySortOrder
             }
             if categoryObj.categoryImageUrl:
                 payload["image"] = {

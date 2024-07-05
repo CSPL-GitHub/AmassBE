@@ -191,7 +191,6 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     categoryPLU = row["Category SKU"],
                     categorySlug = slugify(str(row["Category Name"]).lower()),
                     vendorId = vendor_instance,
-                    categorySortOrder = 1,
                     is_active=is_active
                 )
                 # Columns with default value:

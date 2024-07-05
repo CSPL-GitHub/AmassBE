@@ -320,8 +320,8 @@ class StagingIntegration(AbstractPOSIntegration):
             # cat.categorySlug = slugify(coreCat["categoryName"]) Bug Fix for update
             cat.categoryParentId = catParentId
             cat.categoryDescription = coreCat["description"]
-            cat.categoryStatus = coreCat["status"]
-            cat.categorySortOrder = coreCat["sortOrder"]
+            # cat.categoryStatus = coreCat["status"]
+            # cat.categorySortOrder = coreCat["sortOrder"]
             cat.categoryImage = coreCat["image"]
             cat.categoryUpdatedAt = timezone.make_aware(
                 datetime.now(), timezone.utc)
@@ -332,8 +332,8 @@ class StagingIntegration(AbstractPOSIntegration):
                                        coreCat["categoryName"]),
                                    categoryParentId=catParentId,
                                    categoryDescription=coreCat["description"],
-                                   categoryStatus=coreCat["status"],
-                                   categorySortOrder=coreCat["sortOrder"],
+                                #    categoryStatus=coreCat["status"],
+                                #    categorySortOrder=coreCat["sortOrder"],
                                    categoryImage=coreCat["image"],
                                    categoryCreatedAt=timezone.make_aware(
                                        datetime.now(), timezone.utc),

@@ -101,7 +101,6 @@ def allCategory(request,id=0,vendorId=-1):
             # "image":str(i.categoryImage),
             # "image": f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image": i.categoryImageUrl if i.categoryImageUrl else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     return JsonResponse({"categories":data})
 
@@ -515,18 +514,20 @@ def createOrder(request,vendorId=1):
 #### Temp API's
 HOST="http://151.80.237.29:8000/"
 DEFAULTIMG="static/images/default/no-image-icon-23494.png"
-def allCategoryTemp(request,id=0):
-    info=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
-    data=[]           
+def allCategoryTemp(request, id=0):
+    info = ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
+    
+    data = []
+
     for i in info:
         data.append({
-      "categoryId": i.pk,
-      "categoryPlu": i.categoryPLU,
-      "name":i.categoryName,
-      "description": i.categoryDescription,
-      "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
-      "sortOrder": i.categorySortOrder,
+            "categoryId": i.pk,
+            "categoryPlu": i.categoryPLU,
+            "name":i.categoryName,
+            "description": i.categoryDescription,
+            "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
         })
+    
     return JsonResponse({"categories":data})
 
  

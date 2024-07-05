@@ -120,7 +120,7 @@ def woocommerce_api(request):
                 category=Categoryserializers(data={
                     'categoryName':ctg['name'],
                     # 'categoryDescription':'',
-                    'categoryStatus':   int(1),
+                    # 'categoryStatus':   int(1),
                     # 'categorySortOrde':'',
                     # 'categoryImgage':,
                     # 'categoryCreatedAt':'',
