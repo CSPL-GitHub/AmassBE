@@ -365,7 +365,7 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productQty = corePrd["qty"]
             cat.productPrice = corePrd["price"]
             cat.Unlimited = corePrd["unlimited"]
-            cat.productStatus = corePrd["productStatus"]
+            # cat.productStatus = corePrd["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = corePrd["preparationTime"]
             cat.taxable = corePrd["taxable"]
@@ -382,7 +382,7 @@ class StagingIntegration(AbstractPOSIntegration):
                 productQty=corePrd["qty"],
                 productPrice=corePrd["price"],
                 Unlimited=corePrd["unlimited"],
-                productStatus=corePrd["productStatus"],
+                # productStatus=corePrd["productStatus"],
                 vendorId=vendor,
                 preparationTime=corePrd["preparationTime"],
                 taxable=corePrd["taxable"],
@@ -444,13 +444,13 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productQty = coreVrt["qty"]
             cat.productPrice = coreVrt["price"]
             cat.Unlimited = coreVrt["unlimited"]
-            cat.productStatus = coreVrt["productStatus"]
+            # cat.productStatus = coreVrt["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = coreVrt["preparationTime"]
             cat.taxable = coreVrt["taxable"]
             cat.productType = coreVrt["type"]
             cat.productParentId = baseProduct
-            cat.sortOrder = coreVrt["sortOrder"]
+            # cat.sortOrder = coreVrt["sortOrder"]
             cat.SKU = coreVrt.get("sku")
             cat.save()
         except Product.DoesNotExist:
@@ -462,14 +462,14 @@ class StagingIntegration(AbstractPOSIntegration):
                 productQty=coreVrt["qty"],
                 productPrice=coreVrt["price"],
                 Unlimited=coreVrt["unlimited"],
-                productStatus=coreVrt["productStatus"],
+                # productStatus=coreVrt["productStatus"],
                 vendorId=vendor,
                 preparationTime=coreVrt["preparationTime"],
                 taxable=coreVrt["taxable"],
                 productType=coreVrt["type"],
                 productParentId=baseProduct,
                 SKU=coreVrt.get("sku"),
-                sortOrder=coreVrt["sortOrder"]
+                # sortOrder=coreVrt["sortOrder"]
             )
             cat = cat.save()
         # +++++ delete old joints and add New

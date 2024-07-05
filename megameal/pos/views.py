@@ -3460,6 +3460,7 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "en")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=404)
@@ -3472,7 +3473,12 @@ def get_products(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if product_name:
-        products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        if language == "ar":
+            products = Product.objects.filter(productName_ar__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+
+        else:
+            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+    
     else:
         products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -3481,8 +3487,10 @@ def get_products(request):
 
         try:
             paginated_products = paginator.page(page_number)
+        
         except PageNotAnInteger:
             paginated_products = paginator.page(1)
+        
         except EmptyPage:
             paginated_products = paginator.page(paginator.num_pages)
 
@@ -3493,11 +3501,21 @@ def get_products(request):
         for single_product in paginated_products:
             selected_image = ProductImage.objects.filter(product=single_product.pk).first()
 
+            product_name = single_product.productName
+            product_description = ""
+            
+            if language == "ar":
+                product_name = single_product.productName_ar
+                product_description = single_product.productDesc_ar
+
+            else:
+                product_description = single_product.productDesc
+
             product_data = {
                 "id": single_product.pk,
                 "plu": single_product.PLU,
-                "name": single_product.productName,
-                "description": single_product.productDesc if single_product.productDesc else "",
+                "name": product_name,
+                "description": product_description,
                 "price": single_product.productPrice,
                 "is_active": single_product.active,
                 "tag": single_product.tag if single_product.tag else "",
@@ -3514,11 +3532,21 @@ def get_products(request):
 
             if product_category:
                 if product_category.category:
+                    category_name = product_category.category.categoryName
+                    category_description = ""
+
+                    if language == "ar":
+                        category_name = product_category.category.categoryName_ar
+                        category_description = product_category.category.categoryDescription_ar
+
+                    else:
+                        category_description = product_category.category.categoryDescription
+
                     product_data["categories"].append({
                     "id": product_category.category.pk,
                     "plu": product_category.category.categoryPLU,
-                    "name": product_category.category.categoryName,
-                    "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
+                    "name": category_name,
+                    "description": category_description,
                     "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
                     "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
                     "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
@@ -3559,25 +3587,46 @@ def get_products(request):
             if product_modifier_groups:
                 for modifier_group in product_modifier_groups:
                     modifier_data = []
+
                     joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=modifier_group.modifierGroup.pk, vendor=vendor_id)
 
                     if joint_details.count() > 0:
                         for joint in joint_details:
+                            modifier_name = joint.modifier.modifierName
+                            modifier_description = ""
+
+                            if language == "ar":
+                                modifier_name = joint.modifier.modifierName_ar
+                                modifier_description = joint.modifier.modifierDesc_ar
+
+                            else:
+                                modifier_description = joint.modifier.modifierDesc
+
                             modifier_data.append({
                                 "id": joint.modifier.pk,
                                 "plu": joint.modifier.modifierPLU,
-                                "name": joint.modifier.modifierName,
-                                "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
+                                "name": modifier_name,
+                                "description": modifier_description,
                                 "price": joint.modifier.modifierPrice,
                                 "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
                                 "is_active": joint.modifier.active,
                             })
                     
+                    modifier_group_name = modifier_group.modifierGroup.name
+                    modifier_group_description = ""
+
+                    if language == "ar":
+                        modifier_group_name = modifier_group.modifierGroup.name_ar
+                        modifier_group_description = modifier_group.modifierGroup.modifier_group_description_ar
+
+                    else:
+                        modifier_group_description = modifier_group.modifierGroup.modifier_group_description
+                    
                     product_data["modifier_groups"].append({
                         "id": modifier_group.modifierGroup.pk,
                         "plu": modifier_group.modifierGroup.PLU,
-                        "name": modifier_group.modifierGroup.name,
-                        "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
+                        "name": modifier_group_name,
+                        "description": modifier_group_description,
                         "min": modifier_group.modifierGroup.min,
                         "max": modifier_group.modifierGroup.max,
                         "is_active": modifier_group.modifierGroup.active,

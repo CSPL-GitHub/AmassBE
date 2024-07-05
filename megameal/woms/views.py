@@ -505,7 +505,6 @@ def productByCategory(request, id=0):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -575,7 +574,6 @@ def productByCategory(request, id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })
@@ -707,7 +705,6 @@ def searchProduct(request, search):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -767,7 +764,6 @@ def searchProduct(request, search):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "modifiersGroup":modGrp,

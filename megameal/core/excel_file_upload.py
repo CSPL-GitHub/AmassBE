@@ -238,7 +238,7 @@ def process_excel(file_path, sheet_name, vendor_id):
                                             taxable = True,
                                         )
                                         # Columns with default value:
-                                        # productThumb, productQty, productParentId, productStatus, preparationTime, isDeleted, sortOrder, meta
+                                        # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
                                         
                                     if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                                         if (not(pd.isnull(row["Product Images"])) and row["Product Images"] != ""):
@@ -310,7 +310,7 @@ def process_excel(file_path, sheet_name, vendor_id):
                                                 vendorId = vendor_instance,
                                                 active = is_active
                                             )
-                                            # Columns with default value: isDeleted, sortOrder
+                                            # Columns with default value: isDeleted
                                             
                                         existing_modifier = ProductModifier.objects.filter(
                                             modifierPLU = row["Modifier SKU"],

@@ -150,7 +150,6 @@ def productByCategory(request, id=0, vendorId=-1):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -209,7 +208,6 @@ def productByCategory(request, id=0, vendorId=-1):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "tag": product.tag,
@@ -253,7 +251,6 @@ def productDetails(request,id=0,search=''):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder
                     })
 
             images=[]
@@ -304,7 +301,6 @@ def productDetails(request,id=0,search=''):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiers":modGrp,
             })
@@ -562,7 +558,6 @@ def productByCategoryTemp(request,id=0):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -616,7 +611,6 @@ def productByCategoryTemp(request,id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })

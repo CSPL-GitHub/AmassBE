@@ -687,7 +687,6 @@ def get_banner(request):
                             "note": '',
                             "isTaxable": product.taxable,
                             "type": product.productType,
-                            "sortOrder": product.sortOrder,
                             "modifiersGroup": modifier_group_list,
                         })
 

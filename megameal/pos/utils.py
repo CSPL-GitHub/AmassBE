@@ -238,7 +238,7 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     taxable = True,
                 )
                 # Columns with default value:
-                # productThumb, productQty, productParentId, productStatus, preparationTime, isDeleted, sortOrder, meta
+                # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
                 
             if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                 if (not(pd.isnull(row["Product Image"])) and row["Product Image"] != ""):
