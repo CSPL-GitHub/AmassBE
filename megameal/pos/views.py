@@ -436,7 +436,6 @@ def productByCategory(request, id=0):
                 #             "allowCustomerNotes": True,
                 #             "plu":variant.PLU,
                 #             "type":variant.productType,
-                #             "sortOrder":product.sortOrder,
                 #             "options":options
                 #         })
 
@@ -2161,7 +2160,6 @@ def order_details(request):
                             "max": modifier_group_info.max,
                             "id": modifier_group_info.pk,
                             "active": modifier_group_info.active,
-                            "sortOrder": modifier_group_info.sortOrder,
                             "modifiers": modifier_list[key]
                         })
 

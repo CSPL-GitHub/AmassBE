@@ -1090,7 +1090,7 @@ class WooCommerce():
                 "slug": slugify(modGrpObj.name),
                 "title": modGrpObj.name,
                 "type": "checkbox" if modGrpObj.modGrptype==ModifierType.MULTIPLE else "radio",
-                "priority": modGrpObj.sortOrder
+                # "priority": modGrpObj.sortOrder
             }
 
             url = platform.baseUrl + "/wp-json/v1/saveModifierGroup"
@@ -1156,7 +1156,7 @@ class WooCommerce():
             }
             payload ={
                 "apply_to": "custom",
-                "priority":modGrpObj.sortOrder,
+                # "priority":modGrpObj.sortOrder,
                 "type_title": modGrpObj.name,
                 "type": "updated_type"
             }

@@ -515,7 +515,7 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.min = 0
             cat.max = 0
             cat.isDeleted = False
-            cat.sortOrder = coreModGrp["sortOrder"]
+            # cat.sortOrder = coreModGrp["sortOrder"]
             cat.modGrptype = coreModGrp["type"]
             # coreModGrpUpdate.append(cat)
         except ProductModifierGroup.DoesNotExist:
@@ -526,7 +526,7 @@ class StagingIntegration(AbstractPOSIntegration):
                 min=0,
                 max=0,
                 isDeleted=False,
-                sortOrder=coreModGrp["sortOrder"],
+                # sortOrder=coreModGrp["sortOrder"],
                 modGrptype=coreModGrp["type"],
                 vendorId=vendor)
         cat.save()

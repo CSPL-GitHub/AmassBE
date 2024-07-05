@@ -141,7 +141,6 @@ class ProductModifierGroup(models.Model):
     min=models.IntegerField()
     max=models.IntegerField()
     isDeleted=models.BooleanField(default=False)
-    sortOrder=models.IntegerField(default=0)
     modGrptype=models.CharField(max_length=50, default="MULTIPLE")
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
     active=models.BooleanField(default=True)

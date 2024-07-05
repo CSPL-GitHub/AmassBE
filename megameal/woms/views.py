@@ -546,7 +546,6 @@ def productByCategory(request, id=0):
                         # "max":prdModGrpJnt.max,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -740,7 +739,6 @@ def searchProduct(request, search):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -813,7 +811,6 @@ def singleProdMod(request,prod=None,order=None):
                     "plu":prdModGrpJnt.modifierGroup.PLU,
                     "min":prdModGrpJnt.modifierGroup.min,
                     "max":prdModGrpJnt.modifierGroup.max,
-                    "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                     "type":prdModGrpJnt.modifierGroup.modGrptype,
                     "count":len(count),
                     "modifiers":mods

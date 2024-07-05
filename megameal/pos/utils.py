@@ -429,7 +429,7 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                         vendorId = vendor_instance,
                         active = is_active
                     )
-                    # Columns with default value: isDeleted, sortOrder
+                    # Columns with default value: isDeleted
                     
                 existing_modifier = ProductModifier.objects.filter(
                     modifierPLU = row["Modifier SKU"],

@@ -186,7 +186,6 @@ def productByCategory(request, id=0, vendorId=-1):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -279,7 +278,6 @@ def productDetails(request,id=0,search=''):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
@@ -589,7 +587,6 @@ def productByCategoryTemp(request,id=0):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
