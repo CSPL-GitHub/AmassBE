@@ -1983,22 +1983,26 @@ def order_details(request):
     platform_name = request.GET.get('platform')
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if platform_name == None or platform_name == '""' or platform_name == '' or len(platform_name) == 0:
-        return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
+        return JsonResponse({"error": "Platform name cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
     koms_order_status_list = []
+
     koms_order_status = KOMSOrderStatus.objects.all()
 
-    for status in koms_order_status:
-        name = status.status.lower()
+    for status_value in koms_order_status:
+        name = status_value.get_status_display()
 
-        if name!="closed" or name!="canceled":
-           koms_order_status_list.append(status.pk)
+        if name!="CLOSED" or name!="CANCELED":
+           koms_order_status_list.append(status_value.status)
+
         else:
-            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=400)
+            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=status.HTTP_400_BAD_REQUEST)
 
     order_info = {}
     payment_details = {}
@@ -2012,16 +2016,16 @@ def order_details(request):
         koms_order_id = koms_order.pk
 
         if koms_order.order_status in koms_order_status_list:
-            platforms = ((Platform.objects.filter(VendorId=vendor_id).exclude(Name="WooCommerce")).values_list("Name", flat=True))
+            platforms = Platform.objects.filter(VendorId=vendor_id).values_list("Name", flat=True)
 
             platform_list = []
+
             for platform in platforms:
                 platform_list.append(platform.lower())
             
-            if str(platform_name).lower() == "woocommerce":
-                order = Order.objects.get(pk=external_order_id)
-            elif str(platform_name).lower() in platform_list:
+            if str(platform_name).lower() in platform_list:
                 order = Order.objects.get(externalOrderld=external_order_id)
+
             else:
                 return JsonResponse({"error": "Invalid platform name"}, status=400)
 
@@ -2169,7 +2173,7 @@ def order_details(request):
                         "text": item.product.productName,
                         "isTaxable": item.product.taxable,
                         "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "images":image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
                         "categoryName": item.category.categoryName,
                         "note": order.note if order.note else "",
                         "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
@@ -2179,16 +2183,18 @@ def order_details(request):
                     
                 order_detail = OrderItem.objects.filter(orderId=order_id).first()
 
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
+                total_points_redeemed = 0
+                
+                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id)
 
-                if loyalty_points_redeem_history:
-                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+                if loyalty_program:
+                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
 
-                    if not total_points_redeemed:
-                        total_points_redeemed = 0
+                    if loyalty_points_redeem_history:
+                        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-                else:
-                    total_points_redeemed = 0
+                        if not total_points_redeemed:
+                            total_points_redeemed = 0
 
                 order_info["staging_orderId"] = int(koms_order_id)
                 order_info["core_orderId"] = order_id
@@ -2208,6 +2214,7 @@ def order_details(request):
                 if order_detail.orderId.platform == None:
                     platform_id = 0
                     platform_name = ""
+
                 else:
                     platform_id = order_detail.orderId.platform.pk
                     platform_name = order_detail.orderId.platform.Name
@@ -2216,11 +2223,11 @@ def order_details(request):
                 platform_details["name"] = platform_name
 
                 return JsonResponse({
-                        "payment_details": payment_details,
-                        "customer_details": customer_details,
-                        "table_details": table_details,
-                        "platform_details": platform_details,
-                        "order_info": order_info
+                    "payment_details": payment_details,
+                    "customer_details": customer_details,
+                    "table_details": table_details,
+                    "platform_details": platform_details,
+                    "order_info": order_info
                 })
             
             else:
