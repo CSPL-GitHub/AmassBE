@@ -4,6 +4,7 @@ from .models import *
 
 admin.site.register(Order_Discount)
 admin.site.register(Order)
+admin.site.register(OrderItem)
 admin.site.register(LoyaltyProgramSettings)
 admin.site.register(LoyaltyPointsCreditHistory)
 admin.site.register(LoyaltyPointsRedeemHistory)
