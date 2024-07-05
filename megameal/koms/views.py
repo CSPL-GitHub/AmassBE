@@ -839,21 +839,31 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
 @api_view(["POST", "PUT"])
 def updateTicketStatus(request):
     requestJson = JSONParser().parse(request)
+
     ticketId = requestJson.get("ticketId")
     contentId = requestJson.get("contentId")
     orderStatus = requestJson.get("status")
     ticketStatus = requestJson.get("ticketStatus")
-    vendorId=request.GET.get("vendorId")
+    vendorId = request.GET.get("vendorId")
+
     if contentId is not None:
-        changeTicketStatus=False
+        changeTicketStatus = False
+
         try:
             content = Order_content.objects.get(pk=contentId)
+
             data = {"status": orderStatus}
-            oldContent=content.status
+
+            oldContent = content.status
+
             serializedData = Order_content_serializer(instance=content, data=data, partial=True)
+
             orders = Order.objects.get(pk=ticketId,vendorId=vendorId)
+
             oldStatus = orders.order_status
-            recall=Order_content.objects.get(pk=contentId).isrecall
+
+            recall= Order_content.objects.get(pk=contentId).isrecall
+
             if serializedData.is_valid():
                 serializedData.save()
                 oc = Order_content.objects.filter(orderId=ticketId)
@@ -864,34 +874,48 @@ def updateTicketStatus(request):
                     processStation(oldStatus=str(oldStatus),currentStatus=str(komsOrderStatus.PROCESSING),orderId=orders.pk,station=content.stationId,vendorId=vendorId)
                 #
                 
-                if oc.exclude(status__in =[komsOrderStatus.READY,komsOrderStatus.ONHOLD,komsOrderStatus.CANCELED,komsOrderStatus.RECALL]).count() == oc.filter(status=komsOrderStatus.PROCESSING).count():
-                    if content.orderId.order_status in [ASSIGN,ONHOLD]:
-                        changeTicketStatus=True
-                        Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=PROCESSING)
-                        webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)  # wheel remove order
+                if oc.exclude(status__in = [
+                    komsOrderStatus.READY, komsOrderStatus.ONHOLD, komsOrderStatus.CANCELED, komsOrderStatus.RECALL
+                ]).count() == oc.filter(status=komsOrderStatus.PROCESSING).count():
+                    if content.orderId.order_status in [ASSIGN, ONHOLD]:
+                        changeTicketStatus = True 
+
+                        Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=PROCESSING) 
+                        
+                        webSocketPush(message={"id": orders.pk, "orderId": orders.externalOrderId, "UPDATE": "REMOVE",}, room_name=str(vendorId)+"-"+str(oldStatus), username="CORE",)  # wheel remove order
                 
                 if oc.count() == oc.filter(status=komsOrderStatus.CANCELED).count():
                     changeTicketStatus=True
+
                     Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=CANCELED, isHigh=False)
-                    webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)  # wheel remove order
+                    
+                    webSocketPush(message={"id": orders.pk, "orderId": orders.externalOrderId,"UPDATE": "REMOVE",}, room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)  # wheel remove order
+                
                 elif oc.exclude(status=komsOrderStatus.CANCELED).count() == oc.filter(status=komsOrderStatus.READY).count():
                     if orders.order_status != 3:
-                        changeTicketStatus=True
-                        webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)  # wheel remove order
+                        changeTicketStatus = True
+                        
+                        webSocketPush(message={"id": orders.pk, "orderId": orders.externalOrderId, "UPDATE": "REMOVE",}, room_name=str(vendorId)+"-"+str(oldStatus) ,username="CORE",)  # wheel remove order
                      
                     # if oc.count() == oc.filter(status=komsOrderStatus.READY).count():
                     Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=READY, isHigh=False)
+                
                 if oc.count() == 1:
                     Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=READY, isHigh=False)
+                    
                     changeTicketStatus=True
-                    webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)                      
+                    
+                    webSocketPush(message={"id": orders.pk, "orderId": orders.externalOrderId, "UPDATE": "REMOVE",}, room_name=str(vendorId)+"-"+str(oldStatus), username="CORE",)                      
 
                 if content.status==komsOrderStatus.RECALL:
                     Order_content.objects.exclude(status__in =[komsOrderStatus.READY,komsOrderStatus.CANCELED,komsOrderStatus.RECALL]).filter(pk=content.pk).update(status=str(PROCESSING),isrecall=True)
+                    
                     Order.objects.filter(id=content.orderId.pk,vendorId=vendorId).update(order_status=PROCESSING, isHigh=False)
-                    if oldStatus!=PROCESSING:
-                        changeTicketStatus=True
-                        webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+str(oldStatus),username="CORE",)  # wheel remove order
+                    
+                    if oldStatus != PROCESSING:
+                        changeTicketStatus = True
+
+                        webSocketPush(message={"id": orders.pk, "orderId": orders.externalOrderId, "UPDATE": "REMOVE",}, room_name=str(vendorId)+"-"+str(oldStatus), username="CORE",)  # wheel remove order
                         
                 order_content = Order_content.objects.filter(orderId=ticketId)
                 
@@ -899,8 +923,10 @@ def updateTicketStatus(request):
 
                 # 4=Onhold, 8=Assign
                 if ('4' in status_list) and ('8' not in status_list):
-                    changeTicketStatus=True
+                    changeTicketStatus = True
+                    
                     Order.objects.filter(id=content.orderId.pk, vendorId=vendorId).update(order_status=ONHOLD)
+                    
                     webSocketPush(
                         message={"id": orders.pk, "orderId": orders.externalOrderId, "UPDATE": "REMOVE"},
                         room_name=str(vendorId) + "-" + str(oldStatus),
@@ -911,68 +937,99 @@ def updateTicketStatus(request):
                     webSocketPush(message=getOrder(ticketId=ticketId,vendorId=vendorId), room_name=str(vendorId)+"-"+str(Order.objects.get(pk=ticketId,vendorId=vendorId).order_status), username="CORE")
                 
                 webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
-                webSocketPush(message=statuscount(vendorId=vendorId),room_name= STATUSCOUNT,username= "CORE")  # wheel man status count
-                webSocketPush(message=CategoryWise(vendorId=vendorId),room_name= STATIONSIDEBAR,username= "CORE")
+                webSocketPush(message=statuscount(vendorId=vendorId), room_name=STATUSCOUNT, username="CORE")  # wheel man status count
+                webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username="CORE")
                 
                 ####++++ Here We are processing station sockets
-                processStation(oldStatus=oldContent,currentStatus=Order_content.objects.get(pk=content.pk).status,orderId=content.orderId.pk,station=content.stationId,vendorId=vendorId)
+                processStation(
+                    oldStatus=oldContent,
+                    currentStatus=Order_content.objects.get(pk=content.pk).status,
+                    orderId=content.orderId.pk,station=content.stationId,
+                    vendorId=vendorId
+                )
                 # singleStationWiseRemove(id=content.orderId.pk,old=oldContent,current=Order_content.objects.get(pk=content.pk).status,stn=content.stationId)
                 # allStationWiseSingle(id=ticketId,vendorId=vendorId)
                 ####+++++++++
                 subtotal = 0
+
                 for cont in Order_content.objects.filter(orderId=orders.pk).exclude(status__in =[komsOrderStatus.CANCELED]):
                     prodData = Product.objects.filter(PLU=cont.SKU, vendorId_id=request.GET.get("vendorId")).first()
+                    
                     subtotal = subtotal + (prodData.productPrice * cont.quantity)
+                    
                     for mod in Order_modifer.objects.filter(contentID=cont.pk):
-                        modifierData = ProductModifier.objects.filter(modifierPLU=mod.SKU,
-                                                                    vendorId=request.GET.get("vendorId")).first()
+                        modifierData = ProductModifier.objects.filter(modifierPLU=mod.SKU, vendorId=request.GET.get("vendorId")).first()
+                        
                         subtotal = subtotal + (modifierData.modifierPrice * mod.quantity)
+                
                 master_order_instance = coreOrder.objects.filter(pk=orders.master_order.pk).first()
+                
                 master_order_instance.subtotal = subtotal
+                
                 tax_total = 0
+
                 for tax in Product_Tax.objects.filter(vendorId=request.GET.get("vendorId")):
                     tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
+                
                 master_order_instance.tax = tax_total
+                
                 master_order_instance.TotalAmount = master_order_instance.subtotal + tax_total
+                
                 master_order_instance.save()
+                
                 waiteOrderUpdate(orderid=ticketId,vendorId=vendorId)
+                
                 updateCoreOrder(order=Order.objects.get(pk=ticketId,vendorId=vendorId))
+                
                 allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
+                
                 return Response(serializedData.data, status=status.HTTP_200_OK)
+        
         except:
-            return Response(
-                {"error": "Invalid ticket Id"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response({"error": "Invalid ticket Id"}, status=status.HTTP_400_BAD_REQUEST)
 
     if ticketId is not None:
         try:
             orders = Order.objects.get(pk=ticketId,vendorId=request.GET.get("vendorId"))
+        
         except:
             orders = Order.objects.filter(pk=ticketId,vendorId=request.GET.get("vendorId")).first()
+        
         try:
             oldStatus = orders.order_status
+
             if ticketStatus in [1, 2, 3, 4, 5, 7, 8,9,10]:
+
                 order_status = orderStatus
+
                 if ticketStatus == 7:
                     Order.objects.filter(pk=ticketId,vendorId=request.GET.get("vendorId")).update(isHigh=True)
+                    
                     Order_content.objects.filter(orderId=ticketId).update(status=8)
+                
                 elif ticketStatus==8:
                     if oldStatus==6:
                         for i in Order_content.objects.filter(orderId=ticketId):
-                            # print(type(i.status))
                             if i.status == "6":
                                 i.status = order_status
                                 i.save()
+                    
                     else:
                         Order_content.objects.filter(orderId=ticketId).update(status=orderStatus)
+                
                 elif ticketStatus in [4,5]  :
                     Order_content.objects.exclude(status__in =['3','5','6']).filter(orderId=ticketId).update(status=str(orderStatus))
+                
                 elif ticketStatus in [3, 5]:
                     Order_content.objects.filter(orderId=ticketId).exclude(status__in =[komsOrderStatus.CANCELED]).update(status=str(orderStatus))
+                    
                     Order.objects.filter(id=ticketId).update(isHigh=False)
+                
                 if oldStatus == 7:
                     Order_content.objects.filter(orderId=ticketId).update(status=str(orderStatus))
+                    
                     Order.objects.filter(id=ticketId,vendorId=request.GET.get("vendorId")).update(isHigh=True)
+                
                 elif oldStatus in [2,4]:
                     Order_content.objects.exclude(status__in =['3','5','6']).filter(orderId=ticketId).update(status=str(orderStatus))
                 
@@ -981,39 +1038,49 @@ def updateTicketStatus(request):
 
             elif ticketStatus == 6:
                 order_status = orderStatus
+                
                 Order.objects.filter(id=ticketId,vendorId=request.GET.get("vendorId")).update(order_status=order_status)
+                
                 Order_content.objects.exclude(status__in =['3','5','6']).filter(orderId=ticketId).update(status=order_status)
           
             data = {"order_status": orderStatus}
+            
             serializedData = Order_serializer(instance=orders, data=data, partial=True)
+            
             if serializedData.is_valid():
                 serializedData.save()
-            if Order.objects.get(pk=ticketId,vendorId=request.GET.get("vendorId")).order_status==HIGH:
-                Order.objects.filter(pk=ticketId,vendorId=request.GET.get("vendorId")).update(isHigh=True) # Set priority till ticket is canceled or closed
-                Order.objects.filter(pk=ticketId,vendorId=request.GET.get("vendorId")).update(order_status=ASSIGN)
-            elif Order.objects.get(pk=ticketId,vendorId=request.GET.get("vendorId")).order_status in [3, 5]:
-                Order.objects.filter(id=ticketId,vendorId=request.GET.get("vendorId")).update(isHigh=False)
-            webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+'-'+str(oldStatus),username="CORE",)  # WheelMan order remove order from old status
+
+            if Order.objects.get(pk=ticketId, vendorId=request.GET.get("vendorId")).order_status==HIGH:
+                Order.objects.filter(pk=ticketId, vendorId=request.GET.get("vendorId")).update(isHigh=True) # Set priority till ticket is canceled or closed
+                
+                Order.objects.filter(pk=ticketId, vendorId=request.GET.get("vendorId")).update(order_status=ASSIGN)
+            
+            elif Order.objects.get(pk=ticketId ,vendorId=request.GET.get("vendorId")).order_status in [3, 5]:
+                Order.objects.filter(id=ticketId, vendorId=request.GET.get("vendorId")).update(isHigh=False)
+            
+            webSocketPush(message={"id": orders.pk,"orderId": orders.externalOrderId, "UPDATE": "REMOVE",}, room_name=str(vendorId)+'-'+str(oldStatus), username="CORE",)  # WheelMan order remove order from old status
             
             for cont in Order_content.objects.filter(orderId=orders.pk):
-                processStation(oldStatus=str(oldStatus),currentStatus=str(orderStatus),orderId=orders.pk,station=cont.stationId,vendorId=vendorId)
-            allStationWiseRemove(id=orders.pk,old=str(oldStatus),current=str(orderStatus),vendorId=vendorId)
-            allStationWiseSingle(id=ticketId,vendorId=vendorId)
+                processStation(oldStatus=str(oldStatus), currentStatus=str(orderStatus), orderId=orders.pk, station=cont.stationId, vendorId=vendorId)
+            
+            allStationWiseRemove(id=orders.pk, old=str(oldStatus), current=str(orderStatus), vendorId=vendorId)
+            allStationWiseSingle(id=ticketId, vendorId=vendorId)
            
-            waiteOrderUpdate(orderid=ticketId,vendorId=vendorId)
+            waiteOrderUpdate(orderid=ticketId, vendorId=vendorId)
+            
             allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
+            
             updateCoreOrder(order=Order.objects.get(pk=ticketId))
+
             return Response(serializedData.data, status=status.HTTP_200_OK)
+        
         except Exception as e:
             print(e)
-            return Response(
-                {"error": "Invalid ticket Id"}, status=status.HTTP_400_BAD_REQUEST
-            )
+            return Response( {"error": "Invalid ticket Id"}, status=status.HTTP_400_BAD_REQUEST)
     else:
         print("invalid arguments")
-        return Response(
-            {"error": "invalid arguments"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response({"error": "invalid arguments"}, status=status.HTTP_400_BAD_REQUEST)
+
 
 @api_view(["POST"])
 def assignChef(request):
