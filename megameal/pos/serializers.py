@@ -158,9 +158,23 @@ class ProductModGroupJointSerializer(serializers.ModelSerializer):
 
 
 class ModifierGroupSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.context["request"].method in ("PUT", "PATCH",):
+            excluded_fields = ("vendorId",)
+            
+            for field_name in excluded_fields:
+                self.fields.pop(field_name)
+
+    id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = ProductModifierGroup
-        fields = "__all__"
+        fields = (
+            'id', 'name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',
+            'PLU', 'min', 'max', 'active', 'vendorId'
+        )
 
 
 class ModifierSerializer(serializers.ModelSerializer):

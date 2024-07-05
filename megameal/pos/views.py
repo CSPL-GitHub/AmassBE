@@ -3857,7 +3857,13 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         name_query = request.GET.get('name', None)
         
         if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+            language = request.GET.get('language', "en")
+
+            if language == "ar":
+                queryset = queryset.filter(name_ar__icontains=name_query)
+
+            else:
+                queryset = queryset.filter(name__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
@@ -3883,28 +3889,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -3940,28 +3924,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -3985,31 +3947,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 instance = self.get_object()
                 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteModifierGroupUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Mod Group '{instance.name}' will be deleted.  response: {wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Modifier Group deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Modifier group not found in wordpress")
-                #         notify(type=6, msg='0', desc='Modifier group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Modifier group not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier Group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
