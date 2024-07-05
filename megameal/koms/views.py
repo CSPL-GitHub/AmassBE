@@ -845,6 +845,7 @@ def updateTicketStatus(request):
     orderStatus = requestJson.get("status")
     ticketStatus = requestJson.get("ticketStatus")
     vendorId = request.GET.get("vendorId")
+    language = request.GET.get("language", "en")
 
     if contentId is not None:
         changeTicketStatus = False
@@ -977,7 +978,7 @@ def updateTicketStatus(request):
                 
                 master_order_instance.save()
                 
-                waiteOrderUpdate(orderid=ticketId,vendorId=vendorId)
+                waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
                 
                 updateCoreOrder(order=Order.objects.get(pk=ticketId,vendorId=vendorId))
                 
@@ -1066,7 +1067,7 @@ def updateTicketStatus(request):
             allStationWiseRemove(id=orders.pk, old=str(oldStatus), current=str(orderStatus), vendorId=vendorId)
             allStationWiseSingle(id=ticketId, vendorId=vendorId)
            
-            waiteOrderUpdate(orderid=ticketId, vendorId=vendorId)
+            waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
             
             allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
             
