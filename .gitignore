@@ -10,6 +10,9 @@ megameal/db.sqlite3
 error.log
 megameal/static
 
+megameal/media/Product Details Excel
+megameal/media/Excel Downloads
+
 megameal/static/__pycache__
 
 megameal/core/__pycache__
