@@ -16,19 +16,24 @@ class VendorType(models.Model):
 
 
 class Vendor(models.Model):
-    Name=models.CharField(max_length=122)
-    Email=models.EmailField()
-    Password=models.CharField(max_length=122, null=True, blank=True)
-    vendor_type=models.ForeignKey(VendorType, on_delete=models.CASCADE, null=True, blank=True)
-    phone_number = models.PositiveBigIntegerField(null=True, blank=True)
-    gst_number = models.CharField(max_length=20, null=True, blank=True)
-    address_line_1 = models.TextField(null=True, blank=True)
-    address_line_2 = models.TextField(null=True, blank=True)
-    city = models.CharField(max_length=100, null=True, blank=True)
-    state = models.CharField(max_length=100, null=True, blank=True)
-    country = models.CharField(max_length=100, null=True, blank=True)
-    contact_person_name = models.CharField(max_length=100, null=True, blank=True)
-    contact_person_phone_number = models.PositiveBigIntegerField(null=True, blank=True)
+    Name = models.CharField(max_length=122)
+    Email = models.EmailField()
+    Password = models.CharField(max_length=122, null=True)
+    vendor_type = models.ForeignKey(VendorType, on_delete=models.CASCADE, null=True)
+    phone_number = models.PositiveBigIntegerField(null=True)
+    gst_number = models.CharField(max_length=20, null=True)
+    address_line_1 = models.TextField(null=True)
+    address_line_2 = models.TextField(null=True)
+    city = models.CharField(max_length=100, null=True)
+    state = models.CharField(max_length=100, null=True)
+    country = models.CharField(max_length=100, null=True)
+    contact_person_name = models.CharField(max_length=100, null=True)
+    contact_person_phone_number = models.PositiveBigIntegerField(null=True)
+    currency = models.CharField(max_length=20)
+    currency_symbol = models.CharField(max_length=20)
+    primary_language = models.CharField(max_length=100, default="English")
+    secondary_language = models.CharField(max_length=100, null=True)
+    selected_language = models.CharField(max_length=100, default="English") # field used for POS setting for Flutter
     is_active = models.BooleanField(default=False)
 
     def __str__(self):

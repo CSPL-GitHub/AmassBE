@@ -12,28 +12,26 @@ admin.site.register(Product_Tax)
 
 @admin.register(VendorType)
 class VendorTypeAdmin(admin.ModelAdmin):
-    required_languages = ('en', 'ar')
-    fields = ('type', 'type_ar')
+    fields = ('type',)
     
-    list_display = ('type', 'type_ar')
-    search_fields = ('type', 'type_ar')
+    list_display = ('type',)
+    search_fields = ('type',)
     ordering = ('type',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
-    required_languages = ('en', 'ar')
     fields = (
-        'vendor_type', 'Name', 'Name_ar', 'phone_number', 'Password', 'address_line_1', 'address_line_2',
-        'city', 'state', 'country', 'gst_number', 'contact_person_name', 'contact_person_name_ar',
+        'vendor_type', 'Name', 'phone_number', 'Password', 'address_line_1', 'address_line_2',
+        'city', 'state', 'country', 'gst_number', 'contact_person_name',
         'contact_person_phone_number', 'is_active',
     )
     
-    list_display = ('id', 'Name', 'Name_ar', 'phone_number', 'Email', 'is_active',)
+    list_display = ('id', 'Name', 'phone_number', 'Email', 'is_active',)
     list_filter = ('is_active', 'vendor_type', 'state', 'city', )
     search_fields = (
-        'Name', 'Name_ar', 'phone_number', 'Email', 'address_line_1', 'address_line_2',
-        'city', 'state', 'country', 'contact_person_name', 'contact_person_name_ar', 'contact_person_phone_number',
+        'Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2',
+        'city', 'state', 'country', 'contact_person_name', 'contact_person_phone_number',
     )
     ordering = ('Name',)
     # show_facets = admin.ShowFacets.ALWAYS
