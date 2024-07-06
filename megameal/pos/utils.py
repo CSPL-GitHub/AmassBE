@@ -155,6 +155,38 @@ def get_product_data(product_instance ,vendor_id):
     return product_data
 
 
+def get_modifier_data(modifier_instance, vendor_id):
+    modifier_data = {
+        "id": modifier_instance.pk,
+        "plu": modifier_instance.modifierPLU,
+        "name": modifier_instance.modifierName,
+        "name_ar": modifier_instance.modifierName_ar,
+        "description": modifier_instance.modifierDesc if modifier_instance.modifierDesc else "",
+        "description_ar": modifier_instance.modifierDesc_ar if modifier_instance.modifierDesc_ar else "",
+        "image": modifier_instance.modifierImg if modifier_instance.modifierImg else "",
+        "price": modifier_instance.modifierPrice,
+        "is_active": modifier_instance.active,
+        "vendorId": modifier_instance.vendorId.pk,
+        "modifier_groups": [],
+    }
+
+    modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier_instance.pk, vendor=vendor_id)
+
+    for joint in modifier_group_joint:
+        modifier_data["modifier_groups"].append({
+            "id": joint.modifierGroup.pk,
+            "plu": joint.modifierGroup.PLU,
+            "name": joint.modifierGroup.name,
+            "name_ar": joint.modifierGroup.name_ar,
+            "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
+            "description_ar": joint.modifierGroup.modifier_group_description_ar if joint.modifierGroup.modifier_group_description_ar else "",
+            "min": joint.modifierGroup.min,
+            "max": joint.modifierGroup.max,
+            "is_active": joint.modifierGroup.active,
+        })
+
+    return modifier_data
+
 def process_product_excel(file_path, sheet_name, vendor_id):
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
     
