@@ -2,6 +2,7 @@ from django.db import models
 from core.models import Vendor
 from order.models import Order as MasterOrder
 from woms.models import HotelTable
+from core.utils import KOMSOrderStatus
 
 
 
@@ -153,10 +154,10 @@ class UserSettings(models.Model):
 
 
 class KOMSOrderStatus(models.Model):
-    status = models.CharField(max_length=50)
+    status = models.IntegerField(choices=KOMSOrderStatus.choices, unique=True)
 
     def __str__(self):
-        return self.status
+        return self.get_status_display()
 
 
 class OrderHistory(models.Model):

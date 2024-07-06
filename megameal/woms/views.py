@@ -296,11 +296,14 @@ def websockettable(massase):
 @api_view(["post"])
 def assinTableupdate(request):
     from koms.views import webSocketPush
+
     requestJson = JSONParser().parse(request)
+
     id = requestJson.get('tableId')
-    floorId = requestJson.get('floorId')
+    # floorId = requestJson.get('floorId')
     waiterId = requestJson.get('waiterId')
-    vendorId=request.GET.get("vendorId")
+    vendorId = request.GET.get("vendorId")
+    language = request.GET.get("langauge", "en")
     # filter=requestJson.get('filter') if requestJson.get('filter') else ''
     # search=requestJson.get('search') if requestJson.get('search') else ''
     
@@ -308,17 +311,19 @@ def assinTableupdate(request):
         updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
         
         if HotelTable.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
-            result=  getTableData(hotelTable=updatetable,vendorId=vendorId)
-            oldWaiter=str(HotelTable.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+            result =  getTableData(hotelTable=updatetable,vendorId=vendorId)
+            oldWaiter = str(HotelTable.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+            
             webSocketPush(message={"result":result,"UPDATE": "REMOVE",},room_name=WOMS+str(oldWaiter)+"------"+str(vendorId),username="CORE",)#remove table from old waiter
         
         HotelTable.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
         
-        updatetable=HotelTable.objects.get(pk=id,  vendorId=vendorId)
-        res=getTableData(hotelTable=updatetable,vendorId=vendorId)
+        updatetable = HotelTable.objects.get(pk=id, vendorId=vendorId)
+
+        res = getTableData(hotelTable=updatetable, vendorId=vendorId)
 
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(waiterId)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS + f"POS------{language}-{str(vendorId)}", username="CORE",) #update table for new waiter
         
         for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
@@ -326,10 +331,7 @@ def assinTableupdate(request):
         return JsonResponse(res,safe=False)
     
     except Exception as e:
-        return JsonResponse({"error":str(e)},status=status.HTTP_400_BAD_REQUEST)
-        
-    
-
+        return JsonResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
@@ -401,37 +403,46 @@ def deleteTables(request):
 @api_view(['POST']) 
 def Table_update_api(request):
     from koms.views import webSocketPush
+
     try:
         requestJson = JSONParser().parse(request)
+
         id = requestJson.get('id')
-        floorId = requestJson.get('floor')
-        vendorId=request.GET.get("vendorId")
+        # floorId = requestJson.get('floor')
+        vendorId = request.GET.get("vendorId")
+        language = request.GET.get("language", "en")
         # filter=requestJson.get('filter')
         # search=requestJson.get('search')
 
-        oldTableData=HotelTable.objects.get(pk=id, vendorId=vendorId)
+        oldTableData = HotelTable.objects.get(pk=id, vendorId=vendorId)
+        
         status = oldTableData.status if requestJson.get('tableStatus')==None  else requestJson.get('tableStatus')
+        
         guestCount = oldTableData.guestCount if requestJson.get('guestCount')==None else requestJson.get('guestCount') 
-        floor = oldTableData.floor if requestJson.get('floor')==None else floorId
-        data=HotelTable.objects.filter(pk =id, vendorId=vendorId).update(status=status,guestCount=guestCount)
-        updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
-        res=getTableData(hotelTable=updatetable,vendorId=vendorId)
-        print("status ",status )
+        
+        # floor = oldTableData.floor if requestJson.get('floor')==None else floorId
+        
+        data = HotelTable.objects.filter(pk=id, vendorId=vendorId).update(status=status, guestCount=guestCount)
+        
+        updatetable = HotelTable.objects.get(pk=id, vendorId=vendorId)
+        
+        res = getTableData(hotelTable=updatetable, vendorId=vendorId)
+        
+        print("status ", status)
 
         # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(updatetable.waiterId.pk)+"-"+filter+"-"+search+"--","CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(updatetable.waiterId.pk if updatetable.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS+str(updatetable.waiterId.pk if updatetable.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS + f"POS------{language}-{str(vendorId)}", username="CORE",) #update table for new waiter
         
         for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
-            webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
+            webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
 
-        return JsonResponse(res,safe=False)
+        return JsonResponse(res, safe=False)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-            {"msg": e}
-        )
+        return JsonResponse({"msg": e})
  
  
 def allCategory(request,id=0):
@@ -448,7 +459,6 @@ def allCategory(request,id=0):
             # "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
             # "image":f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image":i.categoryImageUrl if i.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     data = sorted(data, key=lambda x: x["categoryId"])
     return JsonResponse({"categories":data})
@@ -495,7 +505,6 @@ def productByCategory(request, id=0):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -537,7 +546,6 @@ def productByCategory(request, id=0):
                         # "max":prdModGrpJnt.max,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -565,7 +573,6 @@ def productByCategory(request, id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })
@@ -697,7 +704,6 @@ def searchProduct(request, search):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -733,7 +739,6 @@ def searchProduct(request, search):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -757,7 +762,6 @@ def searchProduct(request, search):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "modifiersGroup":modGrp,
@@ -807,7 +811,6 @@ def singleProdMod(request,prod=None,order=None):
                     "plu":prdModGrpJnt.modifierGroup.PLU,
                     "min":prdModGrpJnt.modifierGroup.min,
                     "max":prdModGrpJnt.modifierGroup.max,
-                    "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                     "type":prdModGrpJnt.modifierGroup.modGrptype,
                     "count":len(count),
                     "modifiers":mods

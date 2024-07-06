@@ -42,11 +42,9 @@ class Core_User(models.Model):
 
 
 class ProductCategory(models.Model):
-    categoryName=models.CharField( max_length=500,null=True,blank=True)
-    categoryParentId=models.ForeignKey('ProductCategory', on_delete=models.CASCADE,null=True,blank=True)
-    categoryDescription=models.TextField(null=True,blank=True)
-    categoryStatus=models.IntegerField(default=0,null=True,blank=True)
-    categorySortOrder=models.IntegerField(default=0,null=True,blank=True)
+    categoryName=models.CharField(max_length=500)
+    categoryParentId=models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True, blank=True)
+    categoryDescription=models.TextField(null=True, blank=True)
     categoryImage=models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None ,null=True,blank=True)
     categoryImageUrl=models.URLField(null=True,blank=True)
     categoryCreatedAt=models.DateTimeField(auto_now_add=True,null=True,blank=True)
@@ -78,26 +76,25 @@ class ProductCategory(models.Model):
 
 
 class Product(models.Model):
-    PLU=models.CharField(max_length=50)
-    SKU=models.CharField(max_length=50,blank=True,null=True)
-    productName=models.CharField(max_length=200)
-    productDesc=models.TextField(default="",null=True,blank=True)
-    productThumb=models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None,null=True,blank=True)
-    productPrice=models.FloatField()
-    productQty=models.IntegerField(default=0)
-    productType=models.CharField(max_length=50)## Regular ,Variant
-    productParentId=models.ForeignKey("Product",on_delete=models.CASCADE,null=True,blank=True)
-    Unlimited=models.IntegerField(default=0)
-    productStatus=models.IntegerField(default=0)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True)
-    preparationTime=models.IntegerField(default=0)
-    isDeleted=models.BooleanField(default=False)
-    taxable=models.BooleanField(default=False)
-    sortOrder=models.IntegerField(default=1)
-    meta=models.JSONField(null=True,blank=True)
-    active=models.BooleanField(default=True)
-    tag=models.CharField(max_length=50,blank=True,null=True)
+    PLU = models.CharField(max_length=50)
+    SKU = models.CharField(max_length=50,blank=True,null=True)
+    productName = models.CharField(max_length=200)
+    productDesc = models.TextField(default="",null=True,blank=True)
+    productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None,null=True,blank=True)
+    productPrice = models.FloatField()
+    productQty = models.IntegerField(default=0)
+    productType = models.CharField(max_length=50)## Regular ,Variant
+    productParentId = models.ForeignKey("Product",on_delete=models.CASCADE,null=True,blank=True)
+    Unlimited = models.IntegerField(default=0)
+    preparationTime = models.IntegerField(default=0)
+    isDeleted = models.BooleanField(default=False)
+    taxable = models.BooleanField(default=False)
+    meta = models.JSONField(null=True,blank=True)
+    active = models.BooleanField(default=True)
+    tag = models.CharField(max_length=50, blank=True, null=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
+    tag_ar = models.CharField(max_length=50, blank=True, null=True, choices=(("نباتي", "veg"), ("غير نباتي", "non-veg")))
     is_displayed_online = models.BooleanField(default=True)
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True)
 
     class Meta:
         unique_together = ('PLU', 'vendorId')
@@ -144,7 +141,6 @@ class ProductModifierGroup(models.Model):
     min=models.IntegerField()
     max=models.IntegerField()
     isDeleted=models.BooleanField(default=False)
-    sortOrder=models.IntegerField(default=0)
     modGrptype=models.CharField(max_length=50, default="MULTIPLE")
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
     active=models.BooleanField(default=True)

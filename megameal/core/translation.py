@@ -24,7 +24,7 @@ class ProductCategoryTranslationOptions(TranslationOptions):
 
 @register(Product)
 class ProductTranslationOptions(TranslationOptions):
-    fields = ('productName', 'productDesc', 'tag',)
+    fields = ('productName', 'productDesc',)
 
 
 @register(ProductModifierGroup)

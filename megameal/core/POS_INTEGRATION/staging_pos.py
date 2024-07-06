@@ -320,8 +320,8 @@ class StagingIntegration(AbstractPOSIntegration):
             # cat.categorySlug = slugify(coreCat["categoryName"]) Bug Fix for update
             cat.categoryParentId = catParentId
             cat.categoryDescription = coreCat["description"]
-            cat.categoryStatus = coreCat["status"]
-            cat.categorySortOrder = coreCat["sortOrder"]
+            # cat.categoryStatus = coreCat["status"]
+            # cat.categorySortOrder = coreCat["sortOrder"]
             cat.categoryImage = coreCat["image"]
             cat.categoryUpdatedAt = timezone.make_aware(
                 datetime.now(), timezone.utc)
@@ -332,8 +332,8 @@ class StagingIntegration(AbstractPOSIntegration):
                                        coreCat["categoryName"]),
                                    categoryParentId=catParentId,
                                    categoryDescription=coreCat["description"],
-                                   categoryStatus=coreCat["status"],
-                                   categorySortOrder=coreCat["sortOrder"],
+                                #    categoryStatus=coreCat["status"],
+                                #    categorySortOrder=coreCat["sortOrder"],
                                    categoryImage=coreCat["image"],
                                    categoryCreatedAt=timezone.make_aware(
                                        datetime.now(), timezone.utc),
@@ -365,7 +365,7 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productQty = corePrd["qty"]
             cat.productPrice = corePrd["price"]
             cat.Unlimited = corePrd["unlimited"]
-            cat.productStatus = corePrd["productStatus"]
+            # cat.productStatus = corePrd["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = corePrd["preparationTime"]
             cat.taxable = corePrd["taxable"]
@@ -382,7 +382,7 @@ class StagingIntegration(AbstractPOSIntegration):
                 productQty=corePrd["qty"],
                 productPrice=corePrd["price"],
                 Unlimited=corePrd["unlimited"],
-                productStatus=corePrd["productStatus"],
+                # productStatus=corePrd["productStatus"],
                 vendorId=vendor,
                 preparationTime=corePrd["preparationTime"],
                 taxable=corePrd["taxable"],
@@ -444,13 +444,13 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productQty = coreVrt["qty"]
             cat.productPrice = coreVrt["price"]
             cat.Unlimited = coreVrt["unlimited"]
-            cat.productStatus = coreVrt["productStatus"]
+            # cat.productStatus = coreVrt["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = coreVrt["preparationTime"]
             cat.taxable = coreVrt["taxable"]
             cat.productType = coreVrt["type"]
             cat.productParentId = baseProduct
-            cat.sortOrder = coreVrt["sortOrder"]
+            # cat.sortOrder = coreVrt["sortOrder"]
             cat.SKU = coreVrt.get("sku")
             cat.save()
         except Product.DoesNotExist:
@@ -462,14 +462,14 @@ class StagingIntegration(AbstractPOSIntegration):
                 productQty=coreVrt["qty"],
                 productPrice=coreVrt["price"],
                 Unlimited=coreVrt["unlimited"],
-                productStatus=coreVrt["productStatus"],
+                # productStatus=coreVrt["productStatus"],
                 vendorId=vendor,
                 preparationTime=coreVrt["preparationTime"],
                 taxable=coreVrt["taxable"],
                 productType=coreVrt["type"],
                 productParentId=baseProduct,
                 SKU=coreVrt.get("sku"),
-                sortOrder=coreVrt["sortOrder"]
+                # sortOrder=coreVrt["sortOrder"]
             )
             cat = cat.save()
         # +++++ delete old joints and add New
@@ -515,7 +515,7 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.min = 0
             cat.max = 0
             cat.isDeleted = False
-            cat.sortOrder = coreModGrp["sortOrder"]
+            # cat.sortOrder = coreModGrp["sortOrder"]
             cat.modGrptype = coreModGrp["type"]
             # coreModGrpUpdate.append(cat)
         except ProductModifierGroup.DoesNotExist:
@@ -526,7 +526,7 @@ class StagingIntegration(AbstractPOSIntegration):
                 min=0,
                 max=0,
                 isDeleted=False,
-                sortOrder=coreModGrp["sortOrder"],
+                # sortOrder=coreModGrp["sortOrder"],
                 modGrptype=coreModGrp["type"],
                 vendorId=vendor)
         cat.save()

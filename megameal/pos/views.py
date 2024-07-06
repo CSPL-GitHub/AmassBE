@@ -60,7 +60,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
 from static.order_status_const import WOMS
-from pos.utils import order_count, process_product_excel
+from pos.utils import order_count, get_product_data, process_product_excel
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
@@ -436,7 +436,6 @@ def productByCategory(request, id=0):
                 #             "allowCustomerNotes": True,
                 #             "plu":variant.PLU,
                 #             "type":variant.productType,
-                #             "sortOrder":product.sortOrder,
                 #             "options":options
                 #         })
 
@@ -1775,14 +1774,18 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def createOrder(request):
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get("language", "en")
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
     
     try:
         print(request.data)
-        orderid=vendorId+str(CorePlatform.POS)+datetime.now().strftime("%H%M%S")
+
+        orderid = vendorId + str(CorePlatform.POS) + datetime.now().strftime("%H%M%S")
+
         result = {
+                "language": language,
                 "internalOrderId": orderid,
                 "vendorId": vendorId,
                 "externalOrderId":orderid,
@@ -1841,6 +1844,7 @@ def createOrder(request):
                 "points_redeemed": request.data.get("points_redeemed"),
                 "points_redeemed_by": request.data.get("points_redeemed_by"),
             }
+        
         # if request.data.get('promocodes'):
         #     discount=Order_Discount.objects.get(pk=request.data.get('promocodes')[0]['id'])
         #     result['discount']={
@@ -1850,14 +1854,17 @@ def createOrder(request):
         #                     "discountName": discount.discountName,
         #                     "discountCost": discount.value
         #                 }
-            # +++++++++++ Item In order
+        
+        # +++++++++++ Item In order
         items = []
+
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
                         pk=item['productId']
                         # , vendorId=vendorId
                         )
+                    
                 except Product.DoesNotExist:
                     return {API_Messages.ERROR:" Not found"}
                 
@@ -1890,34 +1897,42 @@ def createOrder(request):
                 }
                 
                 if corePrd.productParentId != None:
-                    itemData["variant"] = {
-                        "plu": corePrd.PLU
-                    }
+                    itemData["variant"] = {"plu": corePrd.PLU}
+
                 #####++++++++ Modifiers
                 items.append(itemData)
+
         result["items"] = items
-            # +++++++++++ Item In order
+
+        # +++++++++++ Item In order
         result["tip"] = request.data['tip'] 
+
         # return JsonResponse(result)
         tokenlist=KioskOrderData.objects.filter(date=datetime.today().date()).values_list('token')
-        token=1 if len(tokenlist)==0 else max(tokenlist)[0]+1
+
+        token=1 if len(tokenlist)==0 else max(tokenlist)[0] + 1
+
         # res=KomsEcom().openOrder(result)
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
-        saveData=KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
+        res = order_helper.OrderHelper.openOrder(result, vendorId)
+        
+        saveData = KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
         if saveData.is_valid():
             saveData.save()
+
             if Order.objects.filter(externalOrderld=orderid).exists():
                 return JsonResponse({'token':token, "external_order_id":orderid})
+            
             else:
                 return JsonResponse({'token':token, "external_order_id":""})
-        return JsonResponse(
-                {"msg": "Something went wrong"}, status=400
-            )
+        
+        return JsonResponse({"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
+
 
 @api_view(['GET'])
 def platform_list(request):
@@ -1967,22 +1982,26 @@ def order_details(request):
     platform_name = request.GET.get('platform')
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if platform_name == None or platform_name == '""' or platform_name == '' or len(platform_name) == 0:
-        return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
+        return JsonResponse({"error": "Platform name cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
     koms_order_status_list = []
+
     koms_order_status = KOMSOrderStatus.objects.all()
 
-    for status in koms_order_status:
-        name = status.status.lower()
+    for status_value in koms_order_status:
+        name = status_value.get_status_display()
 
-        if name!="closed" or name!="canceled":
-           koms_order_status_list.append(status.pk)
+        if name!="CLOSED" or name!="CANCELED":
+           koms_order_status_list.append(status_value.status)
+
         else:
-            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=400)
+            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=status.HTTP_400_BAD_REQUEST)
 
     order_info = {}
     payment_details = {}
@@ -1996,16 +2015,16 @@ def order_details(request):
         koms_order_id = koms_order.pk
 
         if koms_order.order_status in koms_order_status_list:
-            platforms = ((Platform.objects.filter(VendorId=vendor_id).exclude(Name="WooCommerce")).values_list("Name", flat=True))
+            platforms = Platform.objects.filter(VendorId=vendor_id).values_list("Name", flat=True)
 
             platform_list = []
+
             for platform in platforms:
                 platform_list.append(platform.lower())
             
-            if str(platform_name).lower() == "woocommerce":
-                order = Order.objects.get(pk=external_order_id)
-            elif str(platform_name).lower() in platform_list:
+            if str(platform_name).lower() in platform_list:
                 order = Order.objects.get(externalOrderld=external_order_id)
+
             else:
                 return JsonResponse({"error": "Invalid platform name"}, status=400)
 
@@ -2141,7 +2160,6 @@ def order_details(request):
                             "max": modifier_group_info.max,
                             "id": modifier_group_info.pk,
                             "active": modifier_group_info.active,
-                            "sortOrder": modifier_group_info.sortOrder,
                             "modifiers": modifier_list[key]
                         })
 
@@ -2153,7 +2171,7 @@ def order_details(request):
                         "text": item.product.productName,
                         "isTaxable": item.product.taxable,
                         "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "images":image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
                         "categoryName": item.category.categoryName,
                         "note": order.note if order.note else "",
                         "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
@@ -2163,16 +2181,18 @@ def order_details(request):
                     
                 order_detail = OrderItem.objects.filter(orderId=order_id).first()
 
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
+                total_points_redeemed = 0
+                
+                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id)
 
-                if loyalty_points_redeem_history:
-                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+                if loyalty_program:
+                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
 
-                    if not total_points_redeemed:
-                        total_points_redeemed = 0
+                    if loyalty_points_redeem_history:
+                        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-                else:
-                    total_points_redeemed = 0
+                        if not total_points_redeemed:
+                            total_points_redeemed = 0
 
                 order_info["staging_orderId"] = int(koms_order_id)
                 order_info["core_orderId"] = order_id
@@ -2192,6 +2212,7 @@ def order_details(request):
                 if order_detail.orderId.platform == None:
                     platform_id = 0
                     platform_name = ""
+
                 else:
                     platform_id = order_detail.orderId.platform.pk
                     platform_name = order_detail.orderId.platform.Name
@@ -2200,11 +2221,11 @@ def order_details(request):
                 platform_details["name"] = platform_name
 
                 return JsonResponse({
-                        "payment_details": payment_details,
-                        "customer_details": customer_details,
-                        "table_details": table_details,
-                        "platform_details": platform_details,
-                        "order_info": order_info
+                    "payment_details": payment_details,
+                    "customer_details": customer_details,
+                    "table_details": table_details,
+                    "platform_details": platform_details,
+                    "order_info": order_info
                 })
             
             else:
@@ -3352,28 +3373,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to create Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -3410,27 +3409,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to update Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = serializer.instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -3453,31 +3431,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 instance = self.get_object()
-
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteCategoryUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' will be deleted. response::{wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Category deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Category not found in wordpress")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Category not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 vendor_id = instance.vendorId.pk
                 
@@ -3505,6 +3458,7 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "en")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=404)
@@ -3517,7 +3471,12 @@ def get_products(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if product_name:
-        products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        if language == "ar":
+            products = Product.objects.filter(productName_ar__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+
+        else:
+            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+    
     else:
         products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -3526,8 +3485,10 @@ def get_products(request):
 
         try:
             paginated_products = paginator.page(page_number)
+        
         except PageNotAnInteger:
             paginated_products = paginator.page(1)
+        
         except EmptyPage:
             paginated_products = paginator.page(paginator.num_pages)
 
@@ -3536,100 +3497,9 @@ def get_products(request):
         total_pages = paginator.num_pages
 
         for single_product in paginated_products:
-            selected_image = ProductImage.objects.filter(product=single_product.pk).first()
+            product_info = get_product_data(single_product, vendor_id)
 
-            product_data = {
-                "id": single_product.pk,
-                "plu": single_product.PLU,
-                "name": single_product.productName,
-                "description": single_product.productDesc if single_product.productDesc else "",
-                "price": single_product.productPrice,
-                "is_active": single_product.active,
-                "tag": single_product.tag if single_product.tag else "",
-                "is_displayed_online": single_product.is_displayed_online,
-                "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                "vendorId": single_product.vendorId.pk,
-                "categories": [],
-                # "images": {"urls": [], "paths": []},
-                "images": [],
-                "modifier_groups": [],
-            }
-
-            product_category = ProductCategoryJoint.objects.filter(product=single_product.pk, vendorId=vendor_id).first()
-
-            if product_category:
-                if product_category.category:
-                    product_data["categories"].append({
-                    "id": product_category.category.pk,
-                    "plu": product_category.category.categoryPLU,
-                    "name": product_category.category.categoryName,
-                    "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
-                    "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
-                    "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
-                    "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
-                })
-
-            # else:
-                # return Response(f"{single_product.productName} has no category", status=404)
-
-            product_images = ProductImage.objects.filter(product=single_product.pk, vendorId=vendor_id)
-
-            if product_images:
-                for product_image in product_images:
-                    if product_image.url:
-                    #     product_data["images"]["urls"].append({
-                    #         "id": product_image.pk,
-                    #         "product_id": product_image.product.pk,
-                    #         "image": product_image.url if product_image.url else "",
-                    #         "is_selected": product_image.is_url_selected
-                    #     })
-
-                    # if product_image.image:
-                    #     product_data["images"]["paths"].append({
-                    #         "id": product_image.pk,
-                    #         "product_id": product_image.product.pk,
-                    #         "image": product_image.image.url if product_image.image else "",
-                    #         "is_selected": product_image.is_image_selected
-                    #     })
-
-                    # if product_image.image:
-                        product_data["images"].append({
-                            "id": product_image.pk,
-                            "image": product_image.url,
-                            "is_selected": True
-                        })
-
-            product_modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=single_product.pk, vendorId=vendor_id)
-            
-            if product_modifier_groups:
-                for modifier_group in product_modifier_groups:
-                    modifier_data = []
-                    joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=modifier_group.modifierGroup.pk, vendor=vendor_id)
-
-                    if joint_details.count() > 0:
-                        for joint in joint_details:
-                            modifier_data.append({
-                                "id": joint.modifier.pk,
-                                "plu": joint.modifier.modifierPLU,
-                                "name": joint.modifier.modifierName,
-                                "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                                "price": joint.modifier.modifierPrice,
-                                "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
-                                "is_active": joint.modifier.active,
-                            })
-                    
-                    product_data["modifier_groups"].append({
-                        "id": modifier_group.modifierGroup.pk,
-                        "plu": modifier_group.modifierGroup.PLU,
-                        "name": modifier_group.modifierGroup.name,
-                        "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
-                        "min": modifier_group.modifierGroup.min,
-                        "max": modifier_group.modifierGroup.max,
-                        "is_active": modifier_group.modifierGroup.active,
-                        "modifiers": modifier_data
-                    })
-            
-            response_data.append(product_data)
+            response_data.append(product_info)
 
         response = {
             "total_pages": total_pages,
@@ -3681,15 +3551,7 @@ def create_product(request):
         images_data = []
         modifier_groups_data = []
 
-        categories_response = []
-        # images_response = {"urls": [], "paths": []}
-        images_response = []
-        modifier_groups_response = []
-        modifiers_response = []
-
-        image_url_keys = []
         image_path_keys = []
-        is_url_selected_keys = []
         is_image_selected_keys = []
 
         with transaction.atomic():
@@ -3706,31 +3568,21 @@ def create_product(request):
 
             for key in request.data.keys():
                 if key.startswith('images-'):
-                    # if key.endswith('-url'):
-                    #     image_url_keys.append(key)
                     if key.endswith('-image'):
                         image_path_keys.append(key)
-                    # if key.endswith('-is_url_selected'):
-                    #     is_url_selected_keys.append(key)
+                    
                     if key.endswith('-is_image_selected'):
                         is_image_selected_keys.append(key)
 
-            # if len(image_url_keys) == len(image_path_keys) == len(is_url_selected_keys) == len(is_image_selected_keys):
             if len(image_path_keys) == len(is_image_selected_keys):
                 for iterator in range(len(image_path_keys)):
-                #     image_url = request.data.get(image_url_keys[iterator], None)
-                #     image_path = request.FILES.get(image_path_keys[iterator], None)
-                #     is_url_selected = request.data.get(is_url_selected_keys[iterator], None)
                     image_path = request.data.get(image_path_keys[iterator], None)
                     is_image_selected = request.data.get(is_image_selected_keys[iterator], None)
 
-
-                    # if (image_url == None) and (image_path == None):
                     if (image_path == None):
                         pass
+
                     else:
-                        # images_data.append({'url': image_url, 'image': image_path, 'is_url_selected':is_url_selected, 'is_image_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
-                        # images_data.append({'url': None, 'image': image_path, 'is_url_selected':False, 'is_image_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
                         images_data.append({'url': image_path, 'is_url_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
             
             else:
@@ -3743,16 +3595,6 @@ def create_product(request):
                 if product_category_joint_serializer.is_valid():
                     product_category_joint = product_category_joint_serializer.save()
 
-                    categories_response.append({
-                        "id": product_category_joint.category.pk,
-                        "plu": product_category_joint.category.categoryPLU,
-                        "name": product_category_joint.category.categoryName,
-                        "description": product_category_joint.category.categoryDescription if product_category_joint.category.categoryDescription else "",
-                        "image_path": product_category_joint.category.categoryImage.url if product_category_joint.category.categoryImage else "",
-                        "image_url": product_category_joint.category.categoryImageUrl if product_category_joint.category.categoryImageUrl else "",
-                        "image_selection": product_category_joint.category.image_selection if product_category_joint.category.image_selection else ""
-                    })
-
                 else:
                     print(product_category_joint_serializer.errors)
 
@@ -3761,29 +3603,6 @@ def create_product(request):
 
                 if image_serializer.is_valid():
                     images = image_serializer.save()
-
-                    # if images.url:
-                    #     images_response["urls"].append({
-                    #         "id": images.pk,
-                    #         "product_id": images.product.pk,
-                    #         "image": images.url,
-                    #         "is_selected": images.is_url_selected,
-                    #     })
-
-                    # if images.image:
-                    #     images_response["paths"].append({
-                    #         "id": images.pk,
-                    #         "product_id": images.product.pk,
-                    #         "image": images.image.url,
-                    #         "is_selected": images.is_image_selected
-                    #     })
-
-                    # if images.image:
-                    images_response.append({
-                        "id": images.pk,
-                        "image": images.url,
-                        "is_selected": True
-                    })
                     
                 else:
                     print("image save error :: ", image_serializer.errors)
@@ -3796,70 +3615,10 @@ def create_product(request):
                 if product_modGroup_joint_serializer.is_valid():
                     product_modGroup_joint = product_modGroup_joint_serializer.save()
 
-                    joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_modGroup_joint.modifierGroup.pk, vendor=vendor_id)
-
-                    if joint_details.count() > 0:
-                        for joint in joint_details:
-                            modifiers_response.append({
-                                "id": joint.modifier.pk,
-                                "plu": joint.modifier.modifierPLU,
-                                "name": joint.modifier.modifierName,
-                                "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                                "price": joint.modifier.modifierPrice,
-                                "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
-                                "is_active": joint.modifier.active,
-                            })
-
-                    modifier_groups_response.append({
-                        "id": product_modGroup_joint.modifierGroup.pk,
-                        "plu": product_modGroup_joint.modifierGroup.PLU,
-                        "name": product_modGroup_joint.modifierGroup.name,
-                        "description": product_modGroup_joint.modifierGroup.modifier_group_description if product_modGroup_joint.modifierGroup.modifier_group_description else "",
-                        "min": product_modGroup_joint.modifierGroup.min,
-                        "max": product_modGroup_joint.modifierGroup.max,
-                        "is_active": product_modGroup_joint.modifierGroup.active,
-                        "modifiers": modifiers_response
-                    })
-
                 else:
                     print(product_modGroup_joint_serializer.errors)
                     transaction.set_rollback(True)
                     return Response("Not a valid Modifier group", status=status.HTTP_400_BAD_REQUEST)
-
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     wCatPrdMapping = {}
-
-            #     for i in ProductCategoryJoint.objects.filter(product=product.pk):
-            #         response = WooCommerce.getCategoryUsingSlug(i.category.categorySlug, i.category.vendorId)
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wCatPrdMapping[i.category.pk]=response["response"].get("id")
-                
-            #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                
-            #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #         wordpress_response = WooCommerce.createProduct(product, product.vendorId, wCatPrdMapping)
-            #         print(f"Product '{product.productName}' created. response: {wordpress_response}")
-            #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #         wordpress_response = WooCommerce.updateProduct(response["response"].get("id"), product, product.vendorId, wCatPrdMapping)
-            #         print(f"Product '{product.productName}' updated.  response: {wordpress_response}")
-            #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #         print("WP error")
-            #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=product.vendorId.pk)
-            #         transaction.set_rollback(True)
-            #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-            #     woocommerce_response = WooCommerce.updateProductModifierGroupJointByProduct(product, vendor_id)
-                
-            #     if woocommerce_response.get("code") == Short_Codes.CONNECTED_AND_UPDATED:
-            #         notify(type=3, msg='0', desc='Product synced', stn=['POS'], vendorId=product.vendorId.pk)
-            #     else:
-            #         print("WP error")
-            #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=product.vendorId.pk)
-            #         transaction.set_rollback(True)
-            #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
@@ -3872,31 +3631,15 @@ def create_product(request):
                 else:
                     notify(type=3, msg='0', desc='Product synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            selected_image = ProductImage.objects.filter(product=product.pk).first()
+            product_info = get_product_data(product, vendor_id)
             
-            return JsonResponse({
-                "id": product.pk,
-                "plu": product.PLU,
-                "name": product.productName,
-                "description": product.productDesc if product.productDesc else "",
-                "price": product.productPrice,
-                "is_active": product.active,
-                "tag": product.tag if product.tag else "",
-                "is_displayed_online": product.is_displayed_online,
-                "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                "vendorId": product.vendorId.pk,
-                "categories": categories_response,
-                "images": images_response,
-                "modifier_groups": modifier_groups_response
-            }, status=status.HTTP_201_CREATED)
+            return JsonResponse(product_info, status=status.HTTP_201_CREATED)
     
     return Response(product_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["PUT", "PATCH"])
 def update_product(request, product_id):
-    print(request.data)
-
     vendor_id = request.POST.get('vendorId', None)
     
     if vendor_id is None:
@@ -3920,6 +3663,7 @@ def update_product(request, product_id):
 
             # Check if a product with the new PLU already exists while editing
             new_plu = request.data.get('PLU')
+            
             existing_product_with_new_plu = Product.objects.filter(PLU=new_plu, vendorId=vendor_id).exclude(pk=product_id).first()
 
             if existing_product_with_new_plu:
@@ -3928,25 +3672,10 @@ def update_product(request, product_id):
             if product_serializer.is_valid():
                 category_ids = []
                 modifier_group_ids = []
-                # categories_data = []
-                # modifier_groups_data = []
                 images_data = []
 
-                categories_response = []
-                modifier_groups_response = []
-                # images_response = {"urls": [], "paths": []}
-                images_response = []
-
-                image_url_keys = []
                 image_path_keys = []
-                is_url_selected_keys = []
                 is_image_selected_keys = []
-
-                edit_image_ids = []
-                # edit_image_url_keys = []
-                edit_image_path_keys = []
-                # edit_is_url_selected_keys = []
-                edit_is_image_selected_keys = []
 
                 with transaction.atomic():
                     updated_product = product_serializer.save()
@@ -3964,54 +3693,17 @@ def update_product(request, product_id):
                             if key.endswith('-is_image_selected'):
                                 is_image_selected_keys.append(key)
 
-                            # if key.endswith('-image-id-edit'):
-                            #     edit_image_ids.append(key)
-                            # # if key.endswith('-url-edit'):
-                            # #     edit_image_url_keys.append(key)
-                            # if key.endswith('-image-edit'):
-                            #     edit_image_path_keys.append(key)
-                            # # if key.endswith('-is_url_selected-edit'):
-                            # #     edit_is_url_selected_keys.append(key)
-                            # if key.endswith('-is_image_selected-edit'):
-                            #     edit_is_image_selected_keys.append(key)
-                    
-                    # if len(edit_image_ids) == len(edit_image_url_keys) == len(edit_image_path_keys) == len(edit_is_url_selected_keys) == len(edit_is_image_selected_keys):
-                    # if len(edit_image_ids) == len(edit_image_path_keys) == len(edit_is_image_selected_keys):
-                    #     for iterator in range(len(edit_image_ids)):
-                    #         edit_image_id = request.data.get(edit_image_ids[iterator], None)
-                    #         # edit_image_url = request.data.get(edit_image_url_keys[iterator], None)
-                    #         edit_image_path = request.FILES.get(edit_image_path_keys[iterator], None)
-                    #         # edit_is_url_selected = request.data.get(edit_is_url_selected_keys[iterator], None)
-                    #         edit_is_image_selected = request.data.get(edit_is_image_selected_keys[iterator], None)
-
-                    #         image_instance = ProductImage.objects.filter(pk=edit_image_id).first()
-                                
-                    #         if image_instance:
-                    #             # image_instance.url = edit_image_url
-                    #             image_instance.image = edit_image_path
-                    #             # image_instance.is_url_selected = edit_is_url_selected
-                    #             image_instance.is_image_selected = edit_is_image_selected
-                    #             image_instance.save()
-                    #         else:
-                    #             return Response("images-0-edit-image-id invalid", status=status.HTTP_400_BAD_REQUEST)
-                            
-                    # else:
-                    #     return Response("Image keys do not match", status=status.HTTP_400_BAD_REQUEST)
-                    
                     ProductImage.objects.filter(product=updated_product.pk, vendorId=vendor_id).delete()
                     
-                    # if len(image_url_keys) == len(image_path_keys) == len(is_url_selected_keys) == len(is_image_selected_keys):
                     if len(image_path_keys) == len(is_image_selected_keys):
                         for iterator in range(len(image_path_keys)):
-                            # image_url = request.data.get(image_url_keys[iterator], None)
-                            # image_path = request.FILES.get(image_path_keys[iterator], None)
                             image_path = request.data.get(image_path_keys[iterator], None)
-                            print(image_path)
-                            # is_url_selected = request.data.get(is_url_selected_keys[iterator], None)
+                            
                             is_image_selected = request.data.get(is_image_selected_keys[iterator], None)
-                            print(is_image_selected)
+                            
                             if ProductImage.objects.filter(product=updated_product.pk, image=image_path, is_image_selected=is_image_selected, vendorId=vendor_id).exists():
                                 pass
+
                             else:
                                 images_data.append({"product":updated_product.pk, "url":image_path, "is_url_selected":is_image_selected, "vendorId":vendor_id})
 
@@ -4019,12 +3711,12 @@ def update_product(request, product_id):
                         transaction.set_rollback(True)
                         return Response("Image keys do not match", status=status.HTTP_400_BAD_REQUEST)
                     
-                    print(images_data)
                     for image_data in images_data:
                         product_image_serializer = ProductImagesSerializer(data=image_data)
+                        
                         if product_image_serializer.is_valid():
                             img=product_image_serializer.save()
-                            print(img)
+                            
                         else:
                             print(product_image_serializer.errors)
                     
@@ -4048,22 +3740,6 @@ def update_product(request, product_id):
                     for category_id in missing_category_ids:
                         ProductCategoryJoint.objects.filter(product=updated_product.pk, category=category_id, vendorId=vendor_id).delete()
                     
-                    # for category_data in categories_data:
-                    #     product_category_joint_serializer = ProductCategoryJointSerializer(data=category_data)
-                        
-                    #     if product_category_joint_serializer.is_valid():
-                    #         product_category_joint_serializer.save()
-                    #     else:
-                    #         print(product_category_joint_serializer.errors)
-
-                    # for modifier_group_data in modifier_groups_data:
-                    #     product_modgroup_joint_serializer = ProductModGroupJointSerializer(data=modifier_group_data)
-
-                    #     if product_modgroup_joint_serializer.is_valid():
-                    #         product_modgroup_joint_serializer.save()
-                    #     else:
-                    #         print(product_modgroup_joint_serializer.errors)
-                        
                     product_modgroup_joint_ids = list(ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).values_list('modifierGroup_id', flat=True))
                     
                     modifier_group_ids_not_in_joint = []
@@ -4084,100 +3760,6 @@ def update_product(request, product_id):
                     for group_id in missing_modifier_group_ids:
                         ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, modifierGroup=group_id, vendorId=vendor_id).delete()
                     
-                    product_images_joint = ProductImage.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-
-                    if product_images_joint:
-                        for joint in product_images_joint:
-                            if joint.url:
-                            #     images_response.append({
-                            #         "id": joint.pk,
-                            #         "product_id": joint.product.pk,
-                            #         "url": joint.url,
-                            #         "is_url_selected": joint.is_url_selected,
-                            # })
-
-                            # if joint.image:
-                                images_response.append({
-                                    "id": joint.pk,
-                                    "product_id": joint.product.pk,
-                                    "image": joint.url,
-                                    "is_selected": True
-                            })
-                    
-                    product_category_joint = ProductCategoryJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-                    
-                    if product_category_joint:
-                        for joint in product_category_joint:
-                            if joint.category:
-                                categories_response.append({
-                                "id": joint.category.pk,
-                                "plu": joint.category.categoryPLU,
-                                "name": joint.category.categoryName,
-                                "description": joint.category.categoryDescription if joint.category.categoryDescription else "",
-                                "image_path": joint.category.categoryImage.url if joint.category.categoryImage else "",
-                                "image_url": joint.category.categoryImageUrl if joint.category.categoryImageUrl else "",
-                            })
-
-                    product_modgroup_joint = ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-                    
-                    if product_modgroup_joint:
-                        for joint in product_modgroup_joint:
-                            modifiers_response = []
-
-                            modifiers = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=joint.modifierGroup.pk, vendor=vendor_id)
-
-                            if modifiers.count() > 0:    
-                                for modifer_info in modifiers:
-                                    modifiers_response.append({
-                                        "id": modifer_info.modifier.pk,
-                                        "plu": modifer_info.modifier.modifierPLU,
-                                        "name": modifer_info.modifier.modifierName,
-                                        "description": modifer_info.modifier.modifierDesc if modifer_info.modifier.modifierDesc else "",
-                                        "price": modifer_info.modifier.modifierPrice,
-                                        "image": modifer_info.modifier.modifierImg if modifer_info.modifier.modifierImg else "",
-                                        "is_active": modifer_info.modifier.active,
-                                    })
-                            
-                            modifier_groups_response.append({
-                                "id": joint.modifierGroup.pk,
-                                "plu": joint.modifierGroup.PLU,
-                                "name": joint.modifierGroup.name,
-                                "description": joint.modifierGroup.modifier_group_description,
-                                "min": joint.modifierGroup.min,
-                                "max": joint.modifierGroup.max,
-                                "is_active": joint.modifierGroup.active,
-                                "modifiers": modifiers_response
-                            })
-                    
-                    # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                    # WooCommerce syncing
-                    # if woocommerce_platform:
-                    #     wCatPrdMapping = {}
-
-                    #     WooCommerce.updateProductModifierGroupJointByProduct(product, vendor_id)
-
-                    #     for i in ProductCategoryJoint.objects.filter(product=product.pk):
-                    #         response = WooCommerce.getCategoryUsingSlug(i.category.categorySlug, i.category.vendorId)
-                    #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                    #             wCatPrdMapping[i.category.pk]=response["response"].get("id")
-                        
-                    #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                        
-                    #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                    #         wordpress_response = WooCommerce.createProduct(product, product.vendorId, wCatPrdMapping)
-                    #         print(f"Product '{product.productName}' created. response: {wordpress_response}")
-                    #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                    #         wordpress_response = WooCommerce.updateProduct(response["response"].get("id"), product, product.vendorId, wCatPrdMapping)
-                    #         print(f"Product '{product.productName}' updated.  response: {wordpress_response}")
-                    #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                    #         print("WP error")
-                    #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=updated_product.vendorId.pk)
-                    #         transaction.set_rollback(True)
-                    #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                        
-                    #     notify(type=3, msg='0', desc='Product synced', stn=['POS'], vendorId=updated_product.vendorId.pk)
-                    
                     inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                     if inventory_platform:
@@ -4189,29 +3771,18 @@ def update_product(request, product_id):
                         else:
                             notify(type=3, msg='0', desc='Product synced with Inventory', stn=['POS'], vendorId=vendor_id)
                     
+                    product = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+
+                    product_info = get_product_data(product, vendor_id)
                     
-                    selected_image = ProductImage.objects.filter(product=updated_product.pk).first()
-                    
-                    return JsonResponse({
-                        "id": product.pk,
-                        "plu": product.PLU,
-                        "name": product.productName,
-                        "description": product.productDesc if product.productDesc else "",
-                        "price": product.productPrice,
-                        "is_active": product.active,
-                        "tag": product.tag if product.tag else "",
-                        "is_displayed_online": product.is_displayed_online,
-                        "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                        "vendorId": product.vendorId.pk,
-                        "categories": categories_response,
-                        "images": images_response,
-                        "modifier_groups": modifier_groups_response
-                    }, status=status.HTTP_200_OK)
+                    return JsonResponse(product_info, status=status.HTTP_200_OK)
                 
             else:
                 return Response(product_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         else:
             return Response("Product does not exist", status=status.HTTP_404_NOT_FOUND)
+    
     else:
         return Response("Product ID empty", status=status.HTTP_400_BAD_REQUEST)
 
@@ -4237,34 +3808,6 @@ def delete_product(request, product_id):
     if product:
         try:
             with transaction.atomic():
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteProductUsingId(response["response"].get("id"), product.vendorId, None)
-                        
-                #         print(f"Product '{product.productName}' will be deleted.  response: {wordpress_response}")
-                        
-                #         notify(type=3, msg='0', desc='Product deleted', stn=['POS'], vendorId=product.vendorId.pk)
-                        
-                #         product.delete()
-
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Product not found in wordpress")
-                #         notify(type=6, msg='0', desc='Product delete error', stn=['POS'], vendorId=product.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Product not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         notify(type=6, msg='0', desc='Product delete error', stn=['POS'], vendorId=product.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
 
                 if inventory_platform:
@@ -4314,7 +3857,13 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         name_query = request.GET.get('name', None)
         
         if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+            language = request.GET.get('language', "en")
+
+            if language == "ar":
+                queryset = queryset.filter(name_ar__icontains=name_query)
+
+            else:
+                queryset = queryset.filter(name__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
@@ -4340,28 +3889,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -4397,28 +3924,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -4442,31 +3947,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 instance = self.get_object()
                 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteModifierGroupUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Mod Group '{instance.name}' will be deleted.  response: {wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Modifier Group deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Modifier group not found in wordpress")
-                #         notify(type=6, msg='0', desc='Modifier group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Modifier group not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier Group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()

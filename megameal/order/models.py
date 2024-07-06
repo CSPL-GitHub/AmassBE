@@ -87,6 +87,9 @@ class Order(models.Model):
             'status': OrderStatus(self.Status).label,
             "externalOrderld": self.externalOrderld
         }
+    
+    def __str__(self):
+        return str(self.pk)
 
 
 class OriginalOrder(models.Model):
@@ -143,6 +146,9 @@ class OrderItem(models.Model):
             'discount': self.discount,
             'note':self.note
         }
+    
+    def __str__(self):
+        return str(self.orderId.pk)
 
 
 class OrderItemModifier(models.Model):

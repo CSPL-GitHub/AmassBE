@@ -661,7 +661,6 @@ def get_banner(request):
                                     "plu": group.modifierGroup.PLU,
                                     "min": group.modifierGroup.min,
                                     "max": group.modifierGroup.max,
-                                    "sortOrder": group.modifierGroup.sortOrder,
                                     "type": group.modifierGroup.modGrptype,
                                     "active": group.modifierGroup.active,
                                     "modifiers": modifier_list
@@ -687,7 +686,6 @@ def get_banner(request):
                             "note": '',
                             "isTaxable": product.taxable,
                             "type": product.productType,
-                            "sortOrder": product.sortOrder,
                             "modifiersGroup": modifier_group_list,
                         })
 

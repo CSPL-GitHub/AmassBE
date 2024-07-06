@@ -197,16 +197,21 @@ def process_excel(file_path, sheet_name, vendor_id):
                                     ).exists()
 
                                     if not existing_category:
+                                            category_image = ""
+
+                                            if (not pd.isnull(row["Category Image"])) or (row["Category Image"] != ""):
+                                                category_image = row["Category Image"]
+
                                             category_instance = ProductCategory.objects.create(
                                                 categoryName = row["Category Name"],
                                                 categoryDescription = None if pd.isnull(row["Category Desc"]) or row["Category Desc"] == "" else row["Category Desc"],
                                                 categoryPLU = row["Category SKU"],
                                                 categorySlug = slugify(str(row["Category Name"]).lower()),
+                                                categoryImageUrl = category_image,
                                                 vendorId = vendor_instance,
-                                                categorySortOrder = 1,
                                             )
                                             # Columns with default value:
-                                            # categoryParentId, categoryStatus, categoryImage, categoryImageUrl, categoryCreatedAt, categoryUpdatedAt, categoryIsDeleted, categoryStation
+                                            # categoryParentId, categoryImage, categoryCreatedAt, categoryUpdatedAt, categoryIsDeleted, categoryStation
 
                                     existing_product = Product.objects.filter(
                                         PLU = row["Product SKU"],
@@ -233,7 +238,7 @@ def process_excel(file_path, sheet_name, vendor_id):
                                             taxable = True,
                                         )
                                         # Columns with default value:
-                                        # productThumb, productQty, productParentId, productStatus, preparationTime, isDeleted, sortOrder, meta
+                                        # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
                                         
                                     if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                                         if (not(pd.isnull(row["Product Images"])) and row["Product Images"] != ""):
@@ -305,7 +310,7 @@ def process_excel(file_path, sheet_name, vendor_id):
                                                 vendorId = vendor_instance,
                                                 active = is_active
                                             )
-                                            # Columns with default value: isDeleted, sortOrder
+                                            # Columns with default value: isDeleted
                                             
                                         existing_modifier = ProductModifier.objects.filter(
                                             modifierPLU = row["Modifier SKU"],

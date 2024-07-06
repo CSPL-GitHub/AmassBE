@@ -101,12 +101,20 @@ class ProductCategorySerializer(serializers.ModelSerializer):
             "id",
             "categoryPLU",
             "categoryName",
+            "categoryName_ar",
             "categoryDescription",
+            "categoryDescription_ar",
             # "categoryImage",
             "categoryImageUrl",
             # "image_selection",
             "vendorId",
         )
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if representation.get('categoryImageUrl') is None:
+            representation['categoryImageUrl'] = ""
+        return representation
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -118,11 +126,14 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "PLU",
             "productName",
+            "productName_ar",
             "productDesc",
+            "productDesc_ar",
             "productPrice",
             "productType",
             "active",
             "tag",
+            "tag_ar",
             "is_displayed_online",
             "vendorId",
         )
@@ -147,9 +158,23 @@ class ProductModGroupJointSerializer(serializers.ModelSerializer):
 
 
 class ModifierGroupSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.context["request"].method in ("PUT", "PATCH",):
+            excluded_fields = ("vendorId",)
+            
+            for field_name in excluded_fields:
+                self.fields.pop(field_name)
+
+    id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = ProductModifierGroup
-        fields = "__all__"
+        fields = (
+            'id', 'name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',
+            'PLU', 'min', 'max', 'active', 'vendorId'
+        )
 
 
 class ModifierSerializer(serializers.ModelSerializer):

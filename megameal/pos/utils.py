@@ -68,6 +68,93 @@ def order_count(start_date, end_date, order_type, vendor_id):
     return count_details
 
 
+def get_product_data(product_instance ,vendor_id):
+    selected_image = ProductImage.objects.filter(product=product_instance.pk).first()
+
+    product_data = {
+        "id": product_instance.pk,
+        "plu": product_instance.PLU,
+        "name": product_instance.productName,
+        "name_ar": product_instance.productName_ar,
+        "description": product_instance.productDesc if product_instance.productDesc else "",
+        "description_ar": product_instance.productDesc_ar if product_instance.productDesc_ar else "",
+        "price": product_instance.productPrice,
+        "is_active": product_instance.active,
+        "tag": product_instance.tag if product_instance.tag else "",
+        "tag_ar": product_instance.tag_ar if product_instance.tag_ar else "",
+        "is_displayed_online": product_instance.is_displayed_online,
+        "selected_image": selected_image.url if selected_image and selected_image.url else "",
+        "vendorId": product_instance.vendorId.pk,
+        "categories": [],
+        "images": [],
+        "modifier_groups": [],
+    }
+
+    product_category = ProductCategoryJoint.objects.filter(product=product_instance.pk, vendorId=vendor_id).first()
+
+    if product_category:
+        if product_category.category:
+            product_data["categories"].append({
+                "id": product_category.category.pk,
+                "plu": product_category.category.categoryPLU,
+                "name": product_category.category.categoryName,
+                "name_ar": product_category.category.categoryName_ar,
+                "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
+                "description_ar": product_category.category.categoryDescription_ar if product_category.category.categoryDescription_ar else "",
+                "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
+                "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
+                "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
+            })
+
+    product_images = ProductImage.objects.filter(product=product_instance.pk, vendorId=vendor_id)
+
+    if product_images:
+        for product_image in product_images:
+            if product_image.url:
+                product_data["images"].append({
+                    "id": product_image.pk,
+                    "image": product_image.url,
+                    "is_selected": True
+                })
+
+    product_modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=product_instance.pk, vendorId=vendor_id)
+    
+    if product_modifier_groups:
+        for modifier_group in product_modifier_groups:
+            modifier_data = []
+
+            joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=modifier_group.modifierGroup.pk, vendor=vendor_id)
+
+            if joint_details.count() > 0:
+                for joint in joint_details:
+                    modifier_data.append({
+                        "id": joint.modifier.pk,
+                        "plu": joint.modifier.modifierPLU,
+                        "name": joint.modifier.modifierName,
+                        "name_ar": joint.modifier.modifierName_ar,
+                        "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
+                        "description_ar": joint.modifier.modifierDesc_ar if joint.modifier.modifierDesc_ar else "",
+                        "price": joint.modifier.modifierPrice,
+                        "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
+                        "is_active": joint.modifier.active,
+                    })
+            
+            product_data["modifier_groups"].append({
+                "id": modifier_group.modifierGroup.pk,
+                "plu": modifier_group.modifierGroup.PLU,
+                "name": modifier_group.modifierGroup.name,
+                "name_ar": modifier_group.modifierGroup.name_ar,
+                "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
+                "description_ar": modifier_group.modifierGroup.modifier_group_description_ar if modifier_group.modifierGroup.modifier_group_description_ar else "",
+                "min": modifier_group.modifierGroup.min,
+                "max": modifier_group.modifierGroup.max,
+                "is_active": modifier_group.modifierGroup.active,
+                "modifiers": modifier_data
+            })
+
+    return product_data
+
+
 def process_product_excel(file_path, sheet_name, vendor_id):
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
     
@@ -191,7 +278,6 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     categoryPLU = row["Category SKU"],
                     categorySlug = slugify(str(row["Category Name"]).lower()),
                     vendorId = vendor_instance,
-                    categorySortOrder = 1,
                     is_active=is_active
                 )
                 # Columns with default value:
@@ -239,7 +325,7 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     taxable = True,
                 )
                 # Columns with default value:
-                # productThumb, productQty, productParentId, productStatus, preparationTime, isDeleted, sortOrder, meta
+                # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
                 
             if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                 if (not(pd.isnull(row["Product Image"])) and row["Product Image"] != ""):
@@ -343,7 +429,7 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                         vendorId = vendor_instance,
                         active = is_active
                     )
-                    # Columns with default value: isDeleted, sortOrder
+                    # Columns with default value: isDeleted
                     
                 existing_modifier = ProductModifier.objects.filter(
                     modifierPLU = row["Modifier SKU"],

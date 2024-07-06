@@ -101,7 +101,6 @@ def allCategory(request,id=0,vendorId=-1):
             # "image":str(i.categoryImage),
             # "image": f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image": i.categoryImageUrl if i.categoryImageUrl else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     return JsonResponse({"categories":data})
 
@@ -151,7 +150,6 @@ def productByCategory(request, id=0, vendorId=-1):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -188,7 +186,6 @@ def productByCategory(request, id=0, vendorId=-1):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
@@ -210,7 +207,6 @@ def productByCategory(request, id=0, vendorId=-1):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "tag": product.tag,
@@ -254,7 +250,6 @@ def productDetails(request,id=0,search=''):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder
                     })
 
             images=[]
@@ -283,7 +278,6 @@ def productDetails(request,id=0,search=''):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
@@ -305,7 +299,6 @@ def productDetails(request,id=0,search=''):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiers":modGrp,
             })
@@ -515,18 +508,20 @@ def createOrder(request,vendorId=1):
 #### Temp API's
 HOST="http://151.80.237.29:8000/"
 DEFAULTIMG="static/images/default/no-image-icon-23494.png"
-def allCategoryTemp(request,id=0):
-    info=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
-    data=[]           
+def allCategoryTemp(request, id=0):
+    info = ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
+    
+    data = []
+
     for i in info:
         data.append({
-      "categoryId": i.pk,
-      "categoryPlu": i.categoryPLU,
-      "name":i.categoryName,
-      "description": i.categoryDescription,
-      "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
-      "sortOrder": i.categorySortOrder,
+            "categoryId": i.pk,
+            "categoryPlu": i.categoryPLU,
+            "name":i.categoryName,
+            "description": i.categoryDescription,
+            "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
         })
+    
     return JsonResponse({"categories":data})
 
  
@@ -561,7 +556,6 @@ def productByCategoryTemp(request,id=0):
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -593,7 +587,6 @@ def productByCategoryTemp(request,id=0):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
@@ -615,7 +608,6 @@ def productByCategoryTemp(request,id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })
