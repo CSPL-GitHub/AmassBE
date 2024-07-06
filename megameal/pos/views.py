@@ -596,7 +596,8 @@ def productByCategory(request, id=0):
                     "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
                     "isTaxable": product.taxable,
                     "type": product.productType,
-                    "variant": [], #product_variants,
+                    "variant": [],
+                    "quantity": 0, # Required for Flutter model
                     "active": product.active,
                     "modifiersGroup": modifier_group_list,
                 })
