@@ -283,8 +283,6 @@ def login(request):
         username = request.data.get("name")
         password = request.data.get("password")
 
-        language = request.GET.get("language", "en")
-
         user = POSUser.objects.filter(username=username, password=password, is_active=True).first()
 
         if not user:
@@ -293,35 +291,66 @@ def login(request):
                 "user_id": 0,
                 "token": "",
                 "name": "",
+                "name_locale": "",
                 "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
                 "vendor_id": 0
             }, status=status.HTTP_400_BAD_REQUEST)
         
         vendor_id = user.vendor.pk
 
+        vendor_instance = Vendor.objects.filter(pk=user.vendor.pk).first()
+
+        if not vendor_instance:
+            return JsonResponse({
+                "message": "Invalid Vendor",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "name_locale": "",
+                "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
         if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
             return JsonResponse({
-                "message": "Contact your administrator",
+                "message": "User not found",
                 "user_id": 0,
                 "token": "",
                 "name": "",
+                "name_locale": "",
                 "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
                 "vendor_id": 0
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        user_name = user.name
-
-        if language == "ar":
-            user_name = user.name_ar
-        
         return JsonResponse({
             "message": "",
             "user_id": user.pk,
             "token": "",
-            "name": user_name,
+            "name": user.name,
+            "name_locale": user.name_locale,
             "email": user.email,
+            "primary_language": vendor_instance.primary_language,
+            "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
+            "selected_language": vendor_instance.selected_language,
+            "currency": vendor_instance.currency,
+            "currency_symbol": vendor_instance.currency_symbol,
             "vendor_id": vendor_id,
         }, status=status.HTTP_200_OK)
     
@@ -331,7 +360,12 @@ def login(request):
             "user_id": 0,
             "token": "",
             "name": "",
+            "name_locale": "",
             "email": "",
+            "primary_language": "",
+            "secondary_language": "",
+            "currency": "",
+            "currency_symbol": "",
             "vendor_id": 0
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
