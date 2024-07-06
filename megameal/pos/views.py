@@ -1,12 +1,11 @@
 from rest_framework.decorators import api_view
-from django.http import JsonResponse, FileResponse, HttpResponse
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
+from django.http import JsonResponse, HttpResponse
 from koms.serializers.content_history_serializer import Content_history_serializer
 from kiosk.models import KioskOrderData
 from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
-    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Product_Option_Joint, Platform,
+    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
     ProductModifierAndModifierGroupJoint, Product_Tax, POS_Settings
 )
 from order import order_helper
@@ -18,11 +17,11 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
-from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType, Short_Codes
+from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Value, FloatField, Q, IntegerField, ExpressionWrapper, Count
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -51,7 +50,6 @@ from django.shortcuts import render, redirect
 from pos.models import POSUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
 from pos.forms import PosUserForm
 from django.conf import settings
-from base64 import b64encode
 from collections import OrderedDict
 from django.core.files.storage import default_storage
 from core.excel_file_upload import process_excel
@@ -283,8 +281,6 @@ def login(request):
         username = request.data.get("name")
         password = request.data.get("password")
 
-        language = request.GET.get("language", "en")
-
         user = POSUser.objects.filter(username=username, password=password, is_active=True).first()
 
         if not user:
@@ -294,34 +290,61 @@ def login(request):
                 "token": "",
                 "name": "",
                 "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
                 "vendor_id": 0
             }, status=status.HTTP_400_BAD_REQUEST)
         
         vendor_id = user.vendor.pk
 
-        platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+        vendor_instance = Vendor.objects.filter(pk=user.vendor.pk).first()
 
-        if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+        if not vendor_instance:
             return JsonResponse({
-                "message": "Contact your administrator",
+                "message": "Invalid Vendor",
                 "user_id": 0,
                 "token": "",
                 "name": "",
                 "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
                 "vendor_id": 0
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        user_name = user.name
+        platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
-        if language == "ar":
-            user_name = user.name_ar
-        
+        if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+            return JsonResponse({
+                "message": "User not found",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+
         return JsonResponse({
             "message": "",
             "user_id": user.pk,
             "token": "",
-            "name": user_name,
+            "name": user.name,
             "email": user.email,
+            "primary_language": vendor_instance.primary_language,
+            "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
+            "selected_language": vendor_instance.selected_language,
+            "currency": vendor_instance.currency,
+            "currency_symbol": vendor_instance.currency_symbol,
             "vendor_id": vendor_id,
         }, status=status.HTTP_200_OK)
     
@@ -332,8 +355,39 @@ def login(request):
             "token": "",
             "name": "",
             "email": "",
+            "primary_language": "",
+            "secondary_language": "",
+            "currency": "",
+            "currency_symbol": "",
             "vendor_id": 0
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+
+
+@api_view(['GET', 'POST'])
+def pos_lanuage_setting(request):
+    vendor_id = request.GET.get("vendor")
+
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid Vendor ID", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == "GET":
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    
+    else:
+        language = request.GET.get("language")
+
+        if not language:
+            return JsonResponse({"message": "Language not specified", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_instance.selected_language = language
+        vendor_instance.save()
+
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -613,7 +667,7 @@ def dashboard(request):
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-    online_order_platform = Platform.objects.filter(Name="WooCommerce", VendorId=vendor_id).first()
+    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), VendorId=vendor_id).first()
 
     online_order_platform_id = ""
     
@@ -633,7 +687,7 @@ def dashboard(request):
     total_orders_pickedup = orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
     total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
     total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
-    online_orders_count = orders.filter(platform__corePlatformType=CorePlatform.get_core_platform('WOOCOMMERCE')).count()
+    online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
 
     orders = orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
 
@@ -2236,7 +2290,8 @@ def order_details(request):
         
     else:
         return JsonResponse({"error": "Order details not found"}, status=400)
-                
+
+
 @api_view(['POST'])
 def updatePaymentDetails(request):
     data = request.data

@@ -36,6 +36,7 @@ class POSUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     name =  models.CharField(max_length=100)
+    name_locale = models.CharField(max_length=100, blank=True)
     phone_number = models.PositiveBigIntegerField()
     email = models.EmailField()
     is_active = models.BooleanField(default=False)
