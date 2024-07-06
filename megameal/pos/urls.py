@@ -20,7 +20,8 @@ router.register("setting/departments", views.DepartmentModelViewSet, basename="d
 
 
 urlpatterns = [
-   path('login/',views.login), # Loging api for POS
+   path('login/', views.login), # Loging api for POS
+   path('language', views.pos_lanuage_setting, name="language"),
    path('allCategory/',views.allCategory), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS

@@ -365,6 +365,33 @@ def login(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
+@api_view(['GET', 'POST'])
+def pos_lanuage_setting(request):
+    vendor_id = request.GET.get("vendor")
+
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid Vendor ID", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == "GET":
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    
+    else:
+        language = request.GET.get("language")
+
+        if not language:
+            return JsonResponse({"message": "Language not specified", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_instance.selected_language = language
+        vendor_instance.save()
+
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+
+
 @api_view(['GET'])
 def allCategory(request, language="en"):
     try:
