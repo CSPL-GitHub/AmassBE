@@ -60,7 +60,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
 from static.order_status_const import WOMS
-from pos.utils import order_count, get_product_data, process_product_excel
+from pos.utils import order_count, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
@@ -3973,6 +3973,7 @@ def get_modifiers(request):
     modifier_name = request.GET.get("modifierName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "en")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=status.HTTP_404_NOT_FOUND)
@@ -3985,7 +3986,12 @@ def get_modifiers(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if modifier_name:
-        modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+        if language == "ar":
+            modifiers = ProductModifier.objects.filter(modifierName_ar__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+
+        else:
+            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+    
     else:
         modifiers = ProductModifier.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -4004,32 +4010,9 @@ def get_modifiers(request):
         total_pages = paginator.num_pages
 
         for single_modifier in paginated_modifiers:
-            modifier_data = {
-                "id": single_modifier.pk,
-                "plu": single_modifier.modifierPLU,
-                "name": single_modifier.modifierName,
-                "description": single_modifier.modifierDesc if single_modifier.modifierDesc else "",
-                "image": single_modifier.modifierImg if single_modifier.modifierImg else "",
-                "price": single_modifier.modifierPrice,
-                "is_active": single_modifier.active,
-                "vendorId": single_modifier.vendorId.pk,
-                "modifier_groups": [],
-            }
+            modifier_info = get_modifier_data(single_modifier, vendor_id)
 
-            modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=single_modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_group_joint:
-                modifier_data["modifier_groups"].append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-
-            response_data.append(modifier_data)
+            response_data.append(modifier_info)
 
         response = {
             "total_pages": total_pages,
@@ -4061,6 +4044,7 @@ def create_modifier(request):
     
     try:
         vendor_id = int(vendor_id)
+    
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
 
@@ -4078,7 +4062,6 @@ def create_modifier(request):
 
     if modifier_serializer.is_valid():
         modifier_groups_ids = []
-        modifier_groups_data = []
 
         with transaction.atomic():
             modifier = modifier_serializer.save()
@@ -4096,44 +4079,6 @@ def create_modifier(request):
 
                 ProductModifierAndModifierGroupJoint.objects.create(modifier=modifier_instance, modifierGroup=modifier_group_instance, vendor=vendor_instance)
 
-            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_modgroup_joint:
-                modifier_groups_data.append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-            
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     instance = modifier
-            #     coreModItms = ProductModifierAndModifierGroupJoint.objects.filter(vendor=instance.vendorId, modifier=instance.pk)
-                
-            #     for coreModItm in coreModItms:
-            #         grp = WooCommerce.getModifierGroupUsingSlug(coreModItm.modifierGroup.slug, instance.vendorId)
-            #         response = WooCommerce.getModifierUsingGroupSKU(coreModItm.modifier.modifierSKU, grp["response"].get("id"), instance.vendorId)
-                    
-            #         if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #             wordpress_response = WooCommerce.createModifier(coreModItm.modifier, instance.vendorId, grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wordpress_response = WooCommerce.updateModifier(coreModItm.modifier, instance.vendorId,grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' updated. response: {wordpress_response}")
-            #         if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #             print("WP error")
-            #             notify(type=6, msg='0', desc='Modifier sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-            #             transaction.set_rollback(True)
-            #             return JsonResponse({"error": f"{response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            #     notify(type=3, msg='0', desc='Modifier synced', stn=['POS'], vendorId=instance.vendorId.pk)
-            
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
             if inventory_platform:
@@ -4145,16 +4090,9 @@ def create_modifier(request):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            return JsonResponse({
-                "id": modifier.pk,
-                "plu": modifier.modifierPLU,
-                "name": modifier.modifierName,
-                "description": modifier.modifierDesc if modifier.modifierDesc else "",
-                "image": modifier.modifierImg if modifier.modifierImg else "",
-                "price": modifier.modifierPrice,
-                "is_active": modifier.active,
-                "modifier_groups": modifier_groups_data
-            }, status=status.HTTP_201_CREATED)
+            modifier_info = get_modifier_data(modifier, vendor_id)
+            
+            return JsonResponse(modifier_info, status=status.HTTP_201_CREATED)
     
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -4189,6 +4127,7 @@ def update_modifier(request, modifier_id):
 
     # Check if a modifier with the new PLU already exists while editing
     new_plu = request.data.get('modifierPLU')
+
     existing_modifier_with_new_plu = ProductModifier.objects.filter(modifierPLU=new_plu, vendorId=vendor_id).exclude(pk=modifier_id).first()
 
     if existing_modifier_with_new_plu:
@@ -4196,7 +4135,6 @@ def update_modifier(request, modifier_id):
     
     if modifier_serializer.is_valid():
         modifier_groups_ids = []
-        modifier_groups_data = []
         
         with transaction.atomic():
             updated_modifier = modifier_serializer.save()
@@ -4220,44 +4158,6 @@ def update_modifier(request, modifier_id):
 
                 ProductModifierAndModifierGroupJoint.objects.create(modifier=modifier_instance, modifierGroup=modifier_group_instance, vendor=vendor_instance)
 
-            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_modgroup_joint:
-                modifier_groups_data.append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-        
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     instance = updated_modifier
-            #     coreModItms = ProductModifierAndModifierGroupJoint.objects.filter(vendor=instance.vendorId,modifier=instance.pk)
-                
-            #     for coreModItm in coreModItms:
-            #         grp = WooCommerce.getModifierGroupUsingSlug(coreModItm.modifierGroup.slug, instance.vendorId)
-            #         response = WooCommerce.getModifierUsingGroupSKU(coreModItm.modifier.modifierSKU, grp["response"].get("id"), instance.vendorId)
-                    
-            #         if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #             wordpress_response = WooCommerce.createModifier(coreModItm.modifier, instance.vendorId, grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wordpress_response = WooCommerce.updateModifier(coreModItm.modifier, instance.vendorId,grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #             print("WP error")
-            #             notify(type=6, msg='0', desc='Modifier sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-            #             transaction.set_rollback(True)
-            #             return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-            #     notify(type=3, msg='0', desc='Modifier synced', stn=['POS'], vendorId=instance.vendorId.pk)
-            
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
             if inventory_platform:
@@ -4269,21 +4169,13 @@ def update_modifier(request, modifier_id):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            return JsonResponse({
-                "id": modifier.pk,
-                "plu": modifier.modifierPLU,
-                "name": modifier.modifierName,
-                "description": modifier.modifierDesc if modifier.modifierDesc else "",
-                "image": modifier.modifierImg if modifier.modifierImg else "",
-                "price": modifier.modifierPrice,
-                "is_active": modifier.active,
-                "modifier_groups": modifier_groups_data
-            }, status=status.HTTP_201_CREATED)
+            modifier_info = get_modifier_data(updated_modifier, vendor_id)
+            
+            return JsonResponse(modifier_info, status=status.HTTP_201_CREATED)
         
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-
 
 @api_view(["DELETE"])
 def delete_modifier(request, modifier_id):
@@ -4310,46 +4202,6 @@ def delete_modifier(request, modifier_id):
     if modifier:
         try:
             with transaction.atomic():
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = modifier
-                #     response = WooCommerce.getModifierUsingSKU(instance.modifierSKU, instance.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteModifierUsingId(instance, instance.vendorId)
-                #         print(f"Mod Group '{instance.modifierName}' will be deleted.  response: {wordpress_response}")
-                        
-                #         modifier.delete()
-
-                #         notify(type=3, msg='0', desc='Modifier deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Modifier not found in wordpress")
-                #         notify(type=6, msg='0', desc='Modifier delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Modifier not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         # webSocketPush(
-                #         #     message={
-                #         #         "type": 5,
-                #         #         "orderId": 0,
-                #         #         "description": 'Modifier delete error',
-                #         #         "status": 5,
-                #         #         "order_type": 10,
-                #         #     }, room_name="MESSAGE"+'-'+str(instance.vendorId.pk)+'-'+str("POS"), username="CORE"
-                #         # )
-
-                #         transaction.set_rollback(True)
-                        
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
