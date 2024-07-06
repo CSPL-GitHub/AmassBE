@@ -24,7 +24,8 @@ class VendorTypeAdmin(admin.ModelAdmin):
 class VendorAdmin(admin.ModelAdmin):
     required_languages = ('en', 'ar')
     fields = (
-        'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Password', 'Password_ar', 'address_line_1', 'address_line_1_ar', 'address_line_2', 'address_line_2_ar',
+        'vendor_type', 'Name', 'Name_ar', 'phone_number', 'phone_number_ar',
+        'Password', 'Password_ar', 'address_line_1', 'address_line_1_ar', 'address_line_2', 'address_line_2_ar',
         'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
         'gst_number', 'gst_number_ar', 'contact_person_name', 'contact_person_name_ar',
         'contact_person_phone_number', 'contact_person_phone_number_ar', 'is_active',
