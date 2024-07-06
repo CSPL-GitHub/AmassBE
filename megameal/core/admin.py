@@ -24,19 +24,16 @@ class VendorTypeAdmin(admin.ModelAdmin):
 class VendorAdmin(admin.ModelAdmin):
     required_languages = ('en', 'ar')
     fields = (
-        'vendor_type', 'Name', 'Name_ar', 'phone_number', 'phone_number_ar',
-        'Password', 'Password_ar', 'address_line_1', 'address_line_1_ar', 'address_line_2', 'address_line_2_ar',
-        'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
-        'gst_number', 'gst_number_ar', 'contact_person_name', 'contact_person_name_ar',
-        'contact_person_phone_number', 'contact_person_phone_number_ar', 'is_active',
+        'vendor_type', 'Name', 'Name_ar', 'phone_number', 'Password', 'address_line_1', 'address_line_2',
+        'city', 'state', 'country', 'gst_number', 'contact_person_name', 'contact_person_name_ar',
+        'contact_person_phone_number', 'is_active',
     )
     
     list_display = ('id', 'Name', 'Name_ar', 'phone_number', 'Email', 'is_active',)
     list_filter = ('is_active', 'vendor_type', 'state', 'city', )
     search_fields = (
-        'Name', 'Name_ar', 'phone_number', 'phone_number_ar', 'Email',
-        'address_line_1_ar', 'address_line_2', 'address_line_2_ar', 'city', 'city_ar', 'state', 'state_ar', 'country', 'country_ar',
-        'contact_person_phone_number', 'contact_person_phone_number_ar',
+        'Name', 'Name_ar', 'phone_number', 'Email', 'address_line_1', 'address_line_2',
+        'city', 'state', 'country', 'contact_person_name', 'contact_person_name_ar', 'contact_person_phone_number',
     )
     ordering = ('Name',)
     # show_facets = admin.ShowFacets.ALWAYS
