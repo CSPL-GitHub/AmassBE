@@ -10,11 +10,7 @@ class VendorTypeTranslationOptions(TranslationOptions):
 
 @register(Vendor)
 class VendorTranslationOptions(TranslationOptions):
-    fields = (
-        'Name', 'phone_number', 'Password', 
-        'address_line_1', 'address_line_2', 'city', 'state', 'country',
-        'gst_number', 'contact_person_name', 'contact_person_phone_number',
-    )
+    fields = ('Name', 'contact_person_name',)
 
 
 @register(ProductCategory)
