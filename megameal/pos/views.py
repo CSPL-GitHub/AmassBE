@@ -1,12 +1,11 @@
 from rest_framework.decorators import api_view
-from django.http import JsonResponse, FileResponse, HttpResponse
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
+from django.http import JsonResponse, HttpResponse
 from koms.serializers.content_history_serializer import Content_history_serializer
 from kiosk.models import KioskOrderData
 from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
-    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Product_Option_Joint, Platform,
+    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
     ProductModifierAndModifierGroupJoint, Product_Tax, POS_Settings
 )
 from order import order_helper
@@ -18,11 +17,11 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
-from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType, Short_Codes
+from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Value, FloatField, Q, IntegerField, ExpressionWrapper, Count
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -51,7 +50,6 @@ from django.shortcuts import render, redirect
 from pos.models import POSUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
 from pos.forms import PosUserForm
 from django.conf import settings
-from base64 import b64encode
 from collections import OrderedDict
 from django.core.files.storage import default_storage
 from core.excel_file_upload import process_excel
@@ -669,7 +667,7 @@ def dashboard(request):
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-    online_order_platform = Platform.objects.filter(Name="WooCommerce", VendorId=vendor_id).first()
+    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), VendorId=vendor_id).first()
 
     online_order_platform_id = ""
     
@@ -689,7 +687,7 @@ def dashboard(request):
     total_orders_pickedup = orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
     total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
     total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
-    online_orders_count = orders.filter(platform__corePlatformType=CorePlatform.get_core_platform('WOOCOMMERCE')).count()
+    online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
 
     orders = orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
 
@@ -2292,7 +2290,8 @@ def order_details(request):
         
     else:
         return JsonResponse({"error": "Order details not found"}, status=400)
-                
+
+
 @api_view(['POST'])
 def updatePaymentDetails(request):
     data = request.data
