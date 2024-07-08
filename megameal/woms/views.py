@@ -103,7 +103,7 @@ def waiter_login(request):
 def get_waiters(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "en")
+        language = request.GET.get("language", "English")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
@@ -115,10 +115,11 @@ def get_waiters(request):
         waiter_name = ""
         
         for waiter in waiters:
-            waiter_name = waiter.name
+            if language == "English":
+                waiter_name = waiter.name
 
-            if language == "ar":
-                waiter_name = waiter.name_ar
+            else:
+                waiter_name = waiter.name_locale
 
             waiter_info = {
                 "id": waiter.pk,
@@ -162,19 +163,19 @@ def get_total_amount(external_order_id, vendor_id):
     return float(total_amount)
 
 
-def getTableData(hotelTable, vendorId, language="en"):
+def getTableData(hotelTable, vendorId, language="English"):
     waiter_name = ""
     floor_name = ""
 
     if hotelTable:
         if hotelTable.waiterId:
-            if language == "ar":
-                waiter_name = hotelTable.waiterId.name_ar
-                floor_name = hotelTable.floor.name_ar
-
-            else:
+            if language == "English":
                 waiter_name = hotelTable.waiterId.name
                 floor_name = hotelTable.floor.name
+
+            else:
+                waiter_name = hotelTable.waiterId.name_locale
+                floor_name = hotelTable.floor.name_locale
     
     data = { 
         "tableId": hotelTable.pk, 
