@@ -87,9 +87,9 @@ class DiscountCal(models.IntegerChoices):
 
 class CorePlatform(models.IntegerChoices):
   KOMS = 1,'KOMS'
-  WOOCOMMERCE = 2,'WOOCOMMERCE'
-  SHOPIFY = 3,'SHOPIFY'
-  MAGENTO = 4,'MAGENTO' 
+  # WOOCOMMERCE = 2,'WOOCOMMERCE'
+  # SHOPIFY = 3,'SHOPIFY'
+  # MAGENTO = 4,'MAGENTO' 
   KIOSK = 5,'KIOSK'
   POS = 6,'POS'
   WOMS = 7,'WOMS'
