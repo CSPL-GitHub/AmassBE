@@ -29,6 +29,14 @@ class Station(models.Model):
     key = models.CharField(max_length=16, unique=True, blank=True, null=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
         
+    def save(self, *args, **kwargs):
+        if not self.station_name_locale:
+            self.station_name_locale = self.station_name
+        
+        super().save(*args, **kwargs)
+        
+        return self
+    
     @property
     def is_authenticated(self):
         return True
