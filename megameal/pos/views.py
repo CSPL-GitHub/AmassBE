@@ -2230,12 +2230,12 @@ def order_details(request):
 
                 total_points_redeemed = 0
                 
-                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id)
+                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
 
                 if loyalty_program:
                     loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
 
-                    if loyalty_points_redeem_history:
+                    if loyalty_points_redeem_history.exists():
                         total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
                         if not total_points_redeemed:
