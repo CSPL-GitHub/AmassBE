@@ -17,7 +17,7 @@ class KomsEcom():
 
             vendor_id = data["vendorId"]
 
-            language = data.get("language", "en")
+            language = data.get("language", "English")
 
             res = {
                 "language": language,
