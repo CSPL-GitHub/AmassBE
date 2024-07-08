@@ -411,7 +411,7 @@ def Table_update_api(request):
         id = requestJson.get('id')
         # floorId = requestJson.get('floor')
         vendorId = request.GET.get("vendorId")
-        language = request.GET.get("language", "en")
+        language = request.GET.get("language", "English")
         # filter=requestJson.get('filter')
         # search=requestJson.get('search')
 
