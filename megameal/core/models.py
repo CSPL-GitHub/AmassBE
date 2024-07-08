@@ -155,16 +155,18 @@ class ProductCategoryJoint(models.Model):
 
 
 class ProductModifierGroup(models.Model):
-    name=models.CharField(max_length=50)
-    modifier_group_description = models.TextField(null=True,blank=True)
-    PLU=models.CharField(max_length=50)
-    slug=models.CharField(max_length=50,blank=True,null=True)
-    min=models.IntegerField()
-    max=models.IntegerField()
-    isDeleted=models.BooleanField(default=False)
-    modGrptype=models.CharField(max_length=50, default="MULTIPLE")
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-    active=models.BooleanField(default=True)
+    name = models.CharField(max_length=200)
+    name_locale = models.CharField(max_length=200, null=True)
+    modifier_group_description = models.TextField(null=True)
+    modifier_group_description_locale = models.TextField(null=True)
+    PLU = models.CharField(max_length=50)
+    slug = models.CharField(max_length=50,blank=True,null=True)
+    min = models.IntegerField()
+    max = models.IntegerField()
+    active = models.BooleanField(default=True)
+    isDeleted = models.BooleanField(default=False)
+    modGrptype = models.CharField(max_length=50, default="MULTIPLE")
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('PLU', 'vendorId')
@@ -177,7 +179,14 @@ class ProductModifierGroup(models.Model):
         if not self.slug:
             self.slug = slugify(self.name)
 
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        if not self.modifier_group_description_locale:
+            self.modifier_group_description_locale = self.modifier_group_description
+
         super().save(*args, **kwargs)
+
         return self
     
     def __str__(self):

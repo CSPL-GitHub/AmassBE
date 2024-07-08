@@ -170,7 +170,7 @@ class ModifierGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductModifierGroup
         fields = (
-            'id', 'name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',
+            'id', 'name', 'name_locale', 'modifier_group_description', 'modifier_group_description_locale',
             'PLU', 'min', 'max', 'active', 'vendorId'
         )
 
