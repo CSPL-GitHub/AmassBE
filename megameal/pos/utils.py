@@ -352,12 +352,11 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     tag = row["Tag"],
                     active = is_active,
                     productType = "Regular",
-                    Unlimited = 1,
                     vendorId = vendor_instance,
                     taxable = True,
                 )
                 # Columns with default value:
-                # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
+                # productThumb, productParentId, preparationTime, isDeleted, meta, is_unlimited
                 
             if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                 if (not(pd.isnull(row["Product Image"])) and row["Product Image"] != ""):

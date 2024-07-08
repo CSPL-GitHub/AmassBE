@@ -435,7 +435,7 @@ def allCategory(request):
 def productByCategory(request, id=0):
     try:
         vendor_id=request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
 
         if not vendor_id:
@@ -485,7 +485,7 @@ def productByCategory(request, id=0):
                 #             "text":variant.productName,
                 #             # "imagePath": HOST+variant.productThumb.name if variant.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                 #             # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                #             "quantity": variant.productQty,
+                #             "quantity": 0,
                 #             "cost": variant.productPrice,
                 #             "description":variant.productDesc,
                 #             "allowCustomerNotes": True,
@@ -4706,7 +4706,7 @@ def get_orders_of_customer(request):
                     'product_plu': content.SKU,
                     'product_name': product.product.productName,
                     'tag': product.product.tag,
-                    'is_unlimited': product.product.Unlimited,
+                    'is_unlimited': product.product.is_unlimited,
                     'preparation_time': product.product.preparationTime,
                     'is_taxable': product.product.taxable,
                     'product_image': image_url,

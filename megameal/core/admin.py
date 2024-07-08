@@ -46,11 +46,11 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'productName', 'PLU', 'productDesc', 'productPrice', 'tag', 'preparationTime', 'active', 'is_displayed_online')
+    fields = ('vendorId', 'productName', 'productName_locale', 'PLU', 'productDesc', 'productDesc_locale', 'productPrice', 'tag', 'preparationTime', 'active', 'is_displayed_online')
     
     list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)
     list_filter = ('active', 'tag', 'is_displayed_online', 'vendorId',)
-    search_fields = ('productName', 'productDesc',)
+    search_fields = ('productName', 'productName_locale', 'productDesc', 'productDesc_locale',)
     ordering = ('vendorId', 'productName',)
     # show_facets = admin.ShowFacets.ALWAYS
 

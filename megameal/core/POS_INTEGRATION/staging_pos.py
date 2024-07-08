@@ -362,10 +362,8 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productName = corePrd["productName"]
             cat.productDesc = corePrd["description"]
             cat.productThumb = corePrd["thumbnail"]
-            cat.productQty = corePrd["qty"]
             cat.productPrice = corePrd["price"]
-            cat.Unlimited = corePrd["unlimited"]
-            # cat.productStatus = corePrd["productStatus"]
+            cat.is_unlimited = corePrd["unlimited"]
             cat.vendorId = vendor
             cat.preparationTime = corePrd["preparationTime"]
             cat.taxable = corePrd["taxable"]
@@ -379,10 +377,8 @@ class StagingIntegration(AbstractPOSIntegration):
                 productName=corePrd["productName"],
                 productDesc=corePrd["description"],
                 productThumb=corePrd["thumbnail"],
-                productQty=corePrd["qty"],
                 productPrice=corePrd["price"],
-                Unlimited=corePrd["unlimited"],
-                # productStatus=corePrd["productStatus"],
+                is_unlimited=corePrd["unlimited"],
                 vendorId=vendor,
                 preparationTime=corePrd["preparationTime"],
                 taxable=corePrd["taxable"],
@@ -441,9 +437,8 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productName = coreVrt["productName"]
             cat.productDesc = coreVrt["description"]
             cat.productThumb = coreVrt["thumbnail"]
-            cat.productQty = coreVrt["qty"]
             cat.productPrice = coreVrt["price"]
-            cat.Unlimited = coreVrt["unlimited"]
+            cat.is_unlimited = coreVrt["unlimited"]
             # cat.productStatus = coreVrt["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = coreVrt["preparationTime"]
@@ -459,9 +454,8 @@ class StagingIntegration(AbstractPOSIntegration):
                 productName=coreVrt["productName"],
                 productDesc=coreVrt["description"],
                 productThumb=coreVrt["thumbnail"],
-                productQty=coreVrt["qty"],
                 productPrice=coreVrt["price"],
-                Unlimited=coreVrt["unlimited"],
+                is_unlimited=coreVrt["unlimited"],
                 # productStatus=coreVrt["productStatus"],
                 vendorId=vendor,
                 preparationTime=coreVrt["preparationTime"],

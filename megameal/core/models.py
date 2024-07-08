@@ -86,24 +86,25 @@ class ProductCategory(models.Model):
 
 class Product(models.Model):
     PLU = models.CharField(max_length=50)
-    SKU = models.CharField(max_length=50,blank=True,null=True)
+    SKU = models.CharField(max_length=50, null=True)
     productName = models.CharField(max_length=200)
-    productDesc = models.TextField(default="",null=True,blank=True)
-    productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None,null=True,blank=True)
+    productName_locale = models.CharField(max_length=200, null=True)
+    productDesc = models.TextField(default="", null=True)
+    productDesc_locale = models.TextField(default="", null=True)
+    productParentId = models.ForeignKey("Product", on_delete=models.CASCADE, null=True)
+    productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None, null=True)
     productPrice = models.FloatField()
-    productQty = models.IntegerField(default=0)
-    productType = models.CharField(max_length=50)## Regular ,Variant
-    productParentId = models.ForeignKey("Product",on_delete=models.CASCADE,null=True,blank=True)
-    Unlimited = models.IntegerField(default=0)
     preparationTime = models.IntegerField(default=0)
-    isDeleted = models.BooleanField(default=False)
+    productType = models.CharField(max_length=50)## Regular ,Variant
+    is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
-    meta = models.JSONField(null=True,blank=True)
-    active = models.BooleanField(default=True)
-    tag = models.CharField(max_length=50, blank=True, null=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
-    tag_ar = models.CharField(max_length=50, blank=True, null=True, choices=(("نباتي", "veg"), ("غير نباتي", "non-veg")))
+    tag = models.CharField(max_length=50, null=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
+    tag_locale = models.CharField(max_length=50, null=True, choices=(("نباتي", "veg"), ("غير نباتي", "non-veg")))
     is_displayed_online = models.BooleanField(default=True)
-    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True)
+    active = models.BooleanField(default=True)
+    isDeleted = models.BooleanField(default=False)
+    meta = models.JSONField(null=True,blank=True)
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('PLU', 'vendorId')
