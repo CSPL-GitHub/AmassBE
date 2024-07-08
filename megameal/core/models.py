@@ -1,5 +1,6 @@
 from django.db import models
 from core.utils import CorePlatform, TaxLevel, OrderAction
+from pos.language import product_tag_locale
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.text import slugify
@@ -76,6 +77,9 @@ class ProductCategory(models.Model):
         if not self.categoryName_locale:
             self.categoryName_locale = self.categoryName
 
+        if not self.categoryDescription_locale:
+            self.categoryDescription_locale = self.categoryDescription
+
         super().save(*args, **kwargs)
 
         return self
@@ -99,7 +103,7 @@ class Product(models.Model):
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
     tag = models.CharField(max_length=50, null=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
-    tag_locale = models.CharField(max_length=50, null=True, choices=(("نباتي", "veg"), ("غير نباتي", "non-veg")))
+    tag_locale = models.CharField(max_length=50, null=True, choices=product_tag_locale)
     is_displayed_online = models.BooleanField(default=True)
     active = models.BooleanField(default=True)
     isDeleted = models.BooleanField(default=False)
@@ -118,7 +122,14 @@ class Product(models.Model):
         if self.PLU and not self.SKU:
             self.SKU = self.PLU
 
+        if not self.productName_locale:
+            self.productName_locale = self.productName
+
+        if not self.productDesc_locale:
+            self.productDesc_locale = self.productDesc
+
         super().save(*args, **kwargs)
+
         return self
 
     def __str__(self):

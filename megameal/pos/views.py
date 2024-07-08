@@ -455,10 +455,11 @@ def productByCategory(request, id=0):
             filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
             
             if search_text:
-                if language == "ar":
-                    filtered_products = filtered_products.filter(productName_ar__icontains=search_text)
-                else:
+                if language == "English":
                     filtered_products = filtered_products.filter(productName__icontains=search_text)
+
+                else:
+                    filtered_products = filtered_products.filter(productName_locale__icontains=search_text)
             
             for product in filtered_products:
                 # product_variants = []
@@ -517,13 +518,13 @@ def productByCategory(request, id=0):
                                 modifier_name = ""
                                 modifier_description = ""
 
-                                if language == "ar":
-                                    modifier_name = modifier_and_group_instance.modifier.modifierName_ar
-                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_ar
-
-                                else:
+                                if language == "English":
                                     modifier_name = modifier_and_group_instance.modifier.modifierName
                                     modifier_description = modifier_and_group_instance.modifier.modifierDesc
+
+                                else:
+                                    modifier_name = modifier_and_group_instance.modifier.modifierName_locale
+                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
                                 
                                 modifier_list.append(
                                     {
@@ -543,13 +544,13 @@ def productByCategory(request, id=0):
                             modifier_group_name = ""
                             modifier_group_description = ""
 
-                            if language == "ar":
-                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_ar
-                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_ar
-
-                            else:
+                            if language == "English":
                                 modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
                                 modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
+                            
+                            else:
+                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
+                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
 
                             modifier_group_list.append(
                             {
@@ -572,17 +573,17 @@ def productByCategory(request, id=0):
                 product_description = ""
                 product_tag = ""
 
-                if language == "ar":
-                    category_name = category.categoryName_ar
-                    product_name = product.productName_ar
-                    product_description = product.productDesc_ar
-                    product_tag = product.tag_ar
-
-                else:
+                if language == "English":
                     category_name = category.categoryName
                     product_name = product.productName
                     product_description = product.productDesc
                     product_tag = product.tag
+                
+                else:
+                    category_name = category.categoryName_locale
+                    product_name = product.productName_locale
+                    product_description = product.productDesc_locale
+                    product_tag = product.tag_locale
                 
                 product_list.append({
                     "categoryId": category.pk,
@@ -810,7 +811,7 @@ def dashboard(request):
         product_name = ""
 
         if language == "ar":
-            product_name = product.productName_ar
+            product_name = product.productName_locale
 
         else:
             product_name = product.productName
@@ -3408,7 +3409,7 @@ def get_products(request):
 
     if product_name:
         if language == "ar":
-            products = Product.objects.filter(productName_ar__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
 
         else:
             products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')

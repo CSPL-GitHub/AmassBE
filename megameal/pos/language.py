@@ -64,6 +64,8 @@ payment_type_locale = {
     3: 'بطاقة'
 }
 
+product_tag_locale = (("نباتي", "veg"), ("غير نباتي", "non-veg"))
+
 def get_key_value(language, dictionary, key):
     if language == "English":
         if dictionary == "order_type":
