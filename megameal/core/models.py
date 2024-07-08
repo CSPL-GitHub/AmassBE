@@ -19,21 +19,21 @@ class VendorType(models.Model):
 class Vendor(models.Model):
     Name = models.CharField(max_length=122)
     Email = models.EmailField()
-    Password = models.CharField(max_length=122, null=True)
-    vendor_type = models.ForeignKey(VendorType, on_delete=models.CASCADE, null=True)
-    phone_number = models.PositiveBigIntegerField(null=True)
-    gst_number = models.CharField(max_length=20, null=True)
-    address_line_1 = models.TextField(null=True)
-    address_line_2 = models.TextField(null=True)
-    city = models.CharField(max_length=100, null=True)
-    state = models.CharField(max_length=100, null=True)
-    country = models.CharField(max_length=100, null=True)
-    contact_person_name = models.CharField(max_length=100, null=True)
-    contact_person_phone_number = models.PositiveBigIntegerField(null=True)
+    Password = models.CharField(max_length=122, null=True, blank=True)
+    vendor_type = models.ForeignKey(VendorType, on_delete=models.CASCADE)
+    phone_number = models.PositiveBigIntegerField()
+    gst_number = models.CharField(max_length=20, null=True, blank=True)
+    address_line_1 = models.TextField()
+    address_line_2 = models.TextField(null=True, blank=True)
+    city = models.CharField(max_length=100)
+    state = models.CharField(max_length=100)
+    country = models.CharField(max_length=100)
+    contact_person_name = models.CharField(max_length=100)
+    contact_person_phone_number = models.PositiveBigIntegerField()
     currency = models.CharField(max_length=20)
     currency_symbol = models.CharField(max_length=20)
     primary_language = models.CharField(max_length=100, default="English")
-    secondary_language = models.CharField(max_length=100, null=True)
+    secondary_language = models.CharField(max_length=100, null=True, blank=True)
     selected_language = models.CharField(max_length=100, default="English") # field used for POS setting for Flutter
     is_active = models.BooleanField(default=False)
 
@@ -48,20 +48,20 @@ class Core_User(models.Model):
 
 
 class ProductCategory(models.Model):
-    categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE,null=True,blank=True)
+    categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE)
     categoryName = models.CharField(max_length=200)
-    categoryName_locale = models.CharField(max_length=200, null=True)
-    categoryParentId = models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True)
-    categoryDescription = models.TextField(null=True)
-    categoryDescription_locale = models.TextField(null=True)
+    categoryName_locale = models.CharField(max_length=200, null=True, blank=True)
+    categoryParentId = models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True, blank=True)
+    categoryDescription = models.TextField(null=True, blank=True)
+    categoryDescription_locale = models.TextField(null=True, blank=True)
     categoryPLU = models.CharField(max_length=122)
-    categorySlug = models.SlugField(null=True)
-    categoryImage = models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None, null=True)
-    categoryImageUrl = models.URLField(null=True)
-    image_selection = models.CharField(max_length=20, null=True, choices = (("image", "image"), ("url", "url")))
+    categorySlug = models.SlugField(null=True, blank=True)
+    categoryImage = models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None, null=True, blank=True)
+    categoryImageUrl = models.URLField(null=True, blank=True)
+    image_selection = models.CharField(max_length=20, null=True, blank=True, choices = (("image", "image"), ("url", "url")))
     categoryIsDeleted = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
-    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True, related_name="vendor_category")
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_category")
 
     class Meta:
         unique_together = ('categoryPLU', 'vendorId')
@@ -90,24 +90,24 @@ class ProductCategory(models.Model):
 
 class Product(models.Model):
     PLU = models.CharField(max_length=50)
-    SKU = models.CharField(max_length=50, null=True)
+    SKU = models.CharField(max_length=50, null=True, blank=True)
     productName = models.CharField(max_length=200)
-    productName_locale = models.CharField(max_length=200, null=True)
-    productDesc = models.TextField(default="", null=True)
-    productDesc_locale = models.TextField(default="", null=True)
-    productParentId = models.ForeignKey("Product", on_delete=models.CASCADE, null=True)
-    productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None, null=True)
+    productName_locale = models.CharField(max_length=200, null=True, blank=True)
+    productDesc = models.TextField(default="", null=True, blank=True)
+    productDesc_locale = models.TextField(default="", null=True, blank=True)
+    productParentId = models.ForeignKey("Product", on_delete=models.CASCADE, null=True, blank=True)
+    productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None, null=True, blank=True)
     productPrice = models.FloatField()
     preparationTime = models.IntegerField(default=0)
     productType = models.CharField(max_length=50)## Regular ,Variant
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
-    tag = models.CharField(max_length=50, null=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
-    tag_locale = models.CharField(max_length=50, null=True, choices=product_tag_locale)
+    tag = models.CharField(max_length=50, null=True, blank=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
+    tag_locale = models.CharField(max_length=50, null=True, blank=True, choices=product_tag_locale)
     is_displayed_online = models.BooleanField(default=True)
     active = models.BooleanField(default=True)
     isDeleted = models.BooleanField(default=False)
-    meta = models.JSONField(null=True,blank=True)
+    meta = models.JSONField(null=True, blank=True)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
@@ -146,9 +146,9 @@ class ProductImage(models.Model):
 
 
 class ProductCategoryJoint(models.Model):
-    product=models.ForeignKey(Product, on_delete=models.CASCADE,null=True,blank=True)
-    category=models.ForeignKey(ProductCategory, on_delete=models.CASCADE,null=True,blank=True)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True)
+    product=models.ForeignKey(Product, on_delete=models.CASCADE)
+    category=models.ForeignKey(ProductCategory, on_delete=models.CASCADE)
+    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('product', 'category', 'vendorId')
@@ -156,11 +156,11 @@ class ProductCategoryJoint(models.Model):
 
 class ProductModifierGroup(models.Model):
     name = models.CharField(max_length=200)
-    name_locale = models.CharField(max_length=200, null=True)
-    modifier_group_description = models.TextField(null=True)
-    modifier_group_description_locale = models.TextField(null=True)
+    name_locale = models.CharField(max_length=200, null=True, blank=True)
+    modifier_group_description = models.TextField(null=True, blank=True)
+    modifier_group_description_locale = models.TextField(null=True, blank=True)
     PLU = models.CharField(max_length=50)
-    slug = models.CharField(max_length=50,blank=True,null=True)
+    slug = models.CharField(max_length=50, null=True, blank=True)
     min = models.IntegerField()
     max = models.IntegerField()
     active = models.BooleanField(default=True)
@@ -195,14 +195,14 @@ class ProductModifierGroup(models.Model):
 
 class ProductModifier(models.Model):
     modifierName = models.CharField(max_length=122)
-    modifierName_locale = models.CharField(max_length=122, null=True)
-    modifierDesc = models.CharField( max_length=122, null=True)
-    modifierDesc_locale = models.CharField(max_length=122, null=True)
+    modifierName_locale = models.CharField(max_length=122, null=True, blank=True)
+    modifierDesc = models.CharField( max_length=122, null=True, blank=True)
+    modifierDesc_locale = models.CharField(max_length=122, null=True, blank=True)
     modifierPLU = models.CharField(max_length=122)
-    modifierSKU = models.CharField(max_length=122, null=True)
-    modifierImg = models.URLField(max_length=500, null=True)
-    modifierPrice = models.FloatField(null=True)
-    parentId = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, null=True)
+    modifierSKU = models.CharField(max_length=122, null=True, blank=True)
+    modifierImg = models.URLField(max_length=500, null=True, blank=True)
+    modifierPrice = models.FloatField(null=True, blank=True)
+    parentId = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, null=True, blank=True)
     active = models.BooleanField(default=True)
     isDeleted = models.BooleanField(default=False)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
@@ -233,13 +233,13 @@ class ProductModifier(models.Model):
 
 
 class ProductAndModifierGroupJoint(models.Model):
-    modifierGroup=models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE,null=True,blank=True)
-    product=models.ForeignKey(Product, on_delete=models.CASCADE,null=True,blank=True)
+    modifierGroup=models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE)
+    product=models.ForeignKey(Product, on_delete=models.CASCADE, null=True, blank=True)
     min=models.IntegerField(default=0)
     max=models.IntegerField(default=0)
     active=models.BooleanField(default=True)
     isEnabled=models.BooleanField(default=False)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True,blank=True)
+    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('product', 'modifierGroup')
@@ -249,9 +249,9 @@ class ProductAndModifierGroupJoint(models.Model):
 
 
 class ProductModifierAndModifierGroupJoint(models.Model):
-    modifierGroup = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, related_name='modifier_group_id', null=True, blank=True)
-    modifier = models.ForeignKey(ProductModifier, on_delete=models.CASCADE, related_name='modifier_id', null=True, blank=True)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='vendor_id', null=True, blank=True)
+    modifierGroup = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, related_name='modifier_group_id')
+    modifier = models.ForeignKey(ProductModifier, on_delete=models.CASCADE, related_name='modifier_id')
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='vendor_id')
 
     class Meta:
         unique_together = ('modifier', 'modifierGroup','vendor')
@@ -290,7 +290,7 @@ class Product_Tax(models.Model):
     percentage=models.FloatField()
     enabled=models.BooleanField(default=True)
     posId=models.CharField(max_length=122)
-    taxLevel=models.IntegerField(choices=TaxLevel.choices, default=TaxLevel.ORDER,null=True,blank=True)
+    taxLevel=models.IntegerField(choices=TaxLevel.choices, default=TaxLevel.ORDER, null=True, blank=True)
 
     def to_dict(self):
         return {
@@ -344,7 +344,7 @@ class Platform(models.Model):
     ))
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
     className = models.CharField(max_length=122)
-    orderActionType = models.IntegerField(choices=OrderAction.choices, blank=True, null=True)
+    orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
     baseUrl = models.CharField(max_length=122, blank=True)
     secreateKey = models.CharField(max_length=122, blank=True)
     secreatePass = models.CharField(max_length=122, blank=True)
