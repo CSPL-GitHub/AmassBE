@@ -364,12 +364,7 @@ class Platform(models.Model):
         }
     
     def __str__(self):
-        return self.Name
-
-
-class Token_date(models.Model):
-    Date=models.DateTimeField()
-    Token=models.IntegerField(max_length=200,)     
+        return self.Name 
 
 
 from order.models import Customer, Order # Placed here due to circular import error
