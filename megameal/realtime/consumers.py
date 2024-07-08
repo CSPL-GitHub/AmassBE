@@ -88,7 +88,7 @@ class ChatConsumer(WebsocketConsumer):
                 if data[8]:
                     language = data[8]
                 else:
-                    language = "en"
+                    language = "English"
                 
                 if data[9]:
                     vendorId = int(data[9])
