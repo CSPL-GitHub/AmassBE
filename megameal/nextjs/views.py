@@ -647,9 +647,9 @@ def get_banner(request):
                                         "modifierId": modifier.modifier.pk,
                                         "name": modifier.modifier.modifierName,
                                         "description": modifier.modifier.modifierDesc,
-                                        "quantity": modifier.modifier.modifierQty,
+                                        "quantity": 0, # Required for Flutter model
                                         "plu": modifier.modifier.modifierPLU,
-                                        "status": modifier.modifier.modifierStatus,
+                                        "status": False, # Required for Flutter model
                                         "image": modifier.modifier.modifierImg if modifier.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                                         "active": modifier.modifier.active
                                     })
@@ -699,3 +699,223 @@ def get_banner(request):
         "recommendations": recommendation_list,
         "todays_special": todays_special_list
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_about_us_data(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = AboutUsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        aboutSection = {
+            "sectionImage": data.sectionImage,
+            "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading,
+            "sectionSubHeading":data.sectionSubHeading,
+            "sectionDescription": [data.sectionDescription],
+        }
+        return Response(aboutSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_section_two_cover(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        sectionTwoCoverImage = {
+            "sectionImage":data.sectionImage,
+            "sectionText": data.sectionText,
+            "buttonText": data.buttonText,
+        }
+        return Response(sectionTwoCoverImage)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def get_features_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = FeaturesSection.objects.filter(vendor=vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        featuresSection = {
+            "headingText": data.headingText,
+            "subHeadingText": data.subHeadingText,
+        }
+        featuresArray = []
+        for item in FeaturesSectionItems.objects.filter(featuresSection=data.pk):
+            featuresArray.append({
+                    "featureId": item.pk,
+                    "featureIcon": item.featureIcon,
+                    "featureHeading": item.featureHeading,
+                    "featurePara": item.featurePara,
+                })
+        featuresSection['featuresArray'] = featuresArray
+        
+        return Response(featuresSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_testimonials_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = TestimonialsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        testimonialsSection = {
+            "sectionHeading": data.sectionHeading,
+            "sectionSubHeading": data.sectionSubHeading if language == "en" else data.sectionSubHeading,
+        }
+        testimonials = []
+        for item in TestimonialsSectionItems.objects.filter(testimonialsSection=data.pk):
+            testimonials.append({
+                    "testimonialId": item.pk,
+                    "testimonialsImageUrl": item.testimonialsImageUrl,
+                    "testimonialsName": item.testimonialsName,
+                    "testimonialsReview": item.testimonialsReview,
+                })
+        testimonialsSection['testimonials'] = testimonials
+        return Response(testimonialsSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    
+
+@api_view(['GET'])
+def get_home_page_offer_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
+        if not all_data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        homePageOffersSection =[{
+            "offerId": data.pk,
+            "discountTextColor": data.discountTextColor,
+            "offerDiscountText":data.offerDiscountText,
+            "offerImage": data.offerImage,
+            "offerTitle": data.offerTitle,
+            "offerDescription": data.offerDescription,
+            "buttonLocation": data.buttonLocation,
+        } for data in all_data]
+        return Response(homePageOffersSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    
+    
+@api_view(["GET"])
+def get_homepage_content(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        data = AboutUsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            aboutSection = {}
+        else:
+            data = data.first()
+            aboutSection = {
+                "sectionImage": data.sectionImage,
+                "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading,
+                "sectionSubHeading":data.sectionSubHeading,
+                "sectionDescription": [data.sectionDescription],
+            }
+        
+        data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            sectionTwoCoverImage = {}
+        else:
+            data = data.first()
+            sectionTwoCoverImage = {
+                "sectionImage":data.sectionImage,
+                "sectionText": data.sectionText,
+                "buttonText": data.buttonText,
+            }
+            
+        data = FeaturesSection.objects.filter(vendor=vendor_id)
+        if not data.exists():
+            featuresSection = {}
+        else:
+            data = data.first()
+            featuresSection = {
+                "headingText": data.headingText,
+                "subHeadingText": data.subHeadingText,
+            }
+            featuresArray = []
+            for item in FeaturesSectionItems.objects.filter(featuresSection=data.pk):
+                featuresArray.append({
+                        "featureId": item.pk,
+                        "featureIcon": item.featureIcon,
+                        "featureHeading": item.featureHeading,
+                        "featurePara": item.featurePara,
+                    })
+            featuresSection['featuresArray'] = featuresArray
+            
+        data = TestimonialsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            testimonialsSection = {}
+        else:
+            data = data.first()
+            testimonialsSection = {
+                "sectionHeading": data.sectionHeading,
+                "sectionSubHeading": data.sectionSubHeading if language == "en" else data.sectionSubHeading,
+            }
+            testimonials = []
+            for item in TestimonialsSectionItems.objects.filter(testimonialsSection=data.pk):
+                testimonials.append({
+                        "testimonialId": item.pk,
+                        "testimonialsImageUrl": item.testimonialsImageUrl,
+                        "testimonialsName": item.testimonialsName,
+                        "testimonialsReview": item.testimonialsReview,
+                    })
+                
+        all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
+        if not all_data.exists():
+            homePageOffersSection =[]
+        else:
+            homePageOffersSection =[{
+                "offerId": data.pk,
+                "discountTextColor": data.discountTextColor,
+                "offerDiscountText":data.offerDiscountText,
+                "offerImage": data.offerImage,
+                "offerTitle": data.offerTitle,
+                "offerDescription": data.offerDescription,
+                "buttonLocation": data.buttonLocation,
+            } for data in all_data]
+        
+        return Response({
+            "aboutSection":aboutSection,
+            "sectionTwoCoverImage":sectionTwoCoverImage,
+            "featuresSection":featuresSection,
+            "testimonialsSection":testimonialsSection,
+            "homePageOffersSection":homePageOffersSection
+        })
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    
