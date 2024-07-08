@@ -66,24 +66,24 @@ class ProductCategoryJointAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
-# @admin.register(Product_Modifier_Group)
-# class ProductModifierGroupAdmin(admin.ModelAdmin):
-#     fields = ('vendorId', 'name', 'PLU', 'modifier_group_description', 'min', 'max', 'active')
+@admin.register(ProductModifierGroup)
+class ProductModifierGroupAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'name', 'name_locale', 'PLU', 'modifier_group_description', 'modifier_group_description_locale', 'min', 'max', 'active')
     
-#     list_display = ('name', 'min', 'max', 'active', 'vendorId',)
-#     list_filter = ('active', 'vendorId',)
-#     search_fields = ('name', 'modifier_group_description',)
-#     ordering = ('vendorId', 'name', 'min', 'max',)
+    list_display = ('name', 'min', 'max', 'active', 'vendorId',)
+    list_filter = ('active', 'vendorId',)
+    search_fields = ('name', 'name_locale', 'modifier_group_description', 'modifier_group_description_locale',)
+    ordering = ('vendorId', 'name', 'min', 'max',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(ProductModifier)
 class ProductModifierAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'modifierName', 'modifierPLU', 'modifierDesc', 'modifierImg', 'modifierPrice', 'active')
+    fields = ('vendorId', 'modifierName', 'modifierName_locale', 'modifierPLU', 'modifierDesc', 'modifierDesc_locale', 'modifierImg', 'modifierPrice', 'active')
     
     list_display = ('modifierName', 'modifierPrice', 'active', 'vendorId',)
     list_filter = ('active', 'vendorId',)
-    search_fields = ('modifierName', 'modifierDesc',)
+    search_fields = ('modifierName', 'modifierName_locale', 'modifierDesc', 'modifierDesc_locale',)
     ordering = ('vendorId', 'modifierName', 'modifierPrice',)
     # show_facets = admin.ShowFacets.ALWAYS
 

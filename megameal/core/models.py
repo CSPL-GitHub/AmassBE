@@ -202,9 +202,9 @@ class ProductModifier(models.Model):
     modifierSKU = models.CharField(max_length=122, null=True)
     modifierImg = models.URLField(max_length=500, null=True)
     modifierPrice = models.FloatField(null=True)
-    isDeleted = models.BooleanField(default=False)
-    active = models.BooleanField(default=True)
     parentId = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, null=True)
+    active = models.BooleanField(default=True)
+    isDeleted = models.BooleanField(default=False)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
@@ -218,6 +218,12 @@ class ProductModifier(models.Model):
 
         if self.modifierPLU and not self.modifierSKU:
             self.modifierSKU = self.modifierPLU
+
+        if not self.modifierName_locale:
+            self.modifierName_locale = self.modifierName
+
+        if not self.modifierDesc_locale:
+            self.modifierDesc_locale = self.modifierDesc
         
         super().save(*args, **kwargs)
         return self
