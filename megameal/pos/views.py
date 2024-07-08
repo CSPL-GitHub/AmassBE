@@ -670,9 +670,9 @@ def dashboard(request):
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), VendorId=vendor_id).first()
-
     online_order_platform_id = ""
+
+    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if online_order_platform:
         online_order_platform_id = str(online_order_platform.pk)
@@ -825,7 +825,7 @@ def dashboard(request):
         list_of_items.append(item)
 
     order_details = {
-        "online_order_platform_id": online_order_platform_id,
+        "online_order_platform_id": online_order_platform_id, # Required for Flutter model
         "active_products": active_product_count,
         "total_sale": total_sale,
         "total_orders": total_orders,
@@ -855,21 +855,6 @@ def modifier_update(request):
         modifier.active = request.data['active']
 
         ProductModifier.objects.filter(modifierSKU=modifier.modifierSKU).update(active=request.data['active'])
-
-        # try:
-        #     id=WooCommerce.getModifierUsingSKU(sku=modifier.modifierSKU,vendorId=modifier.vendorId)
-        #     platform = Platform.objects.get(VendorId=modifier.vendorId, corePlatformType=CorePlatform.WOOCOMMERCE)
-        #     catlogHeaders = {
-        #         "Content-Type": "application/json"
-        #     }
-        #     payload = {
-        #         "hide":0 if modifier.active else 1
-        #     }
-        #     url = platform.baseUrl + "wp-json/v1/custom/updateModifierStatus/"+str(id['response']['id'])
-        #     wooResponse = requests.request("POST", url, headers=catlogHeaders,data=json.dumps(payload))
-        #     print(json.dumps(wooResponse.json()))
-        # except Exception as err:
-        #     print(err)
 
         return JsonResponse({"message": "Modifier status updated successfully"}, content_type="application/json")
     
@@ -1063,8 +1048,6 @@ def productStatusChange(request):
 
             res = Product.objects.get(pk=data["productId"], vendorId=vendor_id)
 
-            # prod=WooCommerce.disalbeProductUsingId(sku=res.SKU,active=res.active,vendorId=res.vendorId)
-            
             return JsonResponse({'productId': res.pk, 'status':res.active})
         
         else:
@@ -1143,16 +1126,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1440,16 +1417,10 @@ def order_data_socket(request):
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1584,8 +1555,8 @@ def order_data_socket(request):
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
             platform_details = {
-                "id" : platform.platform.pk,
-                "name" :"order online" if platform.platform.Name == "WooCommerce" else platform.platform.Name
+                "id": platform.platform.pk,
+                "name": platform.platform.Name
             }
 
         except Exception as e:
@@ -2308,12 +2279,8 @@ def updatePaymentDetails(request):
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
 
     oldStatus = order.order_status
-
-    if str(data['platform']).lower() == 'woocommerce':
-        coreOrder = Order.objects.get(pk=order.externalOrderId)
     
-    else:
-        coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
+    coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
         
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
     
@@ -2647,39 +2614,14 @@ def  orderList(request):
 @api_view(["POST"])
 def storetime(request):
     vendor_id = request.GET.get("vendorId")
+
     pos_set = POS_Settings.objects.filter(VendorId=vendor_id)
+
     if request.data.get("store") == "":
         return Response(data={"store_status":pos_set.first().store_status},status=status.HTTP_200_OK)
+    
     pos_set.update(store_status=request.data.get("store"))
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor_id,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
 
-    if woocommerce_platform:
-        payload = {
-                    "data": 
-                    {   
-                        "store_toggle":"1" if request.data.get("store") else "0"
-                    }
-                }
-        
-        url = woocommerce_platform.baseUrl + "?rest_route=/storetime/v1/slot/update"
-
-        wooResponse = requests.request(
-            "POST",
-            url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload)
-        )
-
-        if wooResponse.status_code == 200:
-           return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
-        
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        
     return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
 
 
@@ -3207,15 +3149,6 @@ def set_store_timings(request):
 
     body_data['platform'] = None
 
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
-
-    if woocommerce_platform:
-        body_data['platform'] = woocommerce_platform.pk
-
     serialized = StoreTImingSerializer(data=body_data)
 
     # update store_timings
@@ -3224,11 +3157,7 @@ def set_store_timings(request):
         serialized = StoreTImingSerializer(instance=data, data=body_data)
 
     if serialized.is_valid():
-        slot=serialized.save()
-
-        # if woocommerce_platform:
-        #     wooResponse = WooCommerce.set_store_timings(vendorId=vendor, day=slot)
-        #     print(wooResponse)
+        slot = serialized.save()
 
         return Response(serialized.data, status=status.HTTP_200_OK)
     
@@ -3240,11 +3169,13 @@ def set_store_timings(request):
 def delete_store_timings(request):
     try:
         data = StoreTiming.objects.get(pk=request.GET.get("id"))
-        # wooResponse = WooCommerce.delete_store_timings(vendorId=data.vendor,day=data)
+
         data.delete()
+
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_404_NOT_FOUND)
+    
     return Response(status=status.HTTP_200_OK)
 
 
@@ -5018,19 +4949,6 @@ def create_loyalty_points_settings(request):
                 vendor = vendor
             )
 
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing as entry in wordpress will already be created
-            # if woocommerce_platform:
-            #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-            #     if woocommerce_response == True:
-            #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-            #     else:
-            #         transaction.set_rollback(True)
-            #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
             settings_data = {}
 
             settings_data["id"] = settings.pk
@@ -5086,19 +5004,6 @@ def update_loyalty_points_settings(request):
 
         settings.save()
 
-        # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-        # WooCommerce syncing
-        # if woocommerce_platform:
-        #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-        #     if woocommerce_response == True:
-        #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-        #     else:
-        #         transaction.set_rollback(True)
-        #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
         settings_data = {}
 
         settings_data["id"] = settings.pk
@@ -5241,37 +5146,6 @@ def redeem_loyalty_points(request):
 
                         customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                         customer_instance.save()
-
-                    # WooCommerce syncing
-                    # if is_wordpress == False:
-                    #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                    #     if woocommerce_platform:
-                    #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                    #         if woocommerce_customer_details.status_code == 404:
-                    #             pass
-
-                    #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                    #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                    #             if woocommerce_customer_details.get('id'):
-                    #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                    #                     woocommerce_customer_details.get('id'),
-                    #                     customer_instance.loyalty_points_balance,
-                    #                     vendor_id
-                    #                 )
-
-                    #                 if balance_update_response == True:
-                    #                     notify(type=3, msg='0', desc='Loyalty points synced', stn=['POS'], vendorId=vendor_id)
-
-                    #                 else:
-                    #                     transaction.set_rollback(True)
-                    #                     return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
-
-                    #         else:
-                    #             transaction.set_rollback(True)
-                        #             return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
 
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
             
@@ -5431,36 +5305,6 @@ def loyalty_points_redeem(vendor_id, customer_id, master_order_id, is_wordpress,
                                 customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                                 customer_instance.save()
 
-                                # WooCommerce syncing
-                                # if is_wordpress == False:
-                                #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                                #     if woocommerce_platform:
-                                #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                                #         if woocommerce_customer_details.status_code == 404:
-                                #             pass
-
-                                #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                                #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                                #             if woocommerce_customer_details.get('id'):
-                                #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                                #                     woocommerce_customer_details.get('id'),
-                                #                     customer_instance.loyalty_points_balance,
-                                #                     vendor_id
-                                #                 )
-
-                                #                 if balance_update_response == True:
-                                #                     pass
-
-                                #                 else:
-                                #                     transaction.set_rollback(True)
-                                #                     return is_redeemed
-
-                                #         else:
-                                #             transaction.set_rollback(True)
-                                #             return is_redeemed
                             break
 
                 is_redeemed = True
@@ -5634,7 +5478,7 @@ def top_selling_products_report(request):
     if sort_by not in ("ascending", "descending"):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         order_items = Order_content.objects.filter(
@@ -5839,7 +5683,7 @@ def most_repeating_customers_report(request):
     if not sort_by:
         sort_by = "descending "
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         orders = Order.objects.filter(
@@ -6371,7 +6215,7 @@ def customers_redeemed_most_points_report(request):
     if not sort_by:
         sort_by = "descending "
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = Order.objects.filter(
         Status=OrderStatus.get_order_status_value('COMPLETED'),
@@ -6728,7 +6572,7 @@ def finance_report(request):
     else:
         is_download = str(is_download)
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = OrderPayment.objects.filter(
         status=True,
@@ -6956,7 +6800,7 @@ def footfall_revenue_report(request):
     if filter_type not in ('footfall', 'revenue'):
         return Response("Invalid type parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     all_orders = OrderPayment.objects.filter(
         status=True,
@@ -7467,7 +7311,7 @@ def order_report(request):
         return JsonResponse(order_count_details)
     
     elif is_download == "true":
-        platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+        platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
@@ -7564,7 +7408,7 @@ def cancel_order_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     cancelled_orders = KOMSOrder.objects.filter(
         master_order__Status=OrderStatus.get_order_status_value('CANCELED'),
@@ -7761,7 +7605,7 @@ def pincode_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
     order_items = Order_content.objects.filter(
         orderId__order_status=10,
