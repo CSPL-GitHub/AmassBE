@@ -1,5 +1,5 @@
 from order import order_helper
-from core.utils import API_Messages, PaymentType, UpdatePoint, OrderType
+from core.utils import API_Messages, UpdatePoint, OrderType
 from core.models import Product, ProductImage,Platform,ProductModifier,Product_Tax,ProductModifierGroup,ProductCategory
 from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
@@ -16,7 +16,6 @@ from koms.serializers.stations_serializer import (Stations_serializer, StationsR
 from koms.serializers.staff_serializer import (StaffReaderSerializer,StaffWriterSerializer,)
 # from static.config import *
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
-from koms.serializers.order_history_serializer import Order_History_serializer
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
     KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
@@ -31,10 +30,10 @@ from datetime import datetime, timedelta, time
 from .serializers.content_assign_serializer import Content_assign_serializer
 from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
-# from order.models import Order as MasterOrder
-from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyPointsRedeemHistory
+from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.models import StoreTiming
 from inventory.utils import sync_order_content_with_inventory
+from pos.language import get_key_value
 import secrets
 import json
 import string
@@ -622,33 +621,22 @@ def webSocketPush(message, room_name, username):
     )
   
 
-# from order.models import Order as coreOrder, OrderPayment
-def waiteOrderUpdate(orderid, vendorId, language="en"):
+def waiteOrderUpdate(orderid, vendorId, language="English"):
     try:
         data = getOrder(ticketId=orderid, language=language, vendorId=vendorId)
 
         listOrder = Order_tables.objects.filter(orderId_id=orderid)
 
-        waiters=[]
+        waiters = []
 
         master_order = coreOrder.objects.filter(Q(externalOrderld=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
         try:
             payment_type = OrderPayment.objects.filter(orderId=master_order.pk)
             
-            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            payment_mode = get_key_value(language, "payment_type", payment_type.last().type) if payment_type else get_key_value(language, "payment_type", 1)
             
-            if language == "ar":
-                if payment_mode == "CASH":
-                    payment_mode = "نقدي"
-
-                elif payment_mode == "CARD":
-                    payment_mode = "بطاقة"
-
-                elif payment_mode == "ONLINE":
-                    payment_mode = "متصل"
-            
-            payment_details ={
+            payment_details = {
                 "total": master_order.TotalAmount,
                 "subtotal": master_order.subtotal,
                 "tax": master_order.tax,
@@ -662,21 +650,18 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
             }
                 
         except Exception as e:
-            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+            payment_mode = get_key_value(language, "payment_type", 1)
 
-            if language == "ar":
-                payment_mode = "نقدي"
-
-            payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
+            payment_details = {
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip" :0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
                 "mode": payment_mode
             }
 
@@ -686,14 +671,14 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
 
         try:
             platform_details = {
-                "id" : master_order.platform.pk,
-                "name" :"order online" if master_order.platform.Name == "WooCommerce" else master_order.platform.Name
+                "id": master_order.platform.pk,
+                "name": master_order.platform.Name
             }
         
         except Exception as e:
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
             print(e)
@@ -716,39 +701,41 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
                 customer_address = address_line_1 + ", " + address_line_2 + ", " + city + ", " + state + ", " + country + ", " + zipcode
             
             customer_details = {
-                "id" : master_order.customerId.pk,
-                "name" :master_order.customerId.FirstName + " " + master_order.customerId.LastName,
-                "mobile" : master_order.customerId.Phone_Number,
-                "email" : master_order.customerId.Email,
-                "shipping_address" : customer_address
+                "id": master_order.customerId.pk,
+                "name": master_order.customerId.FirstName + " " + master_order.customerId.LastName,
+                "mobile": master_order.customerId.Phone_Number,
+                "email": master_order.customerId.Email,
+                "shipping_address": customer_address
             }
             
         except Exception as e:
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name":"",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
             print(e)
 
         data["customer_details"] = customer_details
 
-        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-            customer=master_order.customerId.pk,
-            order=master_order.pk
-        )
+        total_points_redeemed = 0
+        
+        loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendorId).first()
 
-        if loyalty_points_redeem_history.exists():
-            total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+        if loyalty_program:
+            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                customer=master_order.customerId.pk,
+                order=master_order.pk
+            )
 
-            if not total_points_redeemed:
-                total_points_redeemed = 0
+            if loyalty_points_redeem_history.exists():
+                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-        else:
-            total_points_redeemed = 0
+                if not total_points_redeemed:
+                    total_points_redeemed = 0
 
         data["total_points_redeemed"] = total_points_redeemed
 
@@ -777,10 +764,11 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
             hotelTable = HotelTable.objects.get(pk=table.tableId.pk)
 
             if hotelTable and hotelTable.waiterId:
-                waiter_name = hotelTable.waiterId.name
+                if language == "English":
+                    waiter_name = hotelTable.waiterId.name
 
-                if language == "ar":
-                    waiter_name = hotelTable.waiterId.name_ar
+                else:
+                    waiter_name = hotelTable.waiterId.name_locale
             
             table_data = { 
                 "tableId": hotelTable.pk, 
@@ -828,8 +816,8 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
         webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]),username= "CORE")
 
         webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
-        webSocketPush(message=statuscount(vendorId=vendorId),room_name= STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
-        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR,username= "CORE")
+        webSocketPush(message=statuscount(vendorId=vendorId), room_name=STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
+        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username= "CORE")
     
     except Exception as e:
         print(f"Unexpected {e=}, {type(e)=}")
