@@ -29,6 +29,16 @@ class VendorAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
+@admin.register(Platform)
+class PlatformAdmin(admin.ModelAdmin):
+    
+    list_display = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'className', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
+    list_filter = ('Name', 'isActive', 'expiryDate', 'VendorId',)
+    search_fields = ('Name',)
+    ordering = ('VendorId', 'Name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
     fields = (
@@ -118,15 +128,6 @@ class ProductImageAdmin(admin.ModelAdmin):
     list_filter = ('vendorId',)
     search_fields = ('product__productName', 'product__productDesc',)
     ordering = ('vendorId', 'product',)
-    # show_facets = admin.ShowFacets.ALWAYS
-
-
-@admin.register(Platform)
-class PlatformAdmin(admin.ModelAdmin):
-    
-    list_display = ('Name', 'VendorId', 'isActive',)
-    list_filter = ('Name', 'VendorId',)
-    search_fields = ('Name',)
     # show_facets = admin.ShowFacets.ALWAYS
     
     

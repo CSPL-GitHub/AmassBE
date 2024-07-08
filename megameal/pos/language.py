@@ -66,6 +66,11 @@ payment_type_locale = {
 
 product_tag_locale = (("نباتي", "veg"), ("غير نباتي", "non-veg"))
 
+platform_locale = (
+    ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
+    ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
+)
+
 def get_key_value(language, dictionary, key):
     if language == "English":
         if dictionary == "order_type":

@@ -1,6 +1,6 @@
 from django.db import models
 from core.utils import CorePlatform, TaxLevel, OrderAction
-from pos.language import product_tag_locale
+from pos.language import product_tag_locale, platform_locale
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.text import slugify
@@ -342,20 +342,12 @@ class Platform(models.Model):
         ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
         ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
     ))
-    Name_ar = models.CharField(max_length=100, choices=(
-        ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
-        ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website'),
-    ))
-    corePlatformType = models.IntegerField(choices=CorePlatform.choices)
+    Name_locale = models.CharField(max_length=100, choices=platform_locale)
     className = models.CharField(max_length=122)
     orderActionType = models.IntegerField(choices=OrderAction.choices, blank=True, null=True)
     baseUrl = models.CharField(max_length=122, blank=True)
     secreateKey = models.CharField(max_length=122, blank=True)
     secreatePass = models.CharField(max_length=122, blank=True)
-    APIKey = models.CharField(max_length=122, blank=True)
-    macId = models.CharField(max_length=122, blank=True)
-    pushMenuUrl = models.URLField(null=True, blank=True)
-    autoSyncMenu = models.BooleanField(default=False)
     expiryDate = models.DateTimeField(auto_now=False)
     isActive = models.BooleanField(default=False)
     VendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
@@ -366,15 +358,10 @@ class Platform(models.Model):
             'baseUrl': self.baseUrl,
             'secreateKey': self.secreateKey,
             'secreatePass': self.secreatePass,
-            'APIKey': self.APIKey,
             'VendorId': self.VendorId,
-            'macId':self.macId,
             'isActive':self.isActive,
             'expiryDate':self.expiryDate,
-            'pushMenuUrl':self.pushMenuUrl,
-            'corePlatformType':self.corePlatformType,
             'className':self.className,
-            'autoSyncMenu':self.autoSyncMenu
         }
     
     def __str__(self):
