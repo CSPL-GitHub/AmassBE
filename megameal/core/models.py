@@ -40,12 +40,6 @@ class Vendor(models.Model):
     def __str__(self):
         return self.Name
 
-class Core_User(models.Model):
-    username = models.CharField(max_length=100)
-    password = models.CharField(max_length=122)
-    is_active = models.BooleanField(default=True)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True, blank=True)
-
 
 class ProductCategory(models.Model):
     categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE)
