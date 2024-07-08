@@ -374,13 +374,7 @@ class Token_date(models.Model):
 
 class json_data(models.Model):
     json_data=models.TextField()
- 
 
-class woocommerce_key_table(models.Model):
-    url=models.URLField(blank=True ,)
-    consumer_key=models.CharField(max_length=250,unique=True,null=True)
-    consumer_secret=models.CharField(max_length=200) 
-    version=models.CharField(max_length=200)
 
 
 from order.models import Customer, Order # Placed here due to circular import
