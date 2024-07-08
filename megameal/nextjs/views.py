@@ -458,8 +458,8 @@ def set_customer_address(request):
     if id:
         serealizer = Addressserializers(data=data,instance=Address.objects.get(pk=id))
 
-    # else :
-    #     Address.objects.filter(customer=data['customer']).update(is_selected=False)
+    else :
+        Address.objects.filter(customer=data['customer']).update(is_selected=False)
 
     if serealizer.is_valid() :
         save = serealizer.save()
@@ -511,7 +511,7 @@ def getTags(request):
 
 
 def getDIstance(source,destination):
-    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyCNlRs8xfM4ZauggHgA5qx23nE4aBN4aQQ"
+    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyBpil2D8QGyYQaxh-kcy_XuYWooNYb_eiE"
     payload = {}
     headers = {}
     response = requests.request("GET", url, headers=headers, data=payload)
