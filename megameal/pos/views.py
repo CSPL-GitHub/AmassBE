@@ -1074,7 +1074,7 @@ def productStatusChange(request):
             return JsonResponse({'error': e}, status=400)
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
         print("Starting koms thread...")
         thr = threading.Thread(
                 target=order_data, args=(), kwargs={
