@@ -3,7 +3,7 @@
 from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
 from order.models import Order, OriginalOrder
 from core.utils import API_Messages, CountyConvert, DiscountCal, OrderStatus, OrderType, TaxLevel, UpdatePoint
-from core.models import Api_Logs, POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor, Vendor_Settings
+from core.models import POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor, Vendor_Settings
 import requests
 import json
 from datetime import datetime
