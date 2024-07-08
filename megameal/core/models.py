@@ -1,6 +1,6 @@
 from django.db import models
 from core.utils import CorePlatform, TaxLevel, OrderAction
-from pos.language import product_tag_locale, platform_locale
+from pos.language import platform_locale
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.utils.text import slugify
@@ -103,7 +103,6 @@ class Product(models.Model):
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
     tag = models.CharField(max_length=50, null=True, blank=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
-    tag_locale = models.CharField(max_length=50, null=True, blank=True, choices=product_tag_locale)
     is_displayed_online = models.BooleanField(default=True)
     active = models.BooleanField(default=True)
     isDeleted = models.BooleanField(default=False)

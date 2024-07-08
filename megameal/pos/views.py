@@ -64,7 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale
+from pos.language import get_key_value, check_key_exists, all_platform_locale, product_tag_locale
 import pytz
 import re
 import openpyxl
@@ -576,14 +576,14 @@ def productByCategory(request, id=0):
                 if language == "English":
                     category_name = category.categoryName
                     product_name = product.productName
-                    product_description = product.productDesc
-                    product_tag = product.tag
+                    product_description = product.productDesc if product.productDesc else ""
+                    product_tag = product.tag if product.tag else ""
                 
                 else:
                     category_name = category.categoryName_locale
                     product_name = product.productName_locale
-                    product_description = product.productDesc_locale
-                    product_tag = product.tag_locale
+                    product_description = product.productDesc_locale if product.productDesc_locale else ""
+                    product_tag = product_tag_locale[product.tag] if product.tag else ""
                 
                 product_list.append({
                     "categoryId": category.pk,

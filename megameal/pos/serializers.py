@@ -131,7 +131,6 @@ class ProductSerializer(serializers.ModelSerializer):
             "productType",
             "active",
             "tag",
-            "tag_locale",
             "is_displayed_online",
             "vendorId",
         )
