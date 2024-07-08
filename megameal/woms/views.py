@@ -220,7 +220,7 @@ def getTableData(hotelTable, vendorId, language="English"):
     return data
 
 
-def gettable(id, vendorId, language="en"):
+def gettable(id, vendorId, language="English"):
     try:
         waiter = Waiter.objects.get(pk=id, vendorId=vendorId)
         
@@ -242,7 +242,7 @@ def gettable(id, vendorId, language="en"):
         print(e)
         return []
  
-def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="en"):
+def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="English"):
     try:
         if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
             data = HotelTable.objects.filter(vendorId=vendorId)
