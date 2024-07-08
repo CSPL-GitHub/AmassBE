@@ -615,7 +615,7 @@ def productByCategory(request, id=0):
 @api_view(['GET'])
 def dashboard(request):
     vendor_id = request.GET.get("vendor")
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
@@ -1821,7 +1821,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def createOrder(request):
     vendorId = request.GET.get('vendorId', None)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
@@ -2386,7 +2386,7 @@ def update_order_koms(request):
 
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
         return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
@@ -3385,7 +3385,7 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=404)
@@ -3900,7 +3900,7 @@ def get_modifiers(request):
     modifier_name = request.GET.get("modifierName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=status.HTTP_404_NOT_FOUND)
