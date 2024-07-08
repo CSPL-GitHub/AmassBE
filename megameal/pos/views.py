@@ -392,10 +392,10 @@ def pos_lanuage_setting(request):
 
 
 @api_view(['GET'])
-def allCategory(request, language="en"):
+def allCategory(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language", "English")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
@@ -404,13 +404,13 @@ def allCategory(request, language="en"):
         
         category_list = []
 
-        if language == "ar":
+        if language == "English":
             for single_category in categories:
                 category_list.append({
                     "categoryId": single_category.pk,
                     "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName_ar,
-                    "description": single_category.categoryDescription_ar,
+                    "name": single_category.categoryName,
+                    "description": single_category.categoryDescription,
                     "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                     "is_active": single_category.is_active
                 })
@@ -420,8 +420,8 @@ def allCategory(request, language="en"):
                 category_list.append({
                     "categoryId": single_category.pk,
                     "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName,
-                    "description": single_category.categoryDescription,
+                    "name": single_category.categoryName_locale,
+                    "description": single_category.categoryDescription_locale,
                     "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                     "is_active": single_category.is_active
                 })
