@@ -810,11 +810,11 @@ def dashboard(request):
 
         product_name = ""
 
-        if language == "ar":
-            product_name = product.productName_locale
-
-        else:
+        if language == "English":
             product_name = product.productName
+        
+        else:
+            product_name = product.productName_locale
         
         item['id'] = product.pk
         item['product_name'] = product_name
@@ -1099,7 +1099,7 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
         return {"connecting":False}
 
 
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
         return error_message
@@ -1254,17 +1254,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
             
-            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
-            
-            if language == "ar":
-                if payment_mode == "CASH":
-                    payment_mode = "نقدي"
-
-                elif payment_mode == "CARD":
-                    payment_mode = "بطاقة"
-
-                elif payment_mode == "ONLINE":
-                    payment_mode = "متصل"
+            payment_mode = get_key_value(language, "payment_type", payment_type)
             
             payment_details ={
                 "total": payment_details_order.TotalAmount,
@@ -1282,10 +1272,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         except Exception as e:
             print("Error", e)
 
-            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
-
-            if language == "ar":
-                payment_mode = "نقدي"
+            payment_mode = get_key_value(language, "payment_type", 1)
 
             payment_details ={
                 "total":0.0,
@@ -3408,11 +3395,11 @@ def get_products(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if product_name:
-        if language == "ar":
-            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
 
         else:
-            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
     
     else:
         products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
@@ -3796,11 +3783,11 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         if name_query:
             language = request.GET.get('language', "en")
 
-            if language == "ar":
-                queryset = queryset.filter(name_ar__icontains=name_query)
-
-            else:
+            if language == "English":
                 queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
@@ -3923,12 +3910,12 @@ def get_modifiers(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if modifier_name:
-        if language == "ar":
-            modifiers = ProductModifier.objects.filter(modifierName_ar__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
 
         else:
-            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
-    
+            modifiers = ProductModifier.objects.filter(modifierName_locale__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+            
     else:
         modifiers = ProductModifier.objects.filter(vendorId=vendor_id).order_by('-pk')
 
