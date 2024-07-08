@@ -3,6 +3,11 @@ from .models import *
 
 
 
+admin.site.register(Vendor_Settings)
+admin.site.register(Core_User)
+admin.site.register(POS_Settings)
+
+
 @admin.register(VendorType)
 class VendorTypeAdmin(admin.ModelAdmin):
     fields = ('type',)
@@ -139,9 +144,3 @@ class Product_TaxAdmin(admin.ModelAdmin):
     list_filter = ('name', 'vendorId',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
-    
-    
-admin.site.register(Api_Logs)
-admin.site.register(Vendor_Settings)
-admin.site.register(Core_User)
-admin.site.register(POS_Settings)

@@ -365,12 +365,6 @@ class Platform(models.Model):
     
     def __str__(self):
         return self.Name
-       
-       
-class Api_Logs(models.Model):
-    reason=models.CharField(max_length=122,null=True,blank=True)
-    status=models.IntegerField(null=True,blank=True)
-    response=models.JSONField(null=True,blank=True)
 
 
 class Vendor_Settings(models.Model):
