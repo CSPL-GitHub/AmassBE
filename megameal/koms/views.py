@@ -14,7 +14,6 @@ from koms.serializers.order_serializer import (Order_serializer,OrderSerializerW
 from koms.serializers.user_settings_serializer import UserSettingReaderSerializer
 from koms.serializers.stations_serializer import (Stations_serializer, StationsReadSerializer,)
 from koms.serializers.staff_serializer import (StaffReaderSerializer,StaffWriterSerializer,)
-# from static.config import *
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
@@ -32,6 +31,7 @@ from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
 from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.models import StoreTiming
+from pos.language import order_has_arrived_locale
 from inventory.utils import sync_order_content_with_inventory
 from pos.language import get_key_value
 import secrets
@@ -589,13 +589,14 @@ def createOrderInKomsAndWoms(orderJson):
                 allStationWiseSingle(id=order_save_data.id,vendorId=vendorId)
                 notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=stnlist,vendorId=vendorId)
         
-        language = order_data.get("language", "en")
+        language = order_data.get("language", "English")
 
-        if language == "ar":
-            notify(type=1,msg=order_save_data.id,desc=f"انه وصل .. او انها وصلت { order_save_data.externalOrderId } رقم الأمر",stn=['POS'],vendorId=vendorId)
+        if language == "English":
+            notify(type=1, msg=order_save_data.id, desc=f"Order No {order_save_data.externalOrderId} is arrived", stn=['POS'], vendorId=vendorId)
         
         else:
-            notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=['POS'],vendorId=vendorId)
+            notify(type=1, msg=order_save_data.id, desc=order_has_arrived_locale(order_save_data.externalOrderId), stn=['POS'], vendorId=vendorId)
+            
             
         waiteOrderUpdate(orderid=order_save_data.id,vendorId=vendorId)
         allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
@@ -833,7 +834,7 @@ def updateTicketStatus(request):
     orderStatus = requestJson.get("status")
     ticketStatus = requestJson.get("ticketStatus")
     vendorId = request.GET.get("vendorId")
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if contentId is not None:
         changeTicketStatus = False
@@ -1291,14 +1292,17 @@ def getOrder(ticketId, vendorId, language="English"):
             if singleContentModifier.quantity > 0 :
                 mapOfSingleModifier = {}
 
-                modifier_name = singleContentModifier.name
+                modifier_name = ""
 
-                if language == "ar":
+                if language == "English":
+                    modifier_name = singleContentModifier.name
+
+                else:
                     modifier_instance = ProductModifier.objects.filter(
                         modifierPLU=singleContentModifier.SKU, vendorId=vendorId
                     ).first()
 
-                    modifier_name = modifier_instance.modifierName_ar
+                    modifier_name = modifier_instance.modifierName_locale
 
                 mapOfSingleModifier["id"] = singleContentModifier.pk
                 mapOfSingleModifier["plu"] = singleContentModifier.SKU
