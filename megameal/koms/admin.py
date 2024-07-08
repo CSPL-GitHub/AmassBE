@@ -1,6 +1,7 @@
 from django.contrib import admin
 from .models import *
-# Register your models here.
+
+
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
@@ -22,9 +23,11 @@ class StaffAdmin(admin.ModelAdmin):
 
 @admin.register(Station)
 class StationsAdmin(admin.ModelAdmin):
+    fields = ('vendorId', 'isStation', 'client_id', 'client_secrete', 'tag',)
     
-    list_display = ('station_name','client_id','client_secrete','vendorId','isStation',)
-    list_filter = ('vendorId','isStation')
-    search_fields = ('station_name','vendorId__Name')
+    list_display = ('station_name', 'isStation', 'vendorId',)
+    list_filter = ('vendorId', 'isStation')
+    search_fields = ('station_name', 'station_name_locale', 'vendorId__Name')
+    ordering = ('vendorId', 'station_name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
