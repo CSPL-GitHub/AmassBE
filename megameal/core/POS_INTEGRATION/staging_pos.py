@@ -549,10 +549,8 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.modifierImg = coreModItm["image"]
             cat.modifierPrice = coreModItm["price"]
             cat.modifierDesc = coreModItm["description"]
-            cat.modifierQty = coreModItm["qty"]
-            cat.modifierStatus = coreModItm["modifierStatus"]
             cat.vendorId = vendor
-            cat.paretId = modGrp
+            cat.parentId = modGrp
             cat.save()
         except ProductModifier.DoesNotExist:
             cat = ProductModifier(
@@ -562,10 +560,8 @@ class StagingIntegration(AbstractPOSIntegration):
                 modifierImg=coreModItm["image"],
                 modifierPrice=coreModItm["price"],
                 modifierDesc=coreModItm["description"],
-                modifierQty=coreModItm["qty"],
-                modifierStatus=coreModItm["modifierStatus"],
                 vendorId=vendor,
-                paretId=modGrp)
+                parentId=modGrp)
             cat.save()
 
     def deleteModifierItem(self, coreModItm, vendor):

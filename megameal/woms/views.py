@@ -522,15 +522,14 @@ def productByCategory(request, id=0):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                            # "image":mod.modifier.modifierImg,
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                             "active": mod.modifier.active
                         }                    
                     )
@@ -721,14 +720,14 @@ def searchProduct(request, search):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                             "active": mod.modifier.active
                         }                    
                     )

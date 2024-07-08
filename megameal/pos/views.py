@@ -532,7 +532,7 @@ def productByCategory(request, id=0):
                                         "modifierId": modifier_and_group_instance.modifier.pk,
                                         "name": modifier_name,
                                         "description": modifier_description,
-                                        "quantity": modifier_and_group_instance.modifier.modifierQty,
+                                        "quantity": 0,
                                         "plu": modifier_and_group_instance.modifier.modifierPLU,
                                         "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                                         # "image":modifier_and_group_instance.modifier.modifierImg,

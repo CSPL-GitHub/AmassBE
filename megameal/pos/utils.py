@@ -527,7 +527,7 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                         active = is_active,
                         vendorId = vendor_instance,
                     )
-                    # Columns with default value: modifierImg, modifierQty, modifierStatus, isDeleted, paretId
+                    # Columns with default value: modifierImg, isDeleted, parentId
 
                 existing_product_modgroup_joint = ProductAndModifierGroupJoint.objects.filter(
                     modifierGroup = (ProductModifierGroup.objects.filter(PLU=row["Modifier Group SKU"], vendorId=vendor_id).first()).pk,

@@ -166,15 +166,15 @@ def productByCategory(request, id=0, vendorId=-1):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendorId):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":trans(mod.modifier.modifierName),
+                            "name": trans(mod.modifier.modifierName),
                             "description": trans(mod.modifier.modifierDesc),
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0,
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
+                            "status": False, # Required for Flutter model
                             "active": mod.modifier.active,
-                            "image":str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
+                            "image": str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
                         }                    
                     )
 
@@ -259,17 +259,17 @@ def productDetails(request,id=0,search=''):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":trans(mod.modifierName),
+                            "name": trans(mod.modifierName),
                             "description": trans(mod.modifierDesc),
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":str(mod.modifierImg)
+                            "status": False, # Required for Flutter model
+                            "image": str(mod.modifierImg)
                         }                    
                     )
                 modGrp.append(
@@ -567,17 +567,17 @@ def productByCategoryTemp(request,id=0):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":mod.modifierName,
+                            "name": mod.modifierName,
                             "description": mod.modifierDesc,
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
 
                         }                    
                     )

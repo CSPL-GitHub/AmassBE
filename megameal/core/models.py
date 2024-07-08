@@ -194,18 +194,18 @@ class ProductModifierGroup(models.Model):
 
 
 class ProductModifier(models.Model):
-    modifierName=models.CharField(max_length=122)
-    modifierPLU=models.CharField(max_length=122)
-    modifierSKU=models.CharField(max_length=122,blank=True,null=True)
-    modifierImg=models.URLField(max_length=500, null=True, blank=True)
-    modifierPrice=models.FloatField(null=True,blank=True)
-    modifierDesc=models.CharField( max_length=122,null=True,blank=True)
-    modifierQty=models.IntegerField(default=0)
-    modifierStatus=models.BooleanField(default=False)
-    isDeleted=models.BooleanField(default=False)
-    active=models.BooleanField(default=True)
-    paretId=models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE,null=True,blank=True)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    modifierName = models.CharField(max_length=122)
+    modifierName_locale = models.CharField(max_length=122, null=True)
+    modifierDesc = models.CharField( max_length=122, null=True)
+    modifierDesc_locale = models.CharField(max_length=122, null=True)
+    modifierPLU = models.CharField(max_length=122)
+    modifierSKU = models.CharField(max_length=122, null=True)
+    modifierImg = models.URLField(max_length=500, null=True)
+    modifierPrice = models.FloatField(null=True)
+    isDeleted = models.BooleanField(default=False)
+    active = models.BooleanField(default=True)
+    parentId = models.ForeignKey(ProductModifierGroup, on_delete=models.CASCADE, null=True)
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     class Meta:
         unique_together = ('modifierPLU', 'vendorId')
