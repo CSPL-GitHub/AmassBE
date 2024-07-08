@@ -7926,6 +7926,7 @@ def download_product_excel_upload_template(request):
         
         try:
             vendor_id = int(vendor_id)
+            
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -7942,23 +7943,31 @@ def download_product_excel_upload_template(request):
 
         response = "/media/" + relative_file_path
 
-        if not os.path.exists(file_path):
-            workbook = openpyxl.Workbook()
-            sheet = workbook.active
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
 
+        if not vendor_instance.secondary_language:
             sheet.append([
                 "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
 
-            directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
-            os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
+        else:
+            sheet.append([
+                "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+            
+        directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
-            workbook.save(file_path)
+        workbook.save(file_path)
 
-            print(f"Excel file '{file_name}' has been created.")
+        print(f"Excel file '{file_name}' has been created.")
         
         return HttpResponse(response, status=status.HTTP_200_OK)
     
