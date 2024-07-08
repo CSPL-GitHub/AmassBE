@@ -64,6 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
+from pos.language import get_key_value, check_key_exists
 import pytz
 import re
 import openpyxl
@@ -2808,76 +2809,52 @@ def excel_download_for_dashboard(request):
     vendor_id = json_data.get("vendor_id")
     start_date = json_data.get("start_date")
     end_date = json_data.get("end_date")
-    platform_id = json_data.get("platform_id")
-    order_type = json_data.get("order_type")
-    order_status = json_data.get("order_status")
+    platform_id = json_data.get("platform_id", "All")
+    order_type = json_data.get("order_type", "All")
+    order_status = json_data.get("order_status", "All")
+    language = json_data.get("language", "English")
 
     if (vendor_id == None) or (vendor_id == ""):
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (start_date == None) or (start_date == ""):
-        return JsonResponse({"error": "Start date cannot be empty"}, status=400)
+        return JsonResponse({"error": "Start date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (end_date == None) or (end_date == ""):
-        return JsonResponse({"error": "End date cannot be empty"}, status=400)
-        
-    if platform_id == None:
-        return JsonResponse({"error": "Platform cannot be empty"}, status=400)
+        return JsonResponse({"error": "End date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if order_type == None:
-        return JsonResponse({"error": "Order Type cannot be empty"}, status=400)
-    
-    if order_status == None:
-        return JsonResponse({"error": "Order Status cannot be empty"}, status=400)
-    
-    if (order_type == "All") or (order_type == ""):
-        order_type_parameter = "All"
-    elif order_type == "1":
-        order_type_parameter = "Pickup"
-    elif order_type == "2":
-        order_type_parameter = "Delivery"
-    elif order_type == "3":
-        order_type_parameter = "Dine In"
-    else:
-        return JsonResponse({"error": "Order Type does not exist"}, status=400)
+    if platform_id == "":
+        platform_id = "All"
 
-    if (order_status == "All") or (order_status == ""):
-        order_status_parameter = "All"
-    elif order_status == "1":
-        order_status_parameter = "Pending"
-    elif order_status == "2":
-        order_status_parameter = "Processing"
-    elif order_status == "3":
-        order_status_parameter = "Complete" #Ready
-    elif order_status == "4":
-        order_status_parameter = "On Hold"
-    elif order_status == "5":
-        order_status_parameter = "Cancelled"
-    elif order_status == "6":
-        order_status_parameter = "Recalled"
-    elif order_status == "7":
-        order_status_parameter = "High Priority"
-    elif order_status == "8":
-        order_status_parameter = "Assigned"
-    elif order_status == "9":
-        order_status_parameter = "Incoming"
-    elif order_status == "10":
-        order_status_parameter = "Closed"
-    else:
-        return JsonResponse({"error": "Order Status does not exist"}, status=400)
+    if order_type == "":
+        order_type = "All"
 
-    if (platform_id == "") or (platform_id == "All"):
+    if order_status == "":
+        order_status = "All"
+
+    if language == "":
+        language = "English"
+    
+    if check_key_exists(language, "order_type", order_type) == False:
+        return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if check_key_exists(language, "koms_order_status", order_status) == False:
+        return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    order_type_parameter = get_key_value(language, "order_type", order_type)
+    order_status_parameter = get_key_value(language, "koms_order_status", order_status)
+
+    if platform_id == "All":
         platform_parameter = "All"
+        
     else:
         platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            if platform_parameter.Name.lower() == "woocommerce":
-                platform_parameter = "Order Online"
-            else:
-                platform_parameter = platform_parameter.Name
+            platform_parameter = platform_parameter.Name
+
         else:
-            return JsonResponse({"error": "Platform does not exist"}, status=400)
+            return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     start_date_parameter = datetime.strptime(str(start_date), '%Y-%m-%d').date()
     end_date_parameter = datetime.strptime(str(end_date), '%Y-%m-%d').date()
@@ -2894,8 +2871,6 @@ def excel_download_for_dashboard(request):
 
     koms_order_data = KOMSOrder.objects.filter(arrival_time__range=(start_date, end_date), vendorId=vendor_id)
 
-    # koms_order_data_count = koms_order_data.count()
-
     if (platform_id == "All") or (platform_id == ""):
         pass
 
@@ -2907,19 +2882,14 @@ def excel_download_for_dashboard(request):
         if platform_info:
             external_order_ids = list(koms_order_data.values_list('externalOrderId', flat=True))
 
-            if str(platform_info.Name).lower() == "woocommerce":
-                # For WooCommerce, primary key of order_order table is external ID in koms_order table
-                order_data = Order.objects.filter(pk__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('pk', flat=True))
-            else:
-                order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+            order_data = order_data.filter(platform=platform_id)
+            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
             
             koms_order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
+        
         else:
-            return JsonResponse({"error": "Platform not found"}, status=400)
+            return JsonResponse({"error": "Platform not found"}, status=status.HTTP_400_BAD_REQUEST)
         
     if (order_type == "All") or (order_type == ""):
         pass
@@ -2939,27 +2909,14 @@ def excel_download_for_dashboard(request):
 
     order_ids = list(KOMSOrder.objects.filter(externalOrderId__in=external_order_ids).values_list('pk', flat=True))
 
-    # order_ids_count = len(order_ids)
-
     order_content = Order_content.objects.filter(orderId__in = order_ids)
 
-    # order_content_ids = order_content.values_list('orderId', flat=True).distinct()
-
-    # order_ids_not_in_order_content = []
-    # for order_id in order_ids:
-    #     if order_id not in order_content_ids:
-    #         order_ids_not_in_order_content.append(order_id)
-    
     try:
         with transaction.atomic():    
             for content in order_content:
                 koms_orders = KOMSOrder.objects.filter(pk=content.orderId.pk, vendorId=vendor_id)
 
-                # komsorder_ids = koms_orders.values_list('pk', flat=True)
-
                 for order in koms_orders:
-                    # single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
-
                     order_id = order.externalOrderId
                     
                     order_detail = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
@@ -2969,109 +2926,27 @@ def excel_download_for_dashboard(request):
                     if order_detail:
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
-                        if order_detail.orderType == 1:
-                            order_type = "Pickup"
-                        elif order_detail.orderType == 2:
-                            order_type = "Delivery"
-                        elif order_detail.orderType == 3:
-                            order_type = "Dine In"
+                        order_type = get_key_value(language, "order_type", order_detail.orderType)
 
-                        if order.order_status == 1:
-                            order_status = "Pending"
-                        elif order.order_status == 2:
-                            order_status = "Processing"
-                        elif order.order_status == 3:
-                            order_status = "Complete" #Ready
-                        elif order.order_status == 4:
-                            order_status = "On Hold"
-                        elif order.order_status == 5:
-                            order_status = "Cancelled"
-                        elif order.order_status == 6:
-                            order_status = "Recalled"
-                        elif order.order_status == 7:
-                            order_status = "High Priority"
-                        elif order.order_status == 8:
-                            order_status = "Assigned"
-                        elif order.order_status == 9:
-                            order_status = "Incoming"
-                        elif order.order_status == 10:
-                            order_status = "Closed"
+                        order_status = get_key_value(language, "koms_order_status", order.order_status)
                         
                         if payment_detail:
-                            # payment_info ={
-                            #     "total":order_detail.TotalAmount,
-                            #     "subtotal":order_detail.subtotal,
-                            #     "tax":order_detail.tax,
-                            #     "delivery_charge":order_detail.delivery_charge,
-                            #     "discount":order_detail.discount,
-                            #     "tip":order_detail.tip,
-                            #     "paymentKey":payment_detail.paymentKey,
-                            #     "platform":payment_detail.platform,
-                            #     "status":payment_detail.status,
-                            #     "mode":PaymentType.get_payment_str(payment_detail.type) if payment_detail else PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             if payment_detail.status == True:
-                                payment_status = "Paid"
+                                payment_status = get_key_value(language, "payment_status", "True")
+                            
                             else:
-                                payment_status = "Pending"
+                                payment_status = get_key_value(language, "payment_status", "False")
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
-                            payment_type = PaymentType.get_payment_str(payment_detail.type)
+                            payment_type = get_key_value(language, "payment_type", payment_detail.type)
                             
                         else:
-                            # payment_info ={
-                            #     "total":0.0,
-                            #     "subtotal":0.0,
-                            #     "tax":0.0,
-                            #     "delivery_charge":0.0,
-                            #     "discount":0.0,
-                            #     "tip":0.0,
-                            #     "paymentKey":"",
-                            #     "platform":"",
-                            #     "status":False,
-                            #     "mode": PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             transaction_id = ""
-                            payment_status = "Unknown"
+                            payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
                             
-                        # single_order['payment'] = payment_info
-
-                        if order_detail.platform.Name == "WooCommerce":
-                            platform_name = "Order Online"
-                        else:
-                            platform_name = order_detail.platform.Name
-
-                        # customer = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-
-                        # if customer: 
-                        #     customer_details = {
-                        #         "id" : customer.customerId.pk,
-                        #         "name" :customer.customerId.FirstName + " " + customer.customerId.LastName,
-                        #         "mobile" : customer.customerId.Phone_Number if customer.customerId.Phone_Number else "",
-                        #         "email" : customer.customerId.Email if customer.customerId.Email else "",
-                        #         "billing_address" : "" if not customer.customerId.Billing_Address else customer.customerId.Billing_Address.address_line1 + " " + customer.customerId.Billing_Address.address_line2 + " " + customer.customerId.Billing_Address.city + " " + customer.customerId.Billing_Address.state + " " + customer.customerId.Billing_Address.country + " " + customer.customerId.Billing_Address.zipcode,
-                        #         "shipping_address" : "" if not customer.customerId.Shipping_Address else customer.customerId.Shipping_Address.address_line1 + " " + customer.customerId.Shipping_Address.address_line2 + " " + customer.customerId.Shipping_Address.city + " " + customer.customerId.Shipping_Address.state + " " + customer.customerId.Shipping_Address.country + " " + customer.customerId.Shipping_Address.zipcode
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # else:
-                        #     customer_details = {
-                        #         "id" : 0,
-                        #         "name" :"",
-                        #         "mobile" : "",
-                        #         "email" : "",
-                        #         "billing_address" : "",
-                        #         "shipping_address" : ""
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # order_details[order.pk]=single_order
+                        platform_name = order_detail.platform.Name
 
                         order_details[order_id] = {
                             "order_id": order_id,
@@ -3090,18 +2965,26 @@ def excel_download_for_dashboard(request):
                         print(f"Order details not found for external order ID {order_id}")
                         return JsonResponse(response_data, status=500)
 
-            # order_ids = list(order_details.keys())
-
-            # order_ids = sorted(order_ids, reverse=True)
-
-            # print(order_details)
-    
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
 
-    order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
+    # order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
 
+    new_order_details = OrderedDict()
+    sorted_items = []
+
+    for key, value in order_details.items():
+        order_time = value.get("order_time", "")
+        sorted_items.append((order_time, int(key)))
+
+    sorted_items.sort()
+
+    for order_time, order_id in sorted_items:
+        new_order_details[order_id] = order_details[order_id]
+
+    order_details = new_order_details
+    
     order_count = len(order_details)
     
     total_amount_paid = 0.0
@@ -3116,9 +2999,6 @@ def excel_download_for_dashboard(request):
     discount_sum = discount_sum or 0.0
     
     total_amount_paid = "{:.2f}".format(subtotal_sum - discount_sum)
-    
-    # for details in order_details.values():
-    #     total_amount_paid = total_amount_paid + details["amount_paid"]
 
     # Create a new Excel workbook and select the active sheet
     workbook = openpyxl.Workbook()
@@ -3132,7 +3012,7 @@ def excel_download_for_dashboard(request):
     sheet.append(['', '', '', '', '', '', '', '', ''])
 
     # Write headers
-    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time (IST)', 'Payment Type', 'Payment Status', 'Transaction ID'])
+    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     for order_id, details in order_details.items():
         sheet.append([
