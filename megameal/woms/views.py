@@ -304,7 +304,7 @@ def assinTableupdate(request):
     # floorId = requestJson.get('floorId')
     waiterId = requestJson.get('waiterId')
     vendorId = request.GET.get("vendorId")
-    language = request.GET.get("langauge", "en")
+    language = request.GET.get("langauge", "English")
     # filter=requestJson.get('filter') if requestJson.get('filter') else ''
     # search=requestJson.get('search') if requestJson.get('search') else ''
     
