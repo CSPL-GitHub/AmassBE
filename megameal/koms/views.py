@@ -1190,7 +1190,7 @@ def statuscount(vendorId):
     return result
 
 
-def getOrder(ticketId, vendorId, language="en"):
+def getOrder(ticketId, vendorId, language="English"):
     try:
         singleOrder = Order.objects.get(pk=ticketId,vendorId=vendorId)
     
@@ -1239,7 +1239,7 @@ def getOrder(ticketId, vendorId, language="en"):
             mapOfSingleOrder["tableIds"] = []
             mapOfSingleOrder["tableNo"] = ""
 
-    mapOfSingleOrder["tableId"] = 1#HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
+    mapOfSingleOrder["tableId"] = 1 #HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
     mapOfSingleOrder["isHigh"] = singleOrder.isHigh
 
     orderContentList = Order_content.objects.filter(orderId=singleOrder.pk).order_by('-pk')
@@ -1249,15 +1249,18 @@ def getOrder(ticketId, vendorId, language="en"):
     for singleContent in orderContentList:
         mapOfSingleContent = {}
 
-        product_name = singleContent.name
-        station_name = singleContent.stationId.station_name
+        product_name = ""
+        station_name = ""
+        
+        if language == "English":
+            product_name = singleContent.name
+            station_name = singleContent.stationId.station_name
 
-        if language == "ar":
+        else:
             product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-            station_instance = Station.objects.filter(pk=singleContent.stationId.pk, vendorId=vendorId).first()
-            
-            product_name = product_instance.productName_ar
-            station_name = singleContent.stationId.station_name_ar
+
+            product_name = product_instance.productName_locale
+            station_name = singleContent.stationId.station_name_locale
 
         mapOfSingleContent["id"] = singleContent.pk
         mapOfSingleContent["plu"] = singleContent.SKU
