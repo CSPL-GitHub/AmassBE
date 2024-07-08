@@ -101,12 +101,10 @@ class ProductCategorySerializer(serializers.ModelSerializer):
             "id",
             "categoryPLU",
             "categoryName",
-            "categoryName_ar",
+            "categoryName_locale",
             "categoryDescription",
-            "categoryDescription_ar",
-            # "categoryImage",
+            "categoryDescription_locale",
             "categoryImageUrl",
-            # "image_selection",
             "vendorId",
         )
 

@@ -31,12 +31,15 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(ProductCategory)
 class ProductCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'categoryStation', 'categoryName', 'categoryPLU', 'categoryDescription', 'categoryImageUrl', 'is_active')
+    fields = (
+        'vendorId', 'categoryStation', 'categoryName', 'categoryName_locale', 'categoryPLU',
+        'categoryDescription', 'categoryDescription_locale', 'categoryImageUrl', 'is_active'
+    )
     
     list_display = ('categoryName', 'categoryStation', 'is_active', 'vendorId',)
     list_filter = ('is_active', 'vendorId',)
     list_select_related = ('categoryStation', 'vendorId',)
-    search_fields = ('categoryName', 'categoryStation__station_name', 'categoryDescription',)
+    search_fields = ('categoryName', 'categoryName_locale', 'categoryStation__station_name', 'categoryDescription', 'categoryDescription_locale',)
     ordering = ('vendorId', 'categoryName', 'categoryStation',)
     # show_facets = admin.ShowFacets.ALWAYS
 

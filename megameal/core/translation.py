@@ -3,11 +3,6 @@ from .models import *
 
 
 
-@register(ProductCategory)
-class ProductCategoryTranslationOptions(TranslationOptions):
-    fields = ('categoryName', 'categoryDescription',)
-
-
 @register(Product)
 class ProductTranslationOptions(TranslationOptions):
     fields = ('productName', 'productDesc',)

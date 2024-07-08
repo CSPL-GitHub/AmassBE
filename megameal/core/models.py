@@ -47,20 +47,20 @@ class Core_User(models.Model):
 
 
 class ProductCategory(models.Model):
-    categoryName=models.CharField(max_length=500)
-    categoryParentId=models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True, blank=True)
-    categoryDescription=models.TextField(null=True, blank=True)
-    categoryImage=models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None ,null=True,blank=True)
-    categoryImageUrl=models.URLField(null=True,blank=True)
-    categoryCreatedAt=models.DateTimeField(auto_now_add=True,null=True,blank=True)
-    categoryUpdatedAt=models.DateTimeField(auto_now=True,null=True,blank=True)
-    categoryPLU=models.CharField(null=True,blank=True,max_length=122)
-    categoryIsDeleted=models.BooleanField(default=False)
-    categorySlug=models.SlugField(blank=True,null=True)
-    categoryStation=models.ForeignKey("koms.Station", on_delete=models.CASCADE,null=True,blank=True)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,null=True,blank=True, related_name="vendor_category")
-    image_selection = models.CharField(max_length=20, null=True, blank=True, choices = (("image", "image"), ("url", "url")))
+    categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE,null=True,blank=True)
+    categoryName = models.CharField(max_length=200)
+    categoryName_locale = models.CharField(max_length=200, null=True)
+    categoryParentId = models.ForeignKey('ProductCategory', on_delete=models.CASCADE, null=True)
+    categoryDescription = models.TextField(null=True)
+    categoryDescription_locale = models.TextField(null=True)
+    categoryPLU = models.CharField(max_length=122)
+    categorySlug = models.SlugField(null=True)
+    categoryImage = models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None, null=True)
+    categoryImageUrl = models.URLField(null=True)
+    image_selection = models.CharField(max_length=20, null=True, choices = (("image", "image"), ("url", "url")))
+    categoryIsDeleted = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True, related_name="vendor_category")
 
     class Meta:
         unique_together = ('categoryPLU', 'vendorId')
@@ -73,7 +73,11 @@ class ProductCategory(models.Model):
         if not self.categorySlug:
             self.categorySlug = slugify(self.categoryName)
 
+        if not self.categoryName_locale:
+            self.categoryName_locale = self.categoryName
+
         super().save(*args, **kwargs)
+
         return self
     
     def __str__(self):
