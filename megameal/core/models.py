@@ -372,12 +372,7 @@ class Token_date(models.Model):
     Token=models.IntegerField(max_length=200,)     
 
 
-class json_data(models.Model):
-    json_data=models.TextField()
-
-
-
-from order.models import Customer, Order # Placed here due to circular import
+from order.models import Customer, Order # Placed here due to circular import error
 class EmailLog(models.Model):
     order = models.ForeignKey(Order, on_delete=models.CASCADE, related_name="order_email")
     sender = models.CharField(max_length=100)
