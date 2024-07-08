@@ -3,7 +3,6 @@ from .models import *
 
 
 
-admin.site.register(Vendor_Settings)
 admin.site.register(Core_User)
 admin.site.register(POS_Settings)
 

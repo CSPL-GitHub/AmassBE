@@ -3,7 +3,7 @@
 from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
 from order.models import Order, OriginalOrder
 from core.utils import API_Messages, CountyConvert, DiscountCal, OrderStatus, OrderType, TaxLevel, UpdatePoint
-from core.models import POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor, Vendor_Settings
+from core.models import POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor
 import requests
 import json
 from datetime import datetime
@@ -440,7 +440,7 @@ class SquareIntegration(AbstractPOSIntegration):
         try:
             vendorId = response["vendorId"]
             platform = POS_Settings.objects.get(VendorId=vendorId)
-            settings = Vendor_Settings.objects.get(VendorId=vendorId)
+            # settings = Vendor_Settings.objects.get(VendorId=vendorId)
             posMeta = platform.meta
 
             # +++++++++ Category process
@@ -628,9 +628,9 @@ class SquareIntegration(AbstractPOSIntegration):
         except POS_Settings.DoesNotExist:
             coreResponse["msg"] = "POS settings not found"
             return coreResponse
-        except Vendor_Settings.DoesNotExist:
-            coreResponse["msg"] = "Vendor settings not found"
-            return coreResponse
+        # except Vendor_Settings.DoesNotExist:
+        #     coreResponse["msg"] = "Vendor settings not found"
+        #     return coreResponse
         except Exception as err:
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
             print("POS ERR",err)
@@ -755,7 +755,7 @@ class SquareIntegration(AbstractPOSIntegration):
             print("Order payment started+++++++++++++++++++++++++++++")
             vendorId = response["vendorId"]
             platform = POS_Settings.objects.get(VendorId=vendorId)
-            settings = Vendor_Settings.objects.get(VendorId=vendorId)
+            # settings = Vendor_Settings.objects.get(VendorId=vendorId)
 
             originalOrder = OriginalOrder.objects.exclude(externalOrderId="NA").filter(
                 vendorId=vendorId,
@@ -845,10 +845,10 @@ class SquareIntegration(AbstractPOSIntegration):
             print("Payment: POS settings not found")
             coreResponse["msg"] = "POS settings not found"
             return coreResponse
-        except Vendor_Settings.DoesNotExist:
-            coreResponse["msg"] = "Vendor settings not found"
-            print("Payment :Vendor settings not found")
-            return coreResponse
+        # except Vendor_Settings.DoesNotExist:
+        #     coreResponse["msg"] = "Vendor settings not found"
+        #     print("Payment :Vendor settings not found")
+        #     return coreResponse
         except Exception as err:
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
             print(f"Unexpected {err=}, {type(err)=}")

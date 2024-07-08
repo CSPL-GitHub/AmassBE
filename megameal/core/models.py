@@ -367,12 +367,6 @@ class Platform(models.Model):
         return self.Name
 
 
-class Vendor_Settings(models.Model):
-    VendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    orderPrepTime=models.IntegerField(null=True,blank=True)
-    currencyCode=models.CharField(max_length=20)
-
-
 class Token_date(models.Model):
     Date=models.DateTimeField()
     Token=models.IntegerField(max_length=200,)     
