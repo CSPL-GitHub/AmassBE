@@ -31,9 +31,10 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(Platform)
 class PlatformAdmin(admin.ModelAdmin):
+    fields = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'className', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
     
-    list_display = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'className', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
-    list_filter = ('Name', 'isActive', 'expiryDate', 'VendorId',)
+    list_display = ('Name', 'isActive', 'expiryDate', 'VendorId',)
+    list_filter = ('Name', 'isActive', 'VendorId',)
     search_fields = ('Name',)
     ordering = ('VendorId', 'Name',)
     # show_facets = admin.ShowFacets.ALWAYS
