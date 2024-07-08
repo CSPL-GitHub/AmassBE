@@ -76,6 +76,10 @@ platform_locale = (
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
+
+def order_has_arrived_locale(external_order_id):
+    return f"انه وصل .. او انها وصلت {external_order_id} رقم الأمر"
+
 def get_key_value(language, dictionary, key):
     if language == "English":
         if dictionary == "order_type":
