@@ -3784,7 +3784,7 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         name_query = request.GET.get('name', None)
         
         if name_query:
-            language = request.GET.get('language', "en")
+            language = request.GET.get('language', "English")
 
             if language == "English":
                 queryset = queryset.filter(name__icontains=name_query)
