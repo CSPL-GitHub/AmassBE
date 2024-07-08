@@ -64,7 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists
+from pos.language import get_key_value, check_key_exists, all_platform_locale
 import pytz
 import re
 import openpyxl
@@ -1292,10 +1292,13 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
-            platform_name = platform.platform.Name
+            platform_name = ""
+            
+            if language == "English":
+                platform_name = platform.platform.Name
 
-            if language == "ar":
-                platform_name = platform.platform.Name_ar
+            else:
+                platform_name = platform.platform.Name_locale
             
             platform_details = {
                 "id": platform.platform.pk,
@@ -1988,16 +1991,16 @@ def platform_list(request):
 
     platform_details = []
 
-    if language == "ar":
+    if language == "English":
         platform_details.append({
             "id": "",
-            "name": "الجميع"
+            "name": "All"
         })
 
     else:
         platform_details.append({
             "id": "",
-            "name": "All"
+            "name": all_platform_locale["All"]
         })
     
     platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
@@ -2006,11 +2009,11 @@ def platform_list(request):
     
     if platforms:
         for platform in platforms:
-            if language == "ar":
-                platform_name = platform.Name_ar
-
-            else:
+            if language == "English":
                 platform_name = platform.Name
+                
+            else:
+                platform_name = platform.Name_locale
 
             platform_details.append({
                 "id": platform.pk,
