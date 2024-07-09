@@ -1,9 +1,8 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import logout
 from .models import *
-from django.db.models import Q
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
