@@ -6,7 +6,7 @@ from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
     ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
-    ProductModifierAndModifierGroupJoint, Product_Tax, POS_Settings
+    ProductModifierAndModifierGroupJoint, Product_Tax
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
@@ -2611,17 +2611,43 @@ def  orderList(request):
 
 
 @api_view(["POST"])
-def storetime(request):
+def update_store_status(request):
     vendor_id = request.GET.get("vendorId")
+    store_status = request.data.get("store")
 
-    pos_set = POS_Settings.objects.filter(VendorId=vendor_id)
-
-    if request.data.get("store") == "":
-        return Response(data={"store_status":pos_set.first().store_status},status=status.HTTP_200_OK)
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
-    pos_set.update(store_status=request.data.get("store"))
+    try:
+        vendor_id = int(vendor_id)
 
-    return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if store_status is None:
+        return JsonResponse({"message": "Invalid store status"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    pos_store_setting = Setting.objects.filter(name="store_status", vendor=vendor_id)
+
+    if not pos_store_setting:
+        json_data = {"status": False}
+
+        pos_store_setting = Setting.objects.create(
+            name="store_status",
+            json_object=json_data,
+            vendor=vendor_instance
+        )
+
+    json_data = {"status": store_status}
+    
+    pos_store_setting.json_object = json_data
+
+    return JsonResponse({"message": "", "store_status": pos_store_setting.json_object['status']}, status=status.HTTP_200_OK)
 
 
 
@@ -3104,41 +3130,63 @@ def delete_pos_user(request, pos_user_id):
 
 @api_view(['GET'])
 def get_store_timings(request):
-    vendor = request.GET.get("vendorId")
+    vendor_id = request.GET.get("vendorId")
 
-    data = StoreTiming.objects.filter(vendor=vendor)
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    data = StoreTiming.objects.filter(vendor=vendor_id)
 
     slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
 
     serialized = StoreTImingSerializer(data, many=True)
 
+    pos_store_setting = Setting.objects.filter(name="store_status", vendor=vendor_id).first()
 
-    store_status = POS_Settings.objects.filter(VendorId=vendor).first()
+    if not pos_store_setting:
+        json_data = {"status": False}
 
-    store_status_value = store_status.store_status
+        pos_store_setting = Setting.objects.create(
+            name="store_status",
+            json_object=json_data,
+            vendor=vendor_instance
+        )
+
+    store_status = pos_store_setting.json_object['status']
+
+    store_status_value = store_status
 
     if store_status_value == False:
         store_status_final = False
 
     if not serialized.data:
-        return Response({
-            "store_status": store_status_value,
-            "store_timing": []
-        })
+        return Response({"store_status": store_status_value, "store_timing": []})
+    
     else:
-        if store_status.store_status==False:
-            store_status_final =  False 
-        elif slot==None:
+        if store_status == False:
+            store_status_final =  False
+
+        elif slot == None:
             store_status_final = True 
-        elif  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday:
+
+        elif (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday:
             store_status_final = True  
+
         else:
             store_status_final =  False
 
-    return Response({
-        "store_status": store_status_final,
-        "store_timing": serialized.data
-    })
+    return JsonResponse({"store_status": store_status_final, "store_timing": serialized.data})
 
 @api_view(['POST'])
 def set_store_timings(request):
