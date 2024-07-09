@@ -3,7 +3,7 @@
 from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
 from order.models import Order, OriginalOrder
 from core.utils import API_Messages, CountyConvert, DiscountCal, OrderStatus, OrderType, TaxLevel, UpdatePoint
-from core.models import Api_Logs, POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor, Vendor_Settings
+from core.models import POS_Settings, Product, Product_Tax, Product_Taxt_Joint, Transaction_History, Vendor
 import requests
 import json
 from datetime import datetime
@@ -440,7 +440,7 @@ class SquareIntegration(AbstractPOSIntegration):
         try:
             vendorId = response["vendorId"]
             platform = POS_Settings.objects.get(VendorId=vendorId)
-            settings = Vendor_Settings.objects.get(VendorId=vendorId)
+            # settings = Vendor_Settings.objects.get(VendorId=vendorId)
             posMeta = platform.meta
 
             # +++++++++ Category process
@@ -592,19 +592,19 @@ class SquareIntegration(AbstractPOSIntegration):
             )
             if catlogResponse.status_code in [500, 400]:
                 coreResponse["msg"] = "Unable to connect Square"
-                Api_Logs(
-                    reason="create order",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="create order",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 originalOrder.save()
                 return coreResponse
 
-            Api_Logs(
-                reason="create order",
-                status=catlogResponse.status_code,
-                response=catlogResponse.json()
-            ).save()
+            # Api_Logs(
+            #     reason="create order",
+            #     status=catlogResponse.status_code,
+            #     response=catlogResponse.json()
+            # ).save()
 
             coreResponse["response"] = catlogResponse.json()
             if coreResponse["response"].get("order"):
@@ -628,9 +628,9 @@ class SquareIntegration(AbstractPOSIntegration):
         except POS_Settings.DoesNotExist:
             coreResponse["msg"] = "POS settings not found"
             return coreResponse
-        except Vendor_Settings.DoesNotExist:
-            coreResponse["msg"] = "Vendor settings not found"
-            return coreResponse
+        # except Vendor_Settings.DoesNotExist:
+        #     coreResponse["msg"] = "Vendor settings not found"
+        #     return coreResponse
         except Exception as err:
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
             print("POS ERR",err)
@@ -709,18 +709,18 @@ class SquareIntegration(AbstractPOSIntegration):
                 "GET", url, headers=catlogHeaders)
             if catlogResponse.status_code in [500, 400]:
                 coreResponse["msg"] = "Unable to connect Square"
-                Api_Logs(
-                    reason="discount",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="discount",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 return coreResponse
             else:
-                Api_Logs(
-                    reason="discount",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="discount",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 catlogResponse = catlogResponse.json()
                 if catlogResponse.get("object") and catlogResponse.get("object").get("type") == "DISCOUNT":
                     coreResponse["status"] = "successful"
@@ -755,7 +755,7 @@ class SquareIntegration(AbstractPOSIntegration):
             print("Order payment started+++++++++++++++++++++++++++++")
             vendorId = response["vendorId"]
             platform = POS_Settings.objects.get(VendorId=vendorId)
-            settings = Vendor_Settings.objects.get(VendorId=vendorId)
+            # settings = Vendor_Settings.objects.get(VendorId=vendorId)
 
             originalOrder = OriginalOrder.objects.exclude(externalOrderId="NA").filter(
                 vendorId=vendorId,
@@ -845,10 +845,10 @@ class SquareIntegration(AbstractPOSIntegration):
             print("Payment: POS settings not found")
             coreResponse["msg"] = "POS settings not found"
             return coreResponse
-        except Vendor_Settings.DoesNotExist:
-            coreResponse["msg"] = "Vendor settings not found"
-            print("Payment :Vendor settings not found")
-            return coreResponse
+        # except Vendor_Settings.DoesNotExist:
+        #     coreResponse["msg"] = "Vendor settings not found"
+        #     print("Payment :Vendor settings not found")
+        #     return coreResponse
         except Exception as err:
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
             print(f"Unexpected {err=}, {type(err)=}")
@@ -900,19 +900,19 @@ class SquareIntegration(AbstractPOSIntegration):
                 "POST", url, headers=catlogHeaders, data=json.dumps(payload))
             if catlogResponse.status_code in [500, 400]:
                 coreResponse["msg"] = "Unable to connect Square"
-                Api_Logs(
-                    reason="customer",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="customer",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 coreResponse["response"] = catlogResponse.json()
                 return coreResponse
             else:
-                Api_Logs(
-                    reason="customer",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="customer",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 catlogResponse = catlogResponse.json()
                 if catlogResponse.get("customer"):
                     coreResponse["status"] = "successful"
@@ -965,18 +965,18 @@ class SquareIntegration(AbstractPOSIntegration):
                 "POST", url, headers=catlogHeaders, data=json.dumps(payload))
             if catlogResponse.status_code in [500, 400]:
                 coreResponse["msg"] = "Unable to connect Square"
-                Api_Logs(
-                    reason="customer",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="customer",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 return coreResponse
             else:
-                Api_Logs(
-                    reason="customer",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="customer",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 catlogResponse = catlogResponse.json()
                 if catlogResponse.get("customers"):
                     coreResponse["status"] = "successful"
@@ -1046,19 +1046,19 @@ class SquareIntegration(AbstractPOSIntegration):
                 catlogResponse = requests.request("PUT", url, headers=catlogHeaders, data=json.dumps(payload))
                 if catlogResponse.status_code in [500, 400]:
                     coreResponse["msg"] = "Unable to connect Square"
-                    Api_Logs(
-                        reason="OrderStatus",
-                        status=catlogResponse.status_code,
-                        response=catlogResponse.json()
-                    ).save()
+                    # Api_Logs(
+                    #     reason="OrderStatus",
+                    #     status=catlogResponse.status_code,
+                    #     response=catlogResponse.json()
+                    # ).save()
                     coreResponse["response"] = catlogResponse.json()
                     return coreResponse
                 else:
-                    Api_Logs(
-                        reason="OrderStatus",
-                        status=catlogResponse.status_code,
-                        response=catlogResponse.json()
-                    ).save()
+                    # Api_Logs(
+                    #     reason="OrderStatus",
+                    #     status=catlogResponse.status_code,
+                    #     response=catlogResponse.json()
+                    # ).save()
                     catlogResponse = catlogResponse.json()
                     if catlogResponse.get("customer"):
                         coreResponse["status"] = "successful"
@@ -1097,18 +1097,18 @@ class SquareIntegration(AbstractPOSIntegration):
             catlogResponse = requests.request("GET", url, headers=catlogHeaders)
             if catlogResponse.status_code in [500, 400]:
                 coreResponse["msg"] = "Unable to connect Square"
-                Api_Logs(
-                    reason="getOrder",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="getOrder",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 return coreResponse
             else:
-                Api_Logs(
-                    reason="getOrder",
-                    status=catlogResponse.status_code,
-                    response=catlogResponse.json()
-                ).save()
+                # Api_Logs(
+                #     reason="getOrder",
+                #     status=catlogResponse.status_code,
+                #     response=catlogResponse.json()
+                # ).save()
                 catlogResponse = catlogResponse.json()
                 if catlogResponse.get("order"):
                     coreResponse["status"] = "successful"

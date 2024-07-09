@@ -144,7 +144,7 @@ def productByCategory(request, id=0, vendorId=-1):
                         "text":trans( prdVariants.productName),
                         "imagePath": str(prdVariants.productThumb),
                         "images":images,
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description": trans(prdVariants.productDesc),
                         "allowCustomerNotes": True,
@@ -166,15 +166,15 @@ def productByCategory(request, id=0, vendorId=-1):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendorId):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":trans(mod.modifier.modifierName),
+                            "name": trans(mod.modifier.modifierName),
                             "description": trans(mod.modifier.modifierDesc),
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0,
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
+                            "status": False, # Required for Flutter model
                             "active": mod.modifier.active,
-                            "image":str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
+                            "image": str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
                         }                    
                     )
 
@@ -199,7 +199,7 @@ def productByCategory(request, id=0, vendorId=-1):
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                "quantity": product.productQty,
+                "quantity": 0,
                 "cost": product.productPrice,
                 "description": trans(product.productDesc),
                 "allowCustomerNotes": True,
@@ -244,7 +244,7 @@ def productDetails(request,id=0,search=''):
                         "text":trans( prdVariants.productName),
                         "imagePath": str(prdVariants.productThumb),
                         "images":images,
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description": trans(prdVariants.productDesc),
                         "allowCustomerNotes": True,
@@ -259,17 +259,17 @@ def productDetails(request,id=0,search=''):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":trans(mod.modifierName),
+                            "name": trans(mod.modifierName),
                             "description": trans(mod.modifierDesc),
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":str(mod.modifierImg)
+                            "status": False, # Required for Flutter model
+                            "image": str(mod.modifierImg)
                         }                    
                     )
                 modGrp.append(
@@ -291,7 +291,7 @@ def productDetails(request,id=0,search=''):
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images,
-                "quantity": product.productQty,
+                "quantity": 0,
                 "cost": product.productPrice,
                 "description": trans(product.productDesc),
                 "allowCustomerNotes": True,
@@ -550,7 +550,7 @@ def productByCategoryTemp(request,id=0):
                         "text":prdVariants.productName,
                         "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
@@ -567,17 +567,17 @@ def productByCategoryTemp(request,id=0):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":mod.modifierName,
+                            "name": mod.modifierName,
                             "description": mod.modifierDesc,
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
 
                         }                    
                     )

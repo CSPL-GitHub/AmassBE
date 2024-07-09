@@ -101,12 +101,10 @@ class ProductCategorySerializer(serializers.ModelSerializer):
             "id",
             "categoryPLU",
             "categoryName",
-            "categoryName_ar",
+            "categoryName_locale",
             "categoryDescription",
-            "categoryDescription_ar",
-            # "categoryImage",
+            "categoryDescription_locale",
             "categoryImageUrl",
-            # "image_selection",
             "vendorId",
         )
 
@@ -126,14 +124,13 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "PLU",
             "productName",
-            "productName_ar",
+            "productName_locale",
             "productDesc",
-            "productDesc_ar",
+            "productDesc_locale",
             "productPrice",
             "productType",
             "active",
             "tag",
-            "tag_ar",
             "is_displayed_online",
             "vendorId",
         )
@@ -172,7 +169,7 @@ class ModifierGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductModifierGroup
         fields = (
-            'id', 'name', 'name_ar', 'modifier_group_description', 'modifier_group_description_ar',
+            'id', 'name', 'name_locale', 'modifier_group_description', 'modifier_group_description_locale',
             'PLU', 'min', 'max', 'active', 'vendorId'
         )
 

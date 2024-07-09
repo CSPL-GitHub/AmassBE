@@ -233,12 +233,11 @@ def process_excel(file_path, sheet_name, vendor_id):
                                             tag = None if pd.isnull(row["Tags"]) or row["Tags"] == "" else row["Tags"],
                                             active = is_active,
                                             productType = "Regular",
-                                            Unlimited = 1,
                                             vendorId = vendor_instance,
                                             taxable = True,
                                         )
                                         # Columns with default value:
-                                        # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
+                                        # productThumb, productParentId, preparationTime, isDeleted, meta, is_unlimited
                                         
                                     if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                                         if (not(pd.isnull(row["Product Images"])) and row["Product Images"] != ""):
@@ -332,7 +331,7 @@ def process_excel(file_path, sheet_name, vendor_id):
                                                 active = is_active,
                                                 vendorId = vendor_instance,
                                             )
-                                            # Columns with default value: modifierImg, modifierQty, modifierStatus, isDeleted, paretId
+                                            # Columns with default value: modifierImg, isDeleted, parentId
 
                                         existing_product_modgroup_joint = ProductAndModifierGroupJoint.objects.filter(
                                             modifierGroup = (ProductModifierGroup.objects.filter(PLU=row["Modifier Group SKU"], vendorId=vendor_id).first()).pk,

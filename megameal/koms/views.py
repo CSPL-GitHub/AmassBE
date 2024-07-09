@@ -1,5 +1,5 @@
 from order import order_helper
-from core.utils import API_Messages, PaymentType, UpdatePoint, OrderType
+from core.utils import API_Messages, UpdatePoint, OrderType
 from core.models import Product, ProductImage,Platform,ProductModifier,Product_Tax,ProductModifierGroup,ProductCategory
 from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
@@ -14,9 +14,7 @@ from koms.serializers.order_serializer import (Order_serializer,OrderSerializerW
 from koms.serializers.user_settings_serializer import UserSettingReaderSerializer
 from koms.serializers.stations_serializer import (Stations_serializer, StationsReadSerializer,)
 from koms.serializers.staff_serializer import (StaffReaderSerializer,StaffWriterSerializer,)
-# from static.config import *
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
-from koms.serializers.order_history_serializer import Order_History_serializer
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
     KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
@@ -31,10 +29,11 @@ from datetime import datetime, timedelta, time
 from .serializers.content_assign_serializer import Content_assign_serializer
 from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
-# from order.models import Order as MasterOrder
-from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyPointsRedeemHistory
+from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.models import StoreTiming
+from pos.language import order_has_arrived_locale
 from inventory.utils import sync_order_content_with_inventory
+from pos.language import get_key_value
 import secrets
 import json
 import string
@@ -590,13 +589,14 @@ def createOrderInKomsAndWoms(orderJson):
                 allStationWiseSingle(id=order_save_data.id,vendorId=vendorId)
                 notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=stnlist,vendorId=vendorId)
         
-        language = order_data.get("language", "en")
+        language = order_data.get("language", "English")
 
-        if language == "ar":
-            notify(type=1,msg=order_save_data.id,desc=f"انه وصل .. او انها وصلت { order_save_data.externalOrderId } رقم الأمر",stn=['POS'],vendorId=vendorId)
+        if language == "English":
+            notify(type=1, msg=order_save_data.id, desc=f"Order No {order_save_data.externalOrderId} is arrived", stn=['POS'], vendorId=vendorId)
         
         else:
-            notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=['POS'],vendorId=vendorId)
+            notify(type=1, msg=order_save_data.id, desc=order_has_arrived_locale(order_save_data.externalOrderId), stn=['POS'], vendorId=vendorId)
+            
             
         waiteOrderUpdate(orderid=order_save_data.id,vendorId=vendorId)
         allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
@@ -622,33 +622,22 @@ def webSocketPush(message, room_name, username):
     )
   
 
-# from order.models import Order as coreOrder, OrderPayment
-def waiteOrderUpdate(orderid, vendorId, language="en"):
+def waiteOrderUpdate(orderid, vendorId, language="English"):
     try:
         data = getOrder(ticketId=orderid, language=language, vendorId=vendorId)
 
         listOrder = Order_tables.objects.filter(orderId_id=orderid)
 
-        waiters=[]
+        waiters = []
 
         master_order = coreOrder.objects.filter(Q(externalOrderld=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
         try:
             payment_type = OrderPayment.objects.filter(orderId=master_order.pk)
             
-            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            payment_mode = get_key_value(language, "payment_type", payment_type.last().type) if payment_type else get_key_value(language, "payment_type", 1)
             
-            if language == "ar":
-                if payment_mode == "CASH":
-                    payment_mode = "نقدي"
-
-                elif payment_mode == "CARD":
-                    payment_mode = "بطاقة"
-
-                elif payment_mode == "ONLINE":
-                    payment_mode = "متصل"
-            
-            payment_details ={
+            payment_details = {
                 "total": master_order.TotalAmount,
                 "subtotal": master_order.subtotal,
                 "tax": master_order.tax,
@@ -662,21 +651,18 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
             }
                 
         except Exception as e:
-            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+            payment_mode = get_key_value(language, "payment_type", 1)
 
-            if language == "ar":
-                payment_mode = "نقدي"
-
-            payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
+            payment_details = {
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip" :0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
                 "mode": payment_mode
             }
 
@@ -686,14 +672,14 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
 
         try:
             platform_details = {
-                "id" : master_order.platform.pk,
-                "name" :"order online" if master_order.platform.Name == "WooCommerce" else master_order.platform.Name
+                "id": master_order.platform.pk,
+                "name": master_order.platform.Name
             }
         
         except Exception as e:
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
             print(e)
@@ -716,39 +702,41 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
                 customer_address = address_line_1 + ", " + address_line_2 + ", " + city + ", " + state + ", " + country + ", " + zipcode
             
             customer_details = {
-                "id" : master_order.customerId.pk,
-                "name" :master_order.customerId.FirstName + " " + master_order.customerId.LastName,
-                "mobile" : master_order.customerId.Phone_Number,
-                "email" : master_order.customerId.Email,
-                "shipping_address" : customer_address
+                "id": master_order.customerId.pk,
+                "name": master_order.customerId.FirstName + " " + master_order.customerId.LastName,
+                "mobile": master_order.customerId.Phone_Number,
+                "email": master_order.customerId.Email,
+                "shipping_address": customer_address
             }
             
         except Exception as e:
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name":"",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
             print(e)
 
         data["customer_details"] = customer_details
 
-        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-            customer=master_order.customerId.pk,
-            order=master_order.pk
-        )
+        total_points_redeemed = 0
+        
+        loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendorId).first()
 
-        if loyalty_points_redeem_history.exists():
-            total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+        if loyalty_program:
+            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                customer=master_order.customerId.pk,
+                order=master_order.pk
+            )
 
-            if not total_points_redeemed:
-                total_points_redeemed = 0
+            if loyalty_points_redeem_history.exists():
+                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-        else:
-            total_points_redeemed = 0
+                if not total_points_redeemed:
+                    total_points_redeemed = 0
 
         data["total_points_redeemed"] = total_points_redeemed
 
@@ -777,10 +765,11 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
             hotelTable = HotelTable.objects.get(pk=table.tableId.pk)
 
             if hotelTable and hotelTable.waiterId:
-                waiter_name = hotelTable.waiterId.name
+                if language == "English":
+                    waiter_name = hotelTable.waiterId.name
 
-                if language == "ar":
-                    waiter_name = hotelTable.waiterId.name_ar
+                else:
+                    waiter_name = hotelTable.waiterId.name_locale
             
             table_data = { 
                 "tableId": hotelTable.pk, 
@@ -828,8 +817,8 @@ def waiteOrderUpdate(orderid, vendorId, language="en"):
         webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]),username= "CORE")
 
         webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
-        webSocketPush(message=statuscount(vendorId=vendorId),room_name= STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
-        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR,username= "CORE")
+        webSocketPush(message=statuscount(vendorId=vendorId), room_name=STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
+        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username= "CORE")
     
     except Exception as e:
         print(f"Unexpected {e=}, {type(e)=}")
@@ -845,7 +834,7 @@ def updateTicketStatus(request):
     orderStatus = requestJson.get("status")
     ticketStatus = requestJson.get("ticketStatus")
     vendorId = request.GET.get("vendorId")
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if contentId is not None:
         changeTicketStatus = False
@@ -1190,7 +1179,7 @@ def statuscount(vendorId):
     return result
 
 
-def getOrder(ticketId, vendorId, language="en"):
+def getOrder(ticketId, vendorId, language="English"):
     try:
         singleOrder = Order.objects.get(pk=ticketId,vendorId=vendorId)
     
@@ -1239,7 +1228,7 @@ def getOrder(ticketId, vendorId, language="en"):
             mapOfSingleOrder["tableIds"] = []
             mapOfSingleOrder["tableNo"] = ""
 
-    mapOfSingleOrder["tableId"] = 1#HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
+    mapOfSingleOrder["tableId"] = 1 #HotelTable.objects.filter(tableNumber=singleOrder.tableNo).first().pk
     mapOfSingleOrder["isHigh"] = singleOrder.isHigh
 
     orderContentList = Order_content.objects.filter(orderId=singleOrder.pk).order_by('-pk')
@@ -1249,15 +1238,18 @@ def getOrder(ticketId, vendorId, language="en"):
     for singleContent in orderContentList:
         mapOfSingleContent = {}
 
-        product_name = singleContent.name
-        station_name = singleContent.stationId.station_name
+        product_name = ""
+        station_name = ""
+        
+        if language == "English":
+            product_name = singleContent.name
+            station_name = singleContent.stationId.station_name
 
-        if language == "ar":
+        else:
             product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-            station_instance = Station.objects.filter(pk=singleContent.stationId.pk, vendorId=vendorId).first()
-            
-            product_name = product_instance.productName_ar
-            station_name = singleContent.stationId.station_name_ar
+
+            product_name = product_instance.productName_locale
+            station_name = singleContent.stationId.station_name_locale
 
         mapOfSingleContent["id"] = singleContent.pk
         mapOfSingleContent["plu"] = singleContent.SKU
@@ -1300,14 +1292,17 @@ def getOrder(ticketId, vendorId, language="en"):
             if singleContentModifier.quantity > 0 :
                 mapOfSingleModifier = {}
 
-                modifier_name = singleContentModifier.name
+                modifier_name = ""
 
-                if language == "ar":
+                if language == "English":
+                    modifier_name = singleContentModifier.name
+
+                else:
                     modifier_instance = ProductModifier.objects.filter(
                         modifierPLU=singleContentModifier.SKU, vendorId=vendorId
                     ).first()
 
-                    modifier_name = modifier_instance.modifierName_ar
+                    modifier_name = modifier_instance.modifierName_locale
 
                 mapOfSingleModifier["id"] = singleContentModifier.pk
                 mapOfSingleModifier["plu"] = singleContentModifier.SKU

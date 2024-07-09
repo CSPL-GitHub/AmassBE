@@ -103,7 +103,7 @@ def waiter_login(request):
 def get_waiters(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "en")
+        language = request.GET.get("language", "English")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
@@ -115,10 +115,11 @@ def get_waiters(request):
         waiter_name = ""
         
         for waiter in waiters:
-            waiter_name = waiter.name
+            if language == "English":
+                waiter_name = waiter.name
 
-            if language == "ar":
-                waiter_name = waiter.name_ar
+            else:
+                waiter_name = waiter.name_locale
 
             waiter_info = {
                 "id": waiter.pk,
@@ -162,19 +163,19 @@ def get_total_amount(external_order_id, vendor_id):
     return float(total_amount)
 
 
-def getTableData(hotelTable, vendorId, language="en"):
+def getTableData(hotelTable, vendorId, language="English"):
     waiter_name = ""
     floor_name = ""
 
     if hotelTable:
         if hotelTable.waiterId:
-            if language == "ar":
-                waiter_name = hotelTable.waiterId.name_ar
-                floor_name = hotelTable.floor.name_ar
-
-            else:
+            if language == "English":
                 waiter_name = hotelTable.waiterId.name
                 floor_name = hotelTable.floor.name
+
+            else:
+                waiter_name = hotelTable.waiterId.name_locale
+                floor_name = hotelTable.floor.name_locale
     
     data = { 
         "tableId": hotelTable.pk, 
@@ -219,7 +220,7 @@ def getTableData(hotelTable, vendorId, language="en"):
     return data
 
 
-def gettable(id, vendorId, language="en"):
+def gettable(id, vendorId, language="English"):
     try:
         waiter = Waiter.objects.get(pk=id, vendorId=vendorId)
         
@@ -241,7 +242,7 @@ def gettable(id, vendorId, language="en"):
         print(e)
         return []
  
-def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="en"):
+def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="English"):
     try:
         if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
             data = HotelTable.objects.filter(vendorId=vendorId)
@@ -303,7 +304,7 @@ def assinTableupdate(request):
     # floorId = requestJson.get('floorId')
     waiterId = requestJson.get('waiterId')
     vendorId = request.GET.get("vendorId")
-    language = request.GET.get("langauge", "en")
+    language = request.GET.get("langauge", "English")
     # filter=requestJson.get('filter') if requestJson.get('filter') else ''
     # search=requestJson.get('search') if requestJson.get('search') else ''
     
@@ -410,7 +411,7 @@ def Table_update_api(request):
         id = requestJson.get('id')
         # floorId = requestJson.get('floor')
         vendorId = request.GET.get("vendorId")
-        language = request.GET.get("language", "en")
+        language = request.GET.get("language", "English")
         # filter=requestJson.get('filter')
         # search=requestJson.get('search')
 
@@ -499,7 +500,7 @@ def productByCategory(request, id=0):
                         "text":prdVariants.productName,
                         # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
@@ -522,15 +523,14 @@ def productByCategory(request, id=0):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                            # "image":mod.modifier.modifierImg,
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                             "active": mod.modifier.active
                         }                    
                     )
@@ -698,7 +698,7 @@ def searchProduct(request, search):
                         "text":prdVariants.productName,
                         "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
@@ -721,14 +721,14 @@ def searchProduct(request, search):
                 for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                             "active": mod.modifier.active
                         }                    
                     )

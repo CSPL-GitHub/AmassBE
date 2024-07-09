@@ -64,6 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
+from pos.language import get_key_value, check_key_exists, all_platform_locale, product_tag_locale
 import pytz
 import re
 import openpyxl
@@ -391,10 +392,10 @@ def pos_lanuage_setting(request):
 
 
 @api_view(['GET'])
-def allCategory(request, language="en"):
+def allCategory(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language", "English")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
@@ -403,13 +404,13 @@ def allCategory(request, language="en"):
         
         category_list = []
 
-        if language == "ar":
+        if language == "English":
             for single_category in categories:
                 category_list.append({
                     "categoryId": single_category.pk,
                     "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName_ar,
-                    "description": single_category.categoryDescription_ar,
+                    "name": single_category.categoryName,
+                    "description": single_category.categoryDescription,
                     "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                     "is_active": single_category.is_active
                 })
@@ -419,8 +420,8 @@ def allCategory(request, language="en"):
                 category_list.append({
                     "categoryId": single_category.pk,
                     "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName,
-                    "description": single_category.categoryDescription,
+                    "name": single_category.categoryName_locale,
+                    "description": single_category.categoryDescription_locale,
                     "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                     "is_active": single_category.is_active
                 })
@@ -434,7 +435,7 @@ def allCategory(request, language="en"):
 def productByCategory(request, id=0):
     try:
         vendor_id=request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
 
         if not vendor_id:
@@ -454,10 +455,11 @@ def productByCategory(request, id=0):
             filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
             
             if search_text:
-                if language == "ar":
-                    filtered_products = filtered_products.filter(productName_ar__icontains=search_text)
-                else:
+                if language == "English":
                     filtered_products = filtered_products.filter(productName__icontains=search_text)
+
+                else:
+                    filtered_products = filtered_products.filter(productName_locale__icontains=search_text)
             
             for product in filtered_products:
                 # product_variants = []
@@ -484,7 +486,7 @@ def productByCategory(request, id=0):
                 #             "text":variant.productName,
                 #             # "imagePath": HOST+variant.productThumb.name if variant.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                 #             # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                #             "quantity": variant.productQty,
+                #             "quantity": 0,
                 #             "cost": variant.productPrice,
                 #             "description":variant.productDesc,
                 #             "allowCustomerNotes": True,
@@ -516,13 +518,13 @@ def productByCategory(request, id=0):
                                 modifier_name = ""
                                 modifier_description = ""
 
-                                if language == "ar":
-                                    modifier_name = modifier_and_group_instance.modifier.modifierName_ar
-                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_ar
-
-                                else:
+                                if language == "English":
                                     modifier_name = modifier_and_group_instance.modifier.modifierName
                                     modifier_description = modifier_and_group_instance.modifier.modifierDesc
+
+                                else:
+                                    modifier_name = modifier_and_group_instance.modifier.modifierName_locale
+                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
                                 
                                 modifier_list.append(
                                     {
@@ -530,7 +532,7 @@ def productByCategory(request, id=0):
                                         "modifierId": modifier_and_group_instance.modifier.pk,
                                         "name": modifier_name,
                                         "description": modifier_description,
-                                        "quantity": modifier_and_group_instance.modifier.modifierQty,
+                                        "quantity": 0,
                                         "plu": modifier_and_group_instance.modifier.modifierPLU,
                                         "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                                         # "image":modifier_and_group_instance.modifier.modifierImg,
@@ -542,13 +544,13 @@ def productByCategory(request, id=0):
                             modifier_group_name = ""
                             modifier_group_description = ""
 
-                            if language == "ar":
-                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_ar
-                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_ar
-
-                            else:
+                            if language == "English":
                                 modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
                                 modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
+                            
+                            else:
+                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
+                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
 
                             modifier_group_list.append(
                             {
@@ -571,17 +573,17 @@ def productByCategory(request, id=0):
                 product_description = ""
                 product_tag = ""
 
-                if language == "ar":
-                    category_name = category.categoryName_ar
-                    product_name = product.productName_ar
-                    product_description = product.productDesc_ar
-                    product_tag = product.tag_ar
-
-                else:
+                if language == "English":
                     category_name = category.categoryName
                     product_name = product.productName
-                    product_description = product.productDesc
-                    product_tag = product.tag
+                    product_description = product.productDesc if product.productDesc else ""
+                    product_tag = product.tag if product.tag else ""
+                
+                else:
+                    category_name = category.categoryName_locale
+                    product_name = product.productName_locale
+                    product_description = product.productDesc_locale if product.productDesc_locale else ""
+                    product_tag = product_tag_locale[product.tag] if product.tag else ""
                 
                 product_list.append({
                     "categoryId": category.pk,
@@ -613,7 +615,7 @@ def productByCategory(request, id=0):
 @api_view(['GET'])
 def dashboard(request):
     vendor_id = request.GET.get("vendor")
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
@@ -668,9 +670,9 @@ def dashboard(request):
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), VendorId=vendor_id).first()
-
     online_order_platform_id = ""
+
+    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if online_order_platform:
         online_order_platform_id = str(online_order_platform.pk)
@@ -808,11 +810,11 @@ def dashboard(request):
 
         product_name = ""
 
-        if language == "ar":
-            product_name = product.productName_ar
-
-        else:
+        if language == "English":
             product_name = product.productName
+        
+        else:
+            product_name = product.productName_locale
         
         item['id'] = product.pk
         item['product_name'] = product_name
@@ -823,7 +825,7 @@ def dashboard(request):
         list_of_items.append(item)
 
     order_details = {
-        "online_order_platform_id": online_order_platform_id,
+        "online_order_platform_id": online_order_platform_id, # Required for Flutter model
         "active_products": active_product_count,
         "total_sale": total_sale,
         "total_orders": total_orders,
@@ -853,21 +855,6 @@ def modifier_update(request):
         modifier.active = request.data['active']
 
         ProductModifier.objects.filter(modifierSKU=modifier.modifierSKU).update(active=request.data['active'])
-
-        # try:
-        #     id=WooCommerce.getModifierUsingSKU(sku=modifier.modifierSKU,vendorId=modifier.vendorId)
-        #     platform = Platform.objects.get(VendorId=modifier.vendorId, corePlatformType=CorePlatform.WOOCOMMERCE)
-        #     catlogHeaders = {
-        #         "Content-Type": "application/json"
-        #     }
-        #     payload = {
-        #         "hide":0 if modifier.active else 1
-        #     }
-        #     url = platform.baseUrl + "wp-json/v1/custom/updateModifierStatus/"+str(id['response']['id'])
-        #     wooResponse = requests.request("POST", url, headers=catlogHeaders,data=json.dumps(payload))
-        #     print(json.dumps(wooResponse.json()))
-        # except Exception as err:
-        #     print(err)
 
         return JsonResponse({"message": "Modifier status updated successfully"}, content_type="application/json")
     
@@ -1061,8 +1048,6 @@ def productStatusChange(request):
 
             res = Product.objects.get(pk=data["productId"], vendorId=vendor_id)
 
-            # prod=WooCommerce.disalbeProductUsingId(sku=res.SKU,active=res.active,vendorId=res.vendorId)
-            
             return JsonResponse({'productId': res.pk, 'status':res.active})
         
         else:
@@ -1072,7 +1057,7 @@ def productStatusChange(request):
             return JsonResponse({'error': e}, status=400)
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
         print("Starting koms thread...")
         thr = threading.Thread(
                 target=order_data, args=(), kwargs={
@@ -1097,7 +1082,7 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
         return {"connecting":False}
 
 
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="en"):
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
         return error_message
@@ -1141,16 +1126,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1252,17 +1231,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
             
-            payment_mode = PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
-            
-            if language == "ar":
-                if payment_mode == "CASH":
-                    payment_mode = "نقدي"
-
-                elif payment_mode == "CARD":
-                    payment_mode = "بطاقة"
-
-                elif payment_mode == "ONLINE":
-                    payment_mode = "متصل"
+            payment_mode = get_key_value(language, "payment_type", payment_type)
             
             payment_details ={
                 "total": payment_details_order.TotalAmount,
@@ -1280,10 +1249,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         except Exception as e:
             print("Error", e)
 
-            payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
-
-            if language == "ar":
-                payment_mode = "نقدي"
+            payment_mode = get_key_value(language, "payment_type", 1)
 
             payment_details ={
                 "total":0.0,
@@ -1303,10 +1269,13 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
-            platform_name = platform.platform.Name
+            platform_name = ""
+            
+            if language == "English":
+                platform_name = platform.platform.Name
 
-            if language == "ar":
-                platform_name = platform.platform.Name_ar
+            else:
+                platform_name = platform.platform.Name_locale
             
             platform_details = {
                 "id": platform.platform.pk,
@@ -1448,16 +1417,10 @@ def order_data_socket(request):
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1592,8 +1555,8 @@ def order_data_socket(request):
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
             platform_details = {
-                "id" : platform.platform.pk,
-                "name" :"order online" if platform.platform.Name == "WooCommerce" else platform.platform.Name
+                "id": platform.platform.pk,
+                "name": platform.platform.Name
             }
 
         except Exception as e:
@@ -1829,7 +1792,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def createOrder(request):
     vendorId = request.GET.get('vendorId', None)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
@@ -1999,16 +1962,16 @@ def platform_list(request):
 
     platform_details = []
 
-    if language == "ar":
+    if language == "English":
         platform_details.append({
             "id": "",
-            "name": "الجميع"
+            "name": "All"
         })
 
     else:
         platform_details.append({
             "id": "",
-            "name": "All"
+            "name": all_platform_locale["All"]
         })
     
     platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
@@ -2017,11 +1980,11 @@ def platform_list(request):
     
     if platforms:
         for platform in platforms:
-            if language == "ar":
-                platform_name = platform.Name_ar
-
-            else:
+            if language == "English":
                 platform_name = platform.Name
+                
+            else:
+                platform_name = platform.Name_locale
 
             platform_details.append({
                 "id": platform.pk,
@@ -2238,12 +2201,12 @@ def order_details(request):
 
                 total_points_redeemed = 0
                 
-                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id)
+                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
 
                 if loyalty_program:
                     loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
 
-                    if loyalty_points_redeem_history:
+                    if loyalty_points_redeem_history.exists():
                         total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
                         if not total_points_redeemed:
@@ -2316,12 +2279,8 @@ def updatePaymentDetails(request):
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
 
     oldStatus = order.order_status
-
-    if str(data['platform']).lower() == 'woocommerce':
-        coreOrder = Order.objects.get(pk=order.externalOrderId)
     
-    else:
-        coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
+    coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
         
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
     
@@ -2394,7 +2353,7 @@ def update_order_koms(request):
 
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
         return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
@@ -2655,39 +2614,14 @@ def  orderList(request):
 @api_view(["POST"])
 def storetime(request):
     vendor_id = request.GET.get("vendorId")
+
     pos_set = POS_Settings.objects.filter(VendorId=vendor_id)
+
     if request.data.get("store") == "":
         return Response(data={"store_status":pos_set.first().store_status},status=status.HTTP_200_OK)
+    
     pos_set.update(store_status=request.data.get("store"))
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor_id,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
 
-    if woocommerce_platform:
-        payload = {
-                    "data": 
-                    {   
-                        "store_toggle":"1" if request.data.get("store") else "0"
-                    }
-                }
-        
-        url = woocommerce_platform.baseUrl + "?rest_route=/storetime/v1/slot/update"
-
-        wooResponse = requests.request(
-            "POST",
-            url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload)
-        )
-
-        if wooResponse.status_code == 200:
-           return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
-        
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        
     return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
 
 
@@ -2808,76 +2742,52 @@ def excel_download_for_dashboard(request):
     vendor_id = json_data.get("vendor_id")
     start_date = json_data.get("start_date")
     end_date = json_data.get("end_date")
-    platform_id = json_data.get("platform_id")
-    order_type = json_data.get("order_type")
-    order_status = json_data.get("order_status")
+    platform_id = json_data.get("platform_id", "All")
+    order_type = json_data.get("order_type", "All")
+    order_status = json_data.get("order_status", "All")
+    language = json_data.get("language", "English")
 
     if (vendor_id == None) or (vendor_id == ""):
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (start_date == None) or (start_date == ""):
-        return JsonResponse({"error": "Start date cannot be empty"}, status=400)
+        return JsonResponse({"error": "Start date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (end_date == None) or (end_date == ""):
-        return JsonResponse({"error": "End date cannot be empty"}, status=400)
-        
-    if platform_id == None:
-        return JsonResponse({"error": "Platform cannot be empty"}, status=400)
+        return JsonResponse({"error": "End date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if order_type == None:
-        return JsonResponse({"error": "Order Type cannot be empty"}, status=400)
-    
-    if order_status == None:
-        return JsonResponse({"error": "Order Status cannot be empty"}, status=400)
-    
-    if (order_type == "All") or (order_type == ""):
-        order_type_parameter = "All"
-    elif order_type == "1":
-        order_type_parameter = "Pickup"
-    elif order_type == "2":
-        order_type_parameter = "Delivery"
-    elif order_type == "3":
-        order_type_parameter = "Dine In"
-    else:
-        return JsonResponse({"error": "Order Type does not exist"}, status=400)
+    if platform_id == "":
+        platform_id = "All"
 
-    if (order_status == "All") or (order_status == ""):
-        order_status_parameter = "All"
-    elif order_status == "1":
-        order_status_parameter = "Pending"
-    elif order_status == "2":
-        order_status_parameter = "Processing"
-    elif order_status == "3":
-        order_status_parameter = "Complete" #Ready
-    elif order_status == "4":
-        order_status_parameter = "On Hold"
-    elif order_status == "5":
-        order_status_parameter = "Cancelled"
-    elif order_status == "6":
-        order_status_parameter = "Recalled"
-    elif order_status == "7":
-        order_status_parameter = "High Priority"
-    elif order_status == "8":
-        order_status_parameter = "Assigned"
-    elif order_status == "9":
-        order_status_parameter = "Incoming"
-    elif order_status == "10":
-        order_status_parameter = "Closed"
-    else:
-        return JsonResponse({"error": "Order Status does not exist"}, status=400)
+    if order_type == "":
+        order_type = "All"
 
-    if (platform_id == "") or (platform_id == "All"):
+    if order_status == "":
+        order_status = "All"
+
+    if language == "":
+        language = "English"
+    
+    if check_key_exists(language, "order_type", order_type) == False:
+        return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if check_key_exists(language, "koms_order_status", order_status) == False:
+        return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    order_type_parameter = get_key_value(language, "order_type", order_type)
+    order_status_parameter = get_key_value(language, "koms_order_status", order_status)
+
+    if platform_id == "All":
         platform_parameter = "All"
+        
     else:
         platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            if platform_parameter.Name.lower() == "woocommerce":
-                platform_parameter = "Order Online"
-            else:
-                platform_parameter = platform_parameter.Name
+            platform_parameter = platform_parameter.Name
+
         else:
-            return JsonResponse({"error": "Platform does not exist"}, status=400)
+            return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     start_date_parameter = datetime.strptime(str(start_date), '%Y-%m-%d').date()
     end_date_parameter = datetime.strptime(str(end_date), '%Y-%m-%d').date()
@@ -2894,8 +2804,6 @@ def excel_download_for_dashboard(request):
 
     koms_order_data = KOMSOrder.objects.filter(arrival_time__range=(start_date, end_date), vendorId=vendor_id)
 
-    # koms_order_data_count = koms_order_data.count()
-
     if (platform_id == "All") or (platform_id == ""):
         pass
 
@@ -2907,19 +2815,14 @@ def excel_download_for_dashboard(request):
         if platform_info:
             external_order_ids = list(koms_order_data.values_list('externalOrderId', flat=True))
 
-            if str(platform_info.Name).lower() == "woocommerce":
-                # For WooCommerce, primary key of order_order table is external ID in koms_order table
-                order_data = Order.objects.filter(pk__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('pk', flat=True))
-            else:
-                order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+            order_data = order_data.filter(platform=platform_id)
+            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
             
             koms_order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
+        
         else:
-            return JsonResponse({"error": "Platform not found"}, status=400)
+            return JsonResponse({"error": "Platform not found"}, status=status.HTTP_400_BAD_REQUEST)
         
     if (order_type == "All") or (order_type == ""):
         pass
@@ -2939,27 +2842,14 @@ def excel_download_for_dashboard(request):
 
     order_ids = list(KOMSOrder.objects.filter(externalOrderId__in=external_order_ids).values_list('pk', flat=True))
 
-    # order_ids_count = len(order_ids)
-
     order_content = Order_content.objects.filter(orderId__in = order_ids)
 
-    # order_content_ids = order_content.values_list('orderId', flat=True).distinct()
-
-    # order_ids_not_in_order_content = []
-    # for order_id in order_ids:
-    #     if order_id not in order_content_ids:
-    #         order_ids_not_in_order_content.append(order_id)
-    
     try:
         with transaction.atomic():    
             for content in order_content:
                 koms_orders = KOMSOrder.objects.filter(pk=content.orderId.pk, vendorId=vendor_id)
 
-                # komsorder_ids = koms_orders.values_list('pk', flat=True)
-
                 for order in koms_orders:
-                    # single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
-
                     order_id = order.externalOrderId
                     
                     order_detail = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
@@ -2969,109 +2859,27 @@ def excel_download_for_dashboard(request):
                     if order_detail:
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
-                        if order_detail.orderType == 1:
-                            order_type = "Pickup"
-                        elif order_detail.orderType == 2:
-                            order_type = "Delivery"
-                        elif order_detail.orderType == 3:
-                            order_type = "Dine In"
+                        order_type = get_key_value(language, "order_type", order_detail.orderType)
 
-                        if order.order_status == 1:
-                            order_status = "Pending"
-                        elif order.order_status == 2:
-                            order_status = "Processing"
-                        elif order.order_status == 3:
-                            order_status = "Complete" #Ready
-                        elif order.order_status == 4:
-                            order_status = "On Hold"
-                        elif order.order_status == 5:
-                            order_status = "Cancelled"
-                        elif order.order_status == 6:
-                            order_status = "Recalled"
-                        elif order.order_status == 7:
-                            order_status = "High Priority"
-                        elif order.order_status == 8:
-                            order_status = "Assigned"
-                        elif order.order_status == 9:
-                            order_status = "Incoming"
-                        elif order.order_status == 10:
-                            order_status = "Closed"
+                        order_status = get_key_value(language, "koms_order_status", order.order_status)
                         
                         if payment_detail:
-                            # payment_info ={
-                            #     "total":order_detail.TotalAmount,
-                            #     "subtotal":order_detail.subtotal,
-                            #     "tax":order_detail.tax,
-                            #     "delivery_charge":order_detail.delivery_charge,
-                            #     "discount":order_detail.discount,
-                            #     "tip":order_detail.tip,
-                            #     "paymentKey":payment_detail.paymentKey,
-                            #     "platform":payment_detail.platform,
-                            #     "status":payment_detail.status,
-                            #     "mode":PaymentType.get_payment_str(payment_detail.type) if payment_detail else PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             if payment_detail.status == True:
-                                payment_status = "Paid"
+                                payment_status = get_key_value(language, "payment_status", "True")
+                            
                             else:
-                                payment_status = "Pending"
+                                payment_status = get_key_value(language, "payment_status", "False")
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
-                            payment_type = PaymentType.get_payment_str(payment_detail.type)
+                            payment_type = get_key_value(language, "payment_type", payment_detail.type)
                             
                         else:
-                            # payment_info ={
-                            #     "total":0.0,
-                            #     "subtotal":0.0,
-                            #     "tax":0.0,
-                            #     "delivery_charge":0.0,
-                            #     "discount":0.0,
-                            #     "tip":0.0,
-                            #     "paymentKey":"",
-                            #     "platform":"",
-                            #     "status":False,
-                            #     "mode": PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             transaction_id = ""
-                            payment_status = "Unknown"
+                            payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
                             
-                        # single_order['payment'] = payment_info
-
-                        if order_detail.platform.Name == "WooCommerce":
-                            platform_name = "Order Online"
-                        else:
-                            platform_name = order_detail.platform.Name
-
-                        # customer = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-
-                        # if customer: 
-                        #     customer_details = {
-                        #         "id" : customer.customerId.pk,
-                        #         "name" :customer.customerId.FirstName + " " + customer.customerId.LastName,
-                        #         "mobile" : customer.customerId.Phone_Number if customer.customerId.Phone_Number else "",
-                        #         "email" : customer.customerId.Email if customer.customerId.Email else "",
-                        #         "billing_address" : "" if not customer.customerId.Billing_Address else customer.customerId.Billing_Address.address_line1 + " " + customer.customerId.Billing_Address.address_line2 + " " + customer.customerId.Billing_Address.city + " " + customer.customerId.Billing_Address.state + " " + customer.customerId.Billing_Address.country + " " + customer.customerId.Billing_Address.zipcode,
-                        #         "shipping_address" : "" if not customer.customerId.Shipping_Address else customer.customerId.Shipping_Address.address_line1 + " " + customer.customerId.Shipping_Address.address_line2 + " " + customer.customerId.Shipping_Address.city + " " + customer.customerId.Shipping_Address.state + " " + customer.customerId.Shipping_Address.country + " " + customer.customerId.Shipping_Address.zipcode
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # else:
-                        #     customer_details = {
-                        #         "id" : 0,
-                        #         "name" :"",
-                        #         "mobile" : "",
-                        #         "email" : "",
-                        #         "billing_address" : "",
-                        #         "shipping_address" : ""
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # order_details[order.pk]=single_order
+                        platform_name = order_detail.platform.Name
 
                         order_details[order_id] = {
                             "order_id": order_id,
@@ -3090,18 +2898,26 @@ def excel_download_for_dashboard(request):
                         print(f"Order details not found for external order ID {order_id}")
                         return JsonResponse(response_data, status=500)
 
-            # order_ids = list(order_details.keys())
-
-            # order_ids = sorted(order_ids, reverse=True)
-
-            # print(order_details)
-    
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
 
-    order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
+    # order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
 
+    new_order_details = OrderedDict()
+    sorted_items = []
+
+    for key, value in order_details.items():
+        order_time = value.get("order_time", "")
+        sorted_items.append((order_time, int(key)))
+
+    sorted_items.sort()
+
+    for order_time, order_id in sorted_items:
+        new_order_details[order_id] = order_details[order_id]
+
+    order_details = new_order_details
+    
     order_count = len(order_details)
     
     total_amount_paid = 0.0
@@ -3116,9 +2932,6 @@ def excel_download_for_dashboard(request):
     discount_sum = discount_sum or 0.0
     
     total_amount_paid = "{:.2f}".format(subtotal_sum - discount_sum)
-    
-    # for details in order_details.values():
-    #     total_amount_paid = total_amount_paid + details["amount_paid"]
 
     # Create a new Excel workbook and select the active sheet
     workbook = openpyxl.Workbook()
@@ -3132,7 +2945,7 @@ def excel_download_for_dashboard(request):
     sheet.append(['', '', '', '', '', '', '', '', ''])
 
     # Write headers
-    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time (IST)', 'Payment Type', 'Payment Status', 'Transaction ID'])
+    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     for order_id, details in order_details.items():
         sheet.append([
@@ -3336,15 +3149,6 @@ def set_store_timings(request):
 
     body_data['platform'] = None
 
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
-
-    if woocommerce_platform:
-        body_data['platform'] = woocommerce_platform.pk
-
     serialized = StoreTImingSerializer(data=body_data)
 
     # update store_timings
@@ -3353,11 +3157,7 @@ def set_store_timings(request):
         serialized = StoreTImingSerializer(instance=data, data=body_data)
 
     if serialized.is_valid():
-        slot=serialized.save()
-
-        # if woocommerce_platform:
-        #     wooResponse = WooCommerce.set_store_timings(vendorId=vendor, day=slot)
-        #     print(wooResponse)
+        slot = serialized.save()
 
         return Response(serialized.data, status=status.HTTP_200_OK)
     
@@ -3369,11 +3169,13 @@ def set_store_timings(request):
 def delete_store_timings(request):
     try:
         data = StoreTiming.objects.get(pk=request.GET.get("id"))
-        # wooResponse = WooCommerce.delete_store_timings(vendorId=data.vendor,day=data)
+
         data.delete()
+
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_404_NOT_FOUND)
+    
     return Response(status=status.HTTP_200_OK)
 
 
@@ -3514,7 +3316,7 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=404)
@@ -3527,11 +3329,11 @@ def get_products(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if product_name:
-        if language == "ar":
-            products = Product.objects.filter(productName_ar__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
 
         else:
-            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
     
     else:
         products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
@@ -3913,13 +3715,13 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         name_query = request.GET.get('name', None)
         
         if name_query:
-            language = request.GET.get('language', "en")
+            language = request.GET.get('language', "English")
 
-            if language == "ar":
-                queryset = queryset.filter(name_ar__icontains=name_query)
-
-            else:
+            if language == "English":
                 queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
@@ -4029,7 +3831,7 @@ def get_modifiers(request):
     modifier_name = request.GET.get("modifierName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "en")
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=status.HTTP_404_NOT_FOUND)
@@ -4042,12 +3844,12 @@ def get_modifiers(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if modifier_name:
-        if language == "ar":
-            modifiers = ProductModifier.objects.filter(modifierName_ar__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
 
         else:
-            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
-    
+            modifiers = ProductModifier.objects.filter(modifierName_locale__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+            
     else:
         modifiers = ProductModifier.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -4826,7 +4628,7 @@ def get_orders_of_customer(request):
                     'product_plu': content.SKU,
                     'product_name': product.product.productName,
                     'tag': product.product.tag,
-                    'is_unlimited': product.product.Unlimited,
+                    'is_unlimited': product.product.is_unlimited,
                     'preparation_time': product.product.preparationTime,
                     'is_taxable': product.product.taxable,
                     'product_image': image_url,
@@ -5147,19 +4949,6 @@ def create_loyalty_points_settings(request):
                 vendor = vendor
             )
 
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing as entry in wordpress will already be created
-            # if woocommerce_platform:
-            #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-            #     if woocommerce_response == True:
-            #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-            #     else:
-            #         transaction.set_rollback(True)
-            #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
             settings_data = {}
 
             settings_data["id"] = settings.pk
@@ -5215,19 +5004,6 @@ def update_loyalty_points_settings(request):
 
         settings.save()
 
-        # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-        # WooCommerce syncing
-        # if woocommerce_platform:
-        #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-        #     if woocommerce_response == True:
-        #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-        #     else:
-        #         transaction.set_rollback(True)
-        #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
         settings_data = {}
 
         settings_data["id"] = settings.pk
@@ -5370,37 +5146,6 @@ def redeem_loyalty_points(request):
 
                         customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                         customer_instance.save()
-
-                    # WooCommerce syncing
-                    # if is_wordpress == False:
-                    #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                    #     if woocommerce_platform:
-                    #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                    #         if woocommerce_customer_details.status_code == 404:
-                    #             pass
-
-                    #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                    #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                    #             if woocommerce_customer_details.get('id'):
-                    #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                    #                     woocommerce_customer_details.get('id'),
-                    #                     customer_instance.loyalty_points_balance,
-                    #                     vendor_id
-                    #                 )
-
-                    #                 if balance_update_response == True:
-                    #                     notify(type=3, msg='0', desc='Loyalty points synced', stn=['POS'], vendorId=vendor_id)
-
-                    #                 else:
-                    #                     transaction.set_rollback(True)
-                    #                     return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
-
-                    #         else:
-                    #             transaction.set_rollback(True)
-                        #             return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
 
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
             
@@ -5560,36 +5305,6 @@ def loyalty_points_redeem(vendor_id, customer_id, master_order_id, is_wordpress,
                                 customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                                 customer_instance.save()
 
-                                # WooCommerce syncing
-                                # if is_wordpress == False:
-                                #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                                #     if woocommerce_platform:
-                                #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                                #         if woocommerce_customer_details.status_code == 404:
-                                #             pass
-
-                                #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                                #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                                #             if woocommerce_customer_details.get('id'):
-                                #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                                #                     woocommerce_customer_details.get('id'),
-                                #                     customer_instance.loyalty_points_balance,
-                                #                     vendor_id
-                                #                 )
-
-                                #                 if balance_update_response == True:
-                                #                     pass
-
-                                #                 else:
-                                #                     transaction.set_rollback(True)
-                                #                     return is_redeemed
-
-                                #         else:
-                                #             transaction.set_rollback(True)
-                                #             return is_redeemed
                             break
 
                 is_redeemed = True
@@ -5763,7 +5478,7 @@ def top_selling_products_report(request):
     if sort_by not in ("ascending", "descending"):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         order_items = Order_content.objects.filter(
@@ -5894,7 +5609,7 @@ def top_selling_products_report(request):
         sheet.append([''])
 
         # Write headers
-        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price (Rs.)', 'Total Sale (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
 
         if order_items.exists():    
             for item in top_selling_items:
@@ -5968,7 +5683,7 @@ def most_repeating_customers_report(request):
     if not sort_by:
         sort_by = "descending "
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         orders = Order.objects.filter(
@@ -6500,7 +6215,7 @@ def customers_redeemed_most_points_report(request):
     if not sort_by:
         sort_by = "descending "
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = Order.objects.filter(
         Status=OrderStatus.get_order_status_value('COMPLETED'),
@@ -6857,7 +6572,7 @@ def finance_report(request):
     else:
         is_download = str(is_download)
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = OrderPayment.objects.filter(
         status=True,
@@ -7085,7 +6800,7 @@ def footfall_revenue_report(request):
     if filter_type not in ('footfall', 'revenue'):
         return Response("Invalid type parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     all_orders = OrderPayment.objects.filter(
         status=True,
@@ -7596,7 +7311,7 @@ def order_report(request):
         return JsonResponse(order_count_details)
     
     elif is_download == "true":
-        platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+        platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
@@ -7693,7 +7408,7 @@ def cancel_order_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     cancelled_orders = KOMSOrder.objects.filter(
         master_order__Status=OrderStatus.get_order_status_value('CANCELED'),
@@ -7802,7 +7517,7 @@ def cancel_order_report(request):
         sheet.append(['Order Type', f'{order_type}'])
         sheet.append([''])
 
-        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made (Rs.)"])
+        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made"])
         sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
         sheet.append([''])
@@ -7813,7 +7528,7 @@ def cancel_order_report(request):
 
         sheet.append([''])
 
-        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price (Rs.)', 'Estimated Revenue (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
 
         for product_detail in cancelled_product_details:
             sheet.append([
@@ -7890,7 +7605,7 @@ def pincode_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
     order_items = Order_content.objects.filter(
         orderId__order_status=10,
@@ -8211,6 +7926,7 @@ def download_product_excel_upload_template(request):
         
         try:
             vendor_id = int(vendor_id)
+            
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -8227,23 +7943,31 @@ def download_product_excel_upload_template(request):
 
         response = "/media/" + relative_file_path
 
-        if not os.path.exists(file_path):
-            workbook = openpyxl.Workbook()
-            sheet = workbook.active
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
 
+        if not vendor_instance.secondary_language:
             sheet.append([
-                "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
 
-            directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
-            os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
+        else:
+            sheet.append([
+                "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+            
+        directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
-            workbook.save(file_path)
+        workbook.save(file_path)
 
-            print(f"Excel file '{file_name}' has been created.")
+        print(f"Excel file '{file_name}' has been created.")
         
         return HttpResponse(response, status=status.HTTP_200_OK)
     
@@ -8262,6 +7986,7 @@ def download_product_data_excel(request):
         
         try:
             vendor_id = int(vendor_id)
+
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -8275,13 +8000,12 @@ def download_product_data_excel(request):
         if not categories.exists():
             return Response("No categories found", status=status.HTTP_404_NOT_FOUND)
         
-        port = request.META.get("SERVER_PORT")
-
         # Get the IP addresses associated with the hostname
         host_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
 
         # Filter out localhost addresses (those starting with "127.")
         filtered_ip_list = []
+        
         for ip in host_ip_list:
             if not ip.startswith("127."):
                 filtered_ip_list.append(ip)
@@ -8297,26 +8021,38 @@ def download_product_data_excel(request):
         if not server_ip:
             try:
                 soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
                 soc.connect(('8.8.8.8', 53))
+
                 server_ip = soc.getsockname()[0]
+
                 soc.close()
+
             except Exception as e:
                 server_ip = None
 
-        # server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-        
         # Create a new Excel workbook and select the active sheet
         workbook = openpyxl.Workbook()
+        
         sheet = workbook.active
 
         sheet.title = "Sheet1"
         
-        sheet.append([
-            "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-            "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
-            "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-            "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
-        ])
+        if not vendor_instance.secondary_language:
+            sheet.append([
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Modifier Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+
+        else:
+            sheet.append([
+                "Category Station", "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
         
         for category in categories:
             category_product_joint = ProductCategoryJoint.objects.filter(
@@ -8331,8 +8067,6 @@ def download_product_data_excel(request):
                         
             if category.is_active == True:
                 is_category_active = "yes"
-            
-            # category_image = f"http://{server_ip}:{port}{category.categoryImage.url}" if category.categoryImage else ""
             
             category_image = category.categoryImageUrl if category.categoryImageUrl else ""
             
@@ -8355,11 +8089,19 @@ def download_product_data_excel(request):
                 ).order_by("modifierGroup__name", "-modifierGroup__active")
 
                 if not product_modifier_group_joint.exists():
-                    sheet.append([
-                        f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                        f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                        f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                    ])
+                    if not vendor_instance.secondary_language:
+                        sheet.append([
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
+
+                    else:
+                        sheet.append([
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
 
                 else:
                     for modifier_group_info in product_modifier_group_joint:
@@ -8387,15 +8129,27 @@ def download_product_data_excel(request):
                             if modifier_info.modifier.modifierImg:
                                 modifier_image = modifier_info.modifier.modifierImg
 
-                            sheet.append([
-                                f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                                f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                                f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
-                                f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
-                                f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
-                            ])
+                            if not vendor_instance.secondary_language:
+                                sheet.append([
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
+
+                            else:
+                                sheet.append([
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}", f"{modifier_info.modifier.modifierDesc_locale}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -8417,22 +8171,6 @@ def download_product_data_excel(request):
     except Exception as e:
         print(e)
         return HttpResponse("Something went wrong", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # # To return excel file
-    # with open(file_path, 'rb') as excel_file:
-    #     response = FileResponse(excel_file.read(), as_attachment=True, filename=file_name)
-    # return response
-
-    # # To return excel file as Base64
-    # with open(file_path, 'rb') as excel_file:
-    #     excel_content = excel_file.read()
-        
-    # base64_encoded = b64encode(excel_content).decode('utf-8')
-    
-    # response = HttpResponse(base64_encoded, content_type='text/plain')
-    # response['Content-Disposition'] = 'attachment; filename="file.xlsx"'
-    
-    # return response
 
 
 @api_view(["POST"])

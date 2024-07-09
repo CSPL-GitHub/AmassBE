@@ -8,6 +8,8 @@ from core.models import (
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
+from pos.language import product_tag_locale
+from koms.models import Station
 from django.conf import settings
 from django.template.defaultfilters import slugify
 
@@ -75,13 +77,13 @@ def get_product_data(product_instance ,vendor_id):
         "id": product_instance.pk,
         "plu": product_instance.PLU,
         "name": product_instance.productName,
-        "name_ar": product_instance.productName_ar,
+        "name_locale": product_instance.productName_locale,
         "description": product_instance.productDesc if product_instance.productDesc else "",
-        "description_ar": product_instance.productDesc_ar if product_instance.productDesc_ar else "",
+        "description_locale": product_instance.productDesc_locale if product_instance.productDesc_locale else "",
         "price": product_instance.productPrice,
         "is_active": product_instance.active,
         "tag": product_instance.tag if product_instance.tag else "",
-        "tag_ar": product_instance.tag_ar if product_instance.tag_ar else "",
+        "tag_locale": product_tag_locale[product_instance.tag] if product_instance.tag else "",
         "is_displayed_online": product_instance.is_displayed_online,
         "selected_image": selected_image.url if selected_image and selected_image.url else "",
         "vendorId": product_instance.vendorId.pk,
@@ -98,9 +100,9 @@ def get_product_data(product_instance ,vendor_id):
                 "id": product_category.category.pk,
                 "plu": product_category.category.categoryPLU,
                 "name": product_category.category.categoryName,
-                "name_ar": product_category.category.categoryName_ar,
+                "name_locale": product_category.category.categoryName_locale,
                 "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
-                "description_ar": product_category.category.categoryDescription_ar if product_category.category.categoryDescription_ar else "",
+                "description_locale": product_category.category.categoryDescription_locale if product_category.category.categoryDescription_locale else "",
                 "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
                 "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
                 "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
@@ -131,9 +133,9 @@ def get_product_data(product_instance ,vendor_id):
                         "id": joint.modifier.pk,
                         "plu": joint.modifier.modifierPLU,
                         "name": joint.modifier.modifierName,
-                        "name_ar": joint.modifier.modifierName_ar,
+                        "name_locale": joint.modifier.modifierName_locale,
                         "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                        "description_ar": joint.modifier.modifierDesc_ar if joint.modifier.modifierDesc_ar else "",
+                        "description_locale": joint.modifier.modifierDesc_locale if joint.modifier.modifierDesc_locale else "",
                         "price": joint.modifier.modifierPrice,
                         "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
                         "is_active": joint.modifier.active,
@@ -143,9 +145,9 @@ def get_product_data(product_instance ,vendor_id):
                 "id": modifier_group.modifierGroup.pk,
                 "plu": modifier_group.modifierGroup.PLU,
                 "name": modifier_group.modifierGroup.name,
-                "name_ar": modifier_group.modifierGroup.name_ar,
+                "name_locale": modifier_group.modifierGroup.name_locale,
                 "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
-                "description_ar": modifier_group.modifierGroup.modifier_group_description_ar if modifier_group.modifierGroup.modifier_group_description_ar else "",
+                "description_locale": modifier_group.modifierGroup.modifier_group_description_locale if modifier_group.modifierGroup.modifier_group_description_locale else "",
                 "min": modifier_group.modifierGroup.min,
                 "max": modifier_group.modifierGroup.max,
                 "is_active": modifier_group.modifierGroup.active,
@@ -160,9 +162,9 @@ def get_modifier_data(modifier_instance, vendor_id):
         "id": modifier_instance.pk,
         "plu": modifier_instance.modifierPLU,
         "name": modifier_instance.modifierName,
-        "name_ar": modifier_instance.modifierName_ar,
+        "name_locale": modifier_instance.modifierName_locale,
         "description": modifier_instance.modifierDesc if modifier_instance.modifierDesc else "",
-        "description_ar": modifier_instance.modifierDesc_ar if modifier_instance.modifierDesc_ar else "",
+        "description_locale": modifier_instance.modifierDesc_locale if modifier_instance.modifierDesc_locale else "",
         "image": modifier_instance.modifierImg if modifier_instance.modifierImg else "",
         "price": modifier_instance.modifierPrice,
         "is_active": modifier_instance.active,
@@ -177,9 +179,9 @@ def get_modifier_data(modifier_instance, vendor_id):
             "id": joint.modifierGroup.pk,
             "plu": joint.modifierGroup.PLU,
             "name": joint.modifierGroup.name,
-            "name_ar": joint.modifierGroup.name_ar,
+            "name_locale": joint.modifierGroup.name_locale,
             "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-            "description_ar": joint.modifierGroup.modifier_group_description_ar if joint.modifierGroup.modifier_group_description_ar else "",
+            "description_locale": joint.modifierGroup.modifier_group_description_locale if joint.modifierGroup.modifier_group_description_locale else "",
             "min": joint.modifierGroup.min,
             "max": joint.modifierGroup.max,
             "is_active": joint.modifierGroup.active,
@@ -214,12 +216,21 @@ def process_product_excel(file_path, sheet_name, vendor_id):
     failed_rows = []
     failed_file_path = ''
 
-    specified_columns = [
-        "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-        "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
-        "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-        "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
-    ]
+    if not vendor_instance.secondary_language:
+        specified_columns = [
+            "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+            "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+            "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+            "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+        ]
+
+    else:
+        specified_columns = [
+            "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+            "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+            "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+            "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+        ]
 
     existing_columns = data.columns.tolist()
 
@@ -236,6 +247,12 @@ def process_product_excel(file_path, sheet_name, vendor_id):
 
     for index, row in data.iterrows():
         try:
+            if pd.isnull(row["Category Station"]) or row["Category Station"] == "":
+                row["Error"] = "Category Station null or empty"
+                failed_rows.append(row)
+                print(f"Error processing row: {row}, Error: Category Station null or empty\n")
+                continue 
+            
             if pd.isnull(row["Category Name"]) or row["Category Name"] == "":
                 row["Error"] = "Category Name null or empty"
                 failed_rows.append(row)
@@ -260,20 +277,14 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                 print(f"Error processing row: {row}, Error: Product SKU null or empty\n")
                 continue
 
-            if pd.isnull(row["Product Price (in Rs.)"]) or row["Product Price (in Rs.)"] == "":
-                row["Error"] = "Product Price (in Rs.) null or empty"
+            if pd.isnull(row["Product Price"]) or row["Product Price"] == "":
+                row["Error"] = "Product Price null or empty"
                 failed_rows.append(row)
-                print(f"Error processing row: {row}, Error: Product Price (in Rs.) null or empty\n")
+                print(f"Error processing row: {row}, Error: Product Price null or empty\n")
                 continue
 
-            if pd.isnull(row["Product Image"]) or row["Product Image"] == "":
-                row["Error"] = "Product Image null or empty"
-                failed_rows.append(row)
-                print(f"Error processing row: {row}, Error: Product Image null or empty\n")
-                continue
-
-            if (row["Product Price (in Rs.)"] < 0):
-                row["Error"] = "Product Price (in Rs.) negative"
+            if (row["Product Price"] < 0):
+                row["Error"] = "Product Price negative"
                 failed_rows.append(row)
                 print(f"Error processing row: {row}, Error: Cell value negative \n")
                 continue
@@ -303,17 +314,41 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     print(f"Error processing row: {row}, Error: Cell value not 'yes' or 'no'\n")
                     continue
                 
-                category_instance = ProductCategory.objects.create(
-                    categoryName = row["Category Name"],
-                    categoryDescription = category_description,
-                    categoryImageUrl = category_image,
-                    categoryPLU = row["Category SKU"],
-                    categorySlug = slugify(str(row["Category Name"]).lower()),
-                    vendorId = vendor_instance,
-                    is_active=is_active
-                )
-                # Columns with default value:
-                # categoryParentId, categoryStatus, categoryImage, categoryCreatedAt, categoryUpdatedAt, categoryIsDeleted, categoryStation
+                category_station_instance = Station.objects.filter(station_name=row["Category Station"], vendorId=vendor_instance.pk).first()
+
+                if not category_station_instance:
+                    row["Error"] = "Category Station not created"
+                    failed_rows.append(row)
+                    print(f"Error processing row: {row}, Error: Category Station not created\n")
+                    continue
+                
+                if not vendor_instance.secondary_language:
+                    category_instance = ProductCategory.objects.create(
+                        categoryStation = category_station_instance,
+                        categoryName = row["Category Name"],
+                        categoryDescription = category_description,
+                        categoryImageUrl = category_image,
+                        categoryPLU = row["Category SKU"],
+                        categorySlug = slugify(str(row["Category Name"]).lower()),
+                        vendorId = vendor_instance,
+                        is_active=is_active
+                    )
+                    # Columns with default value:
+                    # categoryParentId, categoryStatus, categoryImage, categoryCreatedAt, categoryUpdatedAt, categoryIsDeleted, categoryStation
+
+                else:
+                    category_instance = ProductCategory.objects.create(
+                        categoryStation = category_station_instance,
+                        categoryName = row["Category Name"],
+                        categoryName_locale = row["Category Name (Locale)"],
+                        categoryDescription = category_description,
+                        categoryDescription_locale = row["Category Description (Locale)"],
+                        categoryImageUrl = category_image,
+                        categoryPLU = row["Category SKU"],
+                        categorySlug = slugify(str(row["Category Name"]).lower()),
+                        vendorId = vendor_instance,
+                        is_active=is_active
+                    )
 
             existing_product = Product.objects.filter(
                 PLU = row["Product SKU"],
@@ -343,21 +378,37 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                 if pd.isnull(row["Product Description"]) or row["Product Description"] == "":    
                     product_description = None
                 
-                product_instance = Product.objects.create(
-                    PLU = row["Product SKU"],
-                    SKU = row["Product SKU"],
-                    productName = row["Product Name"],
-                    productDesc = product_description,
-                    productPrice = row["Product Price (in Rs.)"],
-                    tag = row["Tag"],
-                    active = is_active,
-                    productType = "Regular",
-                    Unlimited = 1,
-                    vendorId = vendor_instance,
-                    taxable = True,
-                )
-                # Columns with default value:
-                # productThumb, productQty, productParentId, preparationTime, isDeleted, meta
+                if not vendor_instance.secondary_language:
+                    product_instance = Product.objects.create(
+                        PLU = row["Product SKU"],
+                        SKU = row["Product SKU"],
+                        productName = row["Product Name"],
+                        productDesc = product_description,
+                        productPrice = row["Product Price"],
+                        tag = row["Tag"],
+                        active = is_active,
+                        productType = "Regular",
+                        vendorId = vendor_instance,
+                        taxable = True,
+                    )
+                    # Columns with default value:
+                    # productThumb, productParentId, preparationTime, isDeleted, meta, is_unlimited
+
+                else:
+                    product_instance = Product.objects.create(
+                        PLU = row["Product SKU"],
+                        SKU = row["Product SKU"],
+                        productName = row["Product Name"],
+                        productName_locale = row["Product Name (Locale)"],
+                        productDesc = product_description,
+                        productDesc_locale = row["Product Description (Locale)"],
+                        productPrice = row["Product Price"],
+                        tag = row["Tag"],
+                        active = is_active,
+                        productType = "Regular",
+                        vendorId = vendor_instance,
+                        taxable = True,
+                    )
                 
             if (not(pd.isnull(row["Product SKU"])) and row["Product SKU"] != ""):
                 if (not(pd.isnull(row["Product Image"])) and row["Product Image"] != ""):
@@ -450,18 +501,35 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     if pd.isnull(row["Modifier Group Description"]) or row["Modifier Group Description"] == "":
                         modifier_group_description = None
                     
-                    modifier_group_instance = ProductModifierGroup.objects.create(
-                        name = row["Modifier Group Name"],
-                        PLU = row["Modifier Group SKU"],
-                        slug = slugify(str(row["Modifier Group Name"]).lower()),
-                        modifier_group_description = modifier_group_description,
-                        min = modifier_group_min,
-                        max = modifier_group_max,
-                        modGrptype = "MULTIPLE",
-                        vendorId = vendor_instance,
-                        active = is_active
-                    )
-                    # Columns with default value: isDeleted
+                    if not vendor_instance.secondary_language:
+                        modifier_group_instance = ProductModifierGroup.objects.create(
+                            name = row["Modifier Group Name"],
+                            PLU = row["Modifier Group SKU"],
+                            slug = slugify(str(row["Modifier Group Name"]).lower()),
+                            modifier_group_description = modifier_group_description,
+                            min = modifier_group_min,
+                            max = modifier_group_max,
+                            modGrptype = "MULTIPLE",
+                            vendorId = vendor_instance,
+                            active = is_active
+                        )
+                        # Columns with default value: isDeleted
+
+                    else:
+                        modifier_group_instance = ProductModifierGroup.objects.create(
+                            name = row["Modifier Group Name"],
+                            name_locale = row["Modifier Group Name (Locale)"],
+                            PLU = row["Modifier Group SKU"],
+                            slug = slugify(str(row["Modifier Group Name"]).lower()),
+                            modifier_group_description = modifier_group_description,
+                            modifier_group_description_locale = row["Modifier Group Description (Locale)"],
+                            min = modifier_group_min,
+                            max = modifier_group_max,
+                            modGrptype = "MULTIPLE",
+                            vendorId = vendor_instance,
+                            active = is_active
+                        )
+                        # Columns with default value: isDeleted
                     
                 existing_modifier = ProductModifier.objects.filter(
                     modifierPLU = row["Modifier SKU"],
@@ -469,25 +537,25 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                 ).exists()
 
                 if not existing_modifier:
-                    if pd.isnull(row["Modifier Price (in Rs.)"]) or row["Modifier Price (in Rs.)"] == "":
-                        row["Error"] = "Modifier Price (in Rs.) null or empty"
+                    if pd.isnull(row["Modifier Price"]) or row["Modifier Price"] == "":
+                        row["Error"] = "Modifier Price null or empty"
                         failed_rows.append(row)
-                        print(f"Error processing row: {row}, Error: Modifier Price (in Rs.) null or empty")
+                        print(f"Error processing row: {row}, Error: Modifier Price null or empty")
                         continue
 
-                    if (row["Modifier Price (in Rs.)"] < 0):
-                        row["Error"] = "Modifier Price (in Rs.) negative"
+                    if (row["Modifier Price"] < 0):
+                        row["Error"] = "Modifier Price negative"
                         failed_rows.append(row)
                         print(f"Error processing row: {row}, Error: Cell value negative \n")
                         continue
 
                     try:
-                        modifier_price = float(row["Modifier Price (in Rs.)"])
+                        modifier_price = float(row["Modifier Price"])
 
                     except ValueError:
-                        row["Error"] = "Modifier Price (in Rs.) invalid"
+                        row["Error"] = "Modifier Price invalid"
                         failed_rows.append(row)
-                        print(f"Error processing row: {row}, Error: Modifier Price (in Rs.) invalid")
+                        print(f"Error processing row: {row}, Error: Modifier Price invalid")
                         continue
 
                     if row["Modifier Active (yes/no)"] == "yes":
@@ -518,17 +586,32 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                     if pd.isnull(row["Modifier Image"]) or row["Modifier Image"] == "":
                         modifier_image = None
                     
-                    modifier_instance = ProductModifier.objects.create(
-                        modifierName=row["Modifier Name"],
-                        modifierPLU=row["Modifier SKU"],
-                        modifierSKU=row["Modifier SKU"],
-                        modifierPrice=modifier_price,
-                        modifierDesc=modifier_description,
-                        modifierImg=row["Modifier Image"],
-                        active = is_active,
-                        vendorId = vendor_instance,
-                    )
-                    # Columns with default value: modifierImg, modifierQty, modifierStatus, isDeleted, paretId
+                    if not vendor_instance.secondary_language:
+                        modifier_instance = ProductModifier.objects.create(
+                            modifierName=row["Modifier Name"],
+                            modifierPLU=row["Modifier SKU"],
+                            modifierSKU=row["Modifier SKU"],
+                            modifierPrice=modifier_price,
+                            modifierDesc=modifier_description,
+                            modifierImg=modifier_image,
+                            active=is_active,
+                            vendorId=vendor_instance,
+                        )
+                        # Columns with default value: modifierImg, isDeleted, parentId
+
+                    else:
+                        modifier_instance = ProductModifier.objects.create(
+                            modifierName=row["Modifier Name"],
+                            modifierName_locale=row["Modifier Name (Locale)"],
+                            modifierPLU=row["Modifier SKU"],
+                            modifierSKU=row["Modifier SKU"],
+                            modifierPrice=modifier_price,
+                            modifierDesc=modifier_description,
+                            modifierDesc_locale=row["Modifier Description (Locale)"],
+                            modifierImg=modifier_image,
+                            active=is_active,
+                            vendorId=vendor_instance,
+                        )
 
                 existing_product_modgroup_joint = ProductAndModifierGroupJoint.objects.filter(
                     modifierGroup = (ProductModifierGroup.objects.filter(PLU=row["Modifier Group SKU"], vendorId=vendor_id).first()).pk,

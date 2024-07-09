@@ -19,7 +19,8 @@ class Order_point_cred(models.Model):
 
 
 class Station(models.Model):
-    station_name = models.CharField(max_length=50)
+    station_name = models.CharField(max_length=200)
+    station_name_locale = models.CharField(max_length=200, null=True, blank=True)
     client_id = models.CharField(max_length=200, unique=True) #username
     client_secrete = models.CharField(max_length=200) #password
     tag = models.CharField(max_length=20)
@@ -28,6 +29,14 @@ class Station(models.Model):
     key = models.CharField(max_length=16, unique=True, blank=True, null=True)
     vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
         
+    def save(self, *args, **kwargs):
+        if not self.station_name_locale:
+            self.station_name_locale = self.station_name
+        
+        super().save(*args, **kwargs)
+        
+        return self
+    
     @property
     def is_authenticated(self):
         return True

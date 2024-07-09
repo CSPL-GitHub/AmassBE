@@ -1457,11 +1457,11 @@ class WooCommerce():
 
     def openOrder(request, vendorId):
         ##++++
-        Api_Logs(
-                    reason="WooCommerce-Order",
-                    status=200,
-                    response=request
-                ).save()
+        # Api_Logs(
+        #             reason="WooCommerce-Order",
+        #             status=200,
+        #             response=request
+        #         ).save()
         ##+++++
         print(request)
         result = {

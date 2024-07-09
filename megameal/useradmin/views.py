@@ -213,15 +213,9 @@ def get_service(request):
             "baseUrl": data.baseUrl,
             "secreateKey": data.secreateKey,
             "secreatePass": data.secreatePass,
-            "APIKey": data.APIKey,
             "VendorId": data.VendorId.pk,
-            "macId": data.macId,
             "isActive": data.isActive,
             "expiryDate": data.expiryDate,
-            "pushMenuUrl": data.pushMenuUrl,
-            "corePlatformType": data.corePlatformType,
-            "className": data.className,
-            "autoSyncMenu": data.autoSyncMenu,
             "orderActionType": data.orderActionType,
         })
 
@@ -287,15 +281,9 @@ def update_service(request, platform_id):
             serialized_data["baseUrl"] = service.baseUrl
             serialized_data["secreateKey"] = service.secreateKey
             serialized_data["secreatePass"] = service.secreatePass
-            serialized_data["APIKey"] = service.APIKey
             serialized_data["VendorId"] = service.VendorId.pk
-            serialized_data["macId"] = service.macId
             serialized_data["isActive"] = service.isActive
             serialized_data["expiryDate"] = service.expiryDate
-            serialized_data["pushMenuUrl"] = service.pushMenuUrl
-            serialized_data["corePlatformType"] = service.corePlatformType
-            serialized_data["className"] = service.className
-            serialized_data["autoSyncMenu"] = service.autoSyncMenu
             serialized_data["orderActionType"] = service.orderActionType
 
             messages.success(request, "Service updated successfully")
