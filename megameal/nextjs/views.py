@@ -280,55 +280,68 @@ def CreateOrder(request):
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
     
     data = StoreTiming.objects.filter(vendor=vendorId)
+
     slot = data.filter(day=datetime.now().strftime("%A")).first()
+
     store_status = POS_Settings.objects.filter(VendorId=vendorId).first()
 
     store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
+    
     print("store_status  ",store_status)
+    
     if store_status == False:
         return JsonResponse({"msg": f"store is already closed"}, status=400)
     
     try:
-        orderid=str(CorePlatform.WOOCOMMERCE)+datetime.now().strftime("%Y%m%d%H%M%S")+vendorId
-        result=request.data
+        orderid = '2' + datetime.now().strftime("%Y%m%d%H%M%S") + vendorId
+
+        result = request.data
+        
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = CorePlatform.WOOCOMMERCE
-        result["orderPointName"] = CorePlatform.WOOCOMMERCE.label
-        result["className"] = "WooCommerce"
+        result["orderPointId"] = 2
+        result["Platform"] = "Website"
         result["payment"]["mode"] = PaymentType.CASH
+
         # if Customer.objects.filter(Phone_Number = result['customer']['phno']).exists():
         #     return JsonResponse({"msg": "Number already in use"}, status=400)
+        
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
             result["payment"]["mode"] = PaymentType.ONLINE
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
+
         for item in result['items']:
             prod = Product.objects.filter(pk=item['productId'])
+            
             if prod.exists() and prod.first().active == False:
                 return JsonResponse({"msg": f"{prod.first().productName} is no longer availabe"}, status=400)
+            
             item["modifiers"] = [
-                           {
-                        "plu": subItem["plu"],
-                        "name": subItem['name'],
-                        "status":True,
-                        "quantity":subItem["quantity"],
-                        "group": subItemGrp['modGroupId']
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
-                ]
+                {
+                    "plu": subItem["plu"],
+                    "name": subItem['name'],
+                    "status":True,
+                    "quantity":subItem["quantity"],
+                    "group": subItemGrp['modGroupId']
+                } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
+            ]
+            
             item["subItems"] = item["modifiers"]
             item['itemRemark'] = 'None'
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
+
+        res = order_helper.OrderHelper.openOrder(result,vendorId)
+        
         if res[1] == 201:
-            return JsonResponse({'token':res,"orderId":orderid})
+            return JsonResponse({'token': res, "orderId": orderid})
+        
         else:
-            return JsonResponse({"msg": "something went wrong"}, status=400)
+            return JsonResponse({"msg": "something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+        
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
 
     
 @api_view(['POST'])
@@ -337,42 +350,49 @@ def CreateOrderApp(request):
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
+    
     try:
-        orderid=str(CorePlatform.WOOCOMMERCE)+datetime.now().strftime("%Y%m%d%H%M%S")+vendorId
-        result=request.data
+        orderid = '2' + datetime.now().strftime("%Y%m%d%H%M%S") + vendorId
+
+        result = request.data
+
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = CorePlatform.WOOCOMMERCE
-        result["orderPointName"] = CorePlatform.WOOCOMMERCE.label
-        result["className"] = "WooCommerce"
+        result["orderPointId"] = 2
+        result["Platform"] = "Mobile App"
         result["payment"]["mode"] = PaymentType.CASH
+        
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
             result["payment"]["mode"] = PaymentType.ONLINE
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
+        
         for item in result['items']:
             item["modifiers"] = [
-                           {
-                        "plu": subItem["plu"],
-                        "name": subItem['name'],
-                        "status":True,
-                        "quantity":subItem["quantity"],
-                        "group": subItemGrp.get('modGroupId') or subItemGrp.get('id'),
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
-                ]
+                {
+                    "plu": subItem["plu"],
+                    "name": subItem['name'],
+                    "status":True,
+                    "quantity":subItem["quantity"],
+                    "group": subItemGrp.get('modGroupId') or subItemGrp.get('id'),
+                } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
+            ]
+
             item["subItems"] = item["modifiers"]
             item['itemRemark'] = 'None'
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
+
+        res = order_helper.OrderHelper.openOrder(result,vendorId)
+
         if res[1] == 201:
-            return JsonResponse({'token':res,"orderId":orderid})
+            return JsonResponse({'token': res, "orderId": orderid})
+        
         else:
-            return JsonResponse({"msg": "something went wrong"}, status=400)
+            return JsonResponse({"msg": "something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
 
 
 @api_view(['GET'])

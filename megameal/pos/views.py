@@ -1817,9 +1817,8 @@ def createOrder(request):
                 "remake": False,
                 "customerName": request.data.get('name') if request.data.get('name') else "",
                 "status": "pending",
-                "orderPointId": CorePlatform.POS,
-                "orderPointName": CorePlatform.POS.label,
-                "className":"POS",
+                "orderPointId": 6,
+                "Platform": "POS",
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",

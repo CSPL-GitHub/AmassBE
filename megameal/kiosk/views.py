@@ -394,7 +394,6 @@ def createOrder(request,vendorId=1):
                 "orderPointId": CorePlatform.KIOSK,
                 "orderPointName": CorePlatform.KIOSK.label,
                 "className":"KIOSK",
-                # "className":ClassNames.WOOCOMMERCE_CLASS,
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('name') if request.data.get('name') else "Guest",
