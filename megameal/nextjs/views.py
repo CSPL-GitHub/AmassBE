@@ -18,7 +18,7 @@ from core.models import  (
     Product, ProductCategoryJoint, ProductImage, ProductModifier, ProductModifierGroup,
     ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint,POS_Settings
 )
-from pos.models import Setting
+from pos.models import POSSetting
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
