@@ -47,7 +47,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -2632,22 +2632,15 @@ def update_store_status(request):
     if store_status is None:
         return JsonResponse({"message": "Invalid store status"}, status=status.HTTP_400_BAD_REQUEST)
     
-    pos_store_setting = Setting.objects.filter(name="store_status", vendor=vendor_id)
+    pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
     if not pos_store_setting:
-        json_data = {"status": False}
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
 
-        pos_store_setting = Setting.objects.create(
-            name="store_status",
-            json_object=json_data,
-            vendor=vendor_instance
-        )
+    pos_store_setting.store_status = store_status
+    pos_store_setting.save()
 
-    json_data = {"status": store_status}
-    
-    pos_store_setting.json_object = json_data
-
-    return JsonResponse({"message": "", "store_status": pos_store_setting.json_object['status']}, status=status.HTTP_200_OK)
+    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status=status.HTTP_200_OK)
 
 
 
@@ -3152,18 +3145,12 @@ def get_store_timings(request):
 
     serialized = StoreTImingSerializer(data, many=True)
 
-    pos_store_setting = Setting.objects.filter(name="store_status", vendor=vendor_id).first()
+    pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
     if not pos_store_setting:
-        json_data = {"status": False}
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
 
-        pos_store_setting = Setting.objects.create(
-            name="store_status",
-            json_object=json_data,
-            vendor=vendor_instance
-        )
-
-    store_status = pos_store_setting.json_object['status']
+    store_status = pos_store_setting.store_status
 
     store_status_value = store_status
 
@@ -7816,26 +7803,25 @@ def get_delivery_settings(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-    delivery_settting = Setting.objects.filter(name="delivery", vendor=vendor_id).first()
+    delivery_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    if not delivery_settting:
-        json_data = {
-            "kilometer_limit": 0,
-            "delivery_charges": 0
-        }
+    if not delivery_setting:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
     
-    else:
-        json_data = delivery_settting.json_object
-    
-    return JsonResponse(json_data)
+    return JsonResponse({
+        "message": "",
+        "kilometer_limit": delivery_setting.delivery_kilometer_limit,
+        "delivery_charges": delivery_setting.delivery_charges_for_kilometer_limit
+    })
 
 
 @api_view(["POST"])
@@ -7843,55 +7829,47 @@ def update_delivery_settings(request):
     vendor_id = request.GET.get('vendor')
 
     if not vendor_id:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     kilometer_limit = request.data.get('kilometer_limit')
     delivery_charges = request.data.get('delivery_charges')
 
-    if kilometer_limit is None or delivery_charges is None:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+    if (kilometer_limit is None) or (delivery_charges is None):
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         kilometer_limit = int(kilometer_limit)
         delivery_charges = int(delivery_charges)
 
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
     
-    json_data = {
-        "kilometer_limit": kilometer_limit,
-        "delivery_charges": delivery_charges
-    }
+    delivery_settting_instance = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    delivery_settting_instance = Setting.objects.filter(name="delivery", vendor=vendor_id).first()
+    if not delivery_settting_instance:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if delivery_settting_instance:
-        delivery_settting_instance.json_object = json_data
+    delivery_settting_instance.delivery_kilometer_limit = kilometer_limit
+    delivery_settting_instance.delivery_charges_for_kilometer_limit = delivery_charges
 
-        delivery_settting_instance.save()
-        
-        return JsonResponse(delivery_settting_instance.json_object)
-
-    else:
-        delivery_settting = Setting(
-            name="delivery",
-            json_object = json_data,
-            vendor=vendor_instance
-        )
-
-        delivery_settting.save()
-        
-        return JsonResponse(delivery_settting.json_object)
+    delivery_settting_instance.save()
+    
+    return JsonResponse({
+        "message": "",
+        "kilometer_limit": delivery_settting_instance.delivery_kilometer_limit,
+        "delivery_charges": delivery_settting_instance.delivery_charges_for_kilometer_limit
+    })
 
 
 import zipfile
