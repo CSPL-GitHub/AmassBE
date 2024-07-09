@@ -5609,7 +5609,7 @@ def top_selling_products_report(request):
         sheet.append([''])
 
         # Write headers
-        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price (Rs.)', 'Total Sale (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
 
         if order_items.exists():    
             for item in top_selling_items:
@@ -7517,7 +7517,7 @@ def cancel_order_report(request):
         sheet.append(['Order Type', f'{order_type}'])
         sheet.append([''])
 
-        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made (Rs.)"])
+        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made"])
         sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
         sheet.append([''])
@@ -7528,7 +7528,7 @@ def cancel_order_report(request):
 
         sheet.append([''])
 
-        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price (Rs.)', 'Estimated Revenue (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
 
         for product_detail in cancelled_product_details:
             sheet.append([
@@ -7948,7 +7948,7 @@ def download_product_excel_upload_template(request):
 
         if not vendor_instance.secondary_language:
             sheet.append([
-                "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
                 "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
                 "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
@@ -8040,15 +8040,15 @@ def download_product_data_excel(request):
         
         if not vendor_instance.secondary_language:
             sheet.append([
-                "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Modifier Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
 
         else:
             sheet.append([
-                "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Category Station", "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
                 "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
                 "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
@@ -8091,14 +8091,14 @@ def download_product_data_excel(request):
                 if not product_modifier_group_joint.exists():
                     if not vendor_instance.secondary_language:
                         sheet.append([
-                            f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
                             f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
 
                     else:
                         sheet.append([
-                            f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
                             f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
@@ -8131,7 +8131,7 @@ def download_product_data_excel(request):
 
                             if not vendor_instance.secondary_language:
                                 sheet.append([
-                                    f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
                                     f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                                     f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
@@ -8142,7 +8142,7 @@ def download_product_data_excel(request):
 
                             else:
                                 sheet.append([
-                                    f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
                                     f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                                     f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
