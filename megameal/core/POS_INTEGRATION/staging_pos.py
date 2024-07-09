@@ -1,6 +1,3 @@
-from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
-from core.PLATFORM_INTEGRATION.woms_ecom import WomsEcom
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
 from core.models import (
     Platform, ProductCategory, ProductImage, ProductModifier, Product, ProductCategoryJoint, ProductModifierGroup,
     Product_Option, Product_Option_Value, Product_Tax, Product_Taxt_Joint, Vendor, Transaction_History, Product_Option_Joint,
@@ -22,7 +19,7 @@ from logging import log
 
 
 
-class StagingIntegration(AbstractPOSIntegration):
+class StagingIntegration():
     def menuPushtread(vendorId, response):
         # ++++ pick all the channels of vendor
         try:
@@ -1254,19 +1251,4 @@ class StagingIntegration(AbstractPOSIntegration):
         return {API_Messages.STATUS:API_Messages.SUCCESSFUL,API_Messages.RESPONSE:"Order status updated"}
      except Exception as err:
         return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
-
-    def getOrder(self,request):
-        pass
-    # def updateOrderStatusFromWooCommerce(self,request):
-    #   try:
-    #     updateOrderStatus=Order.objects.get(pk=request['orderId'])
-    #     request["externalOrderId"]=updateOrderStatus.externalOrderld
-    #     if request["updatePoint"]==UpdatePoint.KOMS:
-    #         if orderStatus==OrderStatus.COMPLETED:
-    #             orderStatus=OrderStatus.PREPARED
-    #             request["status"]=OrderStatus.PREPARED.label
-    #     updateOrderStatus.Status=orderStatus
-    #     updateOrderStatus.save()
-    #     return {API_Messages.STATUS:API_Messages.SUCCESSFUL,API_Messages.RESPONSE:"Order status updated"}
-    #   except Exception as err:
-    #     return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
+    

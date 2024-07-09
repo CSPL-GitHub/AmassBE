@@ -1,11 +1,7 @@
 import datetime
-import json
 import socket
-from django.shortcuts import render
-import requests
 from order import order_helper
-from koms.views import createOrderInKomsAndWoms
-from core.utils import API_Messages, ClassNames, DiscountCal, PaymentType
+from core.utils import API_Messages, PaymentType
 from order.models import Order_Discount
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -13,16 +9,18 @@ from django.contrib.auth import logout
 from useradmin.models import *
 from core.models import *
 from .models import *
-from django.db.models import Avg,Q
+from django.db.models import Q
 from django.http import JsonResponse
 from rest_framework.parsers import JSONParser
 from deep_translator import GoogleTranslator
 from cachetools import cached, TTLCache
 from .serializer import *
-import pytz
+
+
 
 cache = TTLCache(maxsize=1000, ttl=3000)
 l='en'
+
 # select a language in which to translate
 @api_view(["GET"])
 def selectlang(request,lang='en'):
