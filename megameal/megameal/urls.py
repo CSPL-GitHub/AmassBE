@@ -9,7 +9,6 @@ from django.conf import settings
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',include('useradmin.urls')),
-    path('core/',include('core.urls')),
     path('kiosk/',include('kiosk.urls')),
     path('order/',include('order.urls')), 
     path('koms/',include('koms.urls')),
