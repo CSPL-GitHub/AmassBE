@@ -53,10 +53,14 @@ class Banner(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
-class Setting(models.Model):
-    name = models.CharField(max_length=100)
-    json_object = models.JSONField()
+class POSSetting(models.Model):
+    store_status = models.BooleanField(default=False)
+    delivery_kilometer_limit = models.IntegerField(default=5)
+    delivery_charges_for_kilometer_limit = models.IntegerField(default=0)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.vendor.Name
 
 
 class CoreUserCategory(Group):

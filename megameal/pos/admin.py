@@ -38,4 +38,4 @@ class DepartmentAdmin(admin.ModelAdmin):
     
 admin.site.register(CoreUserCategory)
 admin.site.register(CoreUser)
-admin.site.register(Setting)
+admin.site.register(POSSetting)
