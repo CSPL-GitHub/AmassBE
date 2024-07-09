@@ -12,7 +12,6 @@ urlpatterns = [
     path('core/',include('core.urls')),
     path('kiosk/',include('kiosk.urls')),
     path('order/',include('order.urls')), 
-    path('webhook/',include('webhook.urls')),
     path('koms/',include('koms.urls')),
     path('woms/',include('woms.urls')),
     path('realtime/', include('realtime.urls')),
