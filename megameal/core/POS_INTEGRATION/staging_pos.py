@@ -938,24 +938,25 @@ class StagingIntegration():
             data["subtotal"] = subtotal  # +JSON
             order.TotalAmount=(order.subtotal - order.discount + order.tax + order.delivery_charge)
 
-            # order.subtotal = data.get("subtotal")
-            # order.tax = data.get("tax")
-            # order.TotalAmount= data.get("finalTotal")
+            if order.platform.Name == "Mobile App" or order.platform.Name == "Website":
+                order.TotalAmount = data["payment"]["payAmount"]
+                order.delivery_charge = data["payment"]["shipping_total"]
+                order.tax = data["payment"]["total_tax"]
 
-            if order.platform.className == "WooCommerce":
-                order.TotalAmount=data["payment"]["payAmount"]
-                order.delivery_charge=data["payment"]["shipping_total"]
-                order.tax=data["payment"]["total_tax"]
             # data["productLevelTax"] = order.tax  # +JSON
+
             # +++++ Add order Taxes
             try:
                 data["orderLevelTax"] = []
+
                 orderTaxes = Product_Tax.objects.filter(
                     vendorId=vendorId, isDeleted=False, taxLevel=TaxLevel.ORDER, enabled=True
                 )
+
                 if orderTaxes:
                     for orderTax in orderTaxes:
                         data["orderLevelTax"].append(orderTax.to_dict())
+
             except Product_Tax.DoesNotExist:
                 print("Tax not found for vendor")
             # +++++ Taxes
@@ -964,8 +965,10 @@ class StagingIntegration():
 
             # ++++ Payment
             print("++++ Payment")
+
             if data.get("payment"):
                 print("++++ Payment Started")
+
                 OrderPayment(
                     orderId=order,
                     paymentBy=coreCustomer.Email,
@@ -977,6 +980,7 @@ class StagingIntegration():
                     type=data["payment"].get('mode', PaymentType.CASH),
                     platform=data["payment"].get('platform', "")
                 ).save()
+
                 Transaction_History(
                     vendorId=vendor_instance,
                     transactionData=data["payment"].get("payData"),
@@ -987,7 +991,7 @@ class StagingIntegration():
             # ++++++++++++
 
             if ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')) and \
-            order.platform.Name == 'WooCommerce':
+            ((order.platform.Name == 'Website') or (order.platform.Name == 'Mobile App')):
                 tax_details = []
                 
                 taxes = Product_Tax.objects.filter(enabled=True, vendorId=vendorId)

@@ -15,19 +15,26 @@ class OrderHelper():
             API_Messages.STATUS: API_Messages.ERROR,
             "msg": "Something went wrong"
         }
+
         print(data)
+
         order=copy.deepcopy(data)
+
         try:
             # ++++++---- Stage The Order
             # stagingPos = StagingIntegration()
             with transaction.atomic():
                 stageOrder = StagingIntegration().openOrder(order)
+
                 print("stageOrder  ",order)
+
                 data["master_id"] = order["master_id"]
+                
                 if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
                     for reciver in Platform.objects.filter(isActive=True, orderActionType=OrderAction.get_order_action_value("RECIEVE")):
-                        if data.get('orderPointName') == 'WOOCOMMERCE':
+                        if (data.get('Platform') == 'Website') or data.get('Platform') == 'Mobile App':
                             data = KomsEcom().startOrderThread(order)
+                        
                         else:
                             data = KomsEcom().startOrderThread(data)
                         
@@ -53,10 +60,7 @@ class OrderHelper():
                                 return coreResponse,500
                             
                         return data,201
-
-                    # else:
-                    #     print(posResponse)
-                    #     return posResponse,500
+                    
                 else:
                     coreResponse["msg"] = stageOrder["msg"]
                     print("Order Error in stage++++++++++++++++++")
