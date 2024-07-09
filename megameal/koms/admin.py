@@ -23,7 +23,7 @@ class StaffAdmin(admin.ModelAdmin):
 
 @admin.register(Station)
 class StationsAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'isStation', 'client_id', 'client_secrete', 'tag',)
+    fields = ('vendorId', 'isStation', 'station_name', 'station_name_locale', 'client_id', 'client_secrete', 'tag',)
     
     list_display = ('station_name', 'isStation', 'vendorId',)
     list_filter = ('vendorId', 'isStation')
