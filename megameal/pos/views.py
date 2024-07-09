@@ -7986,6 +7986,7 @@ def download_product_data_excel(request):
         
         try:
             vendor_id = int(vendor_id)
+
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -7999,13 +8000,12 @@ def download_product_data_excel(request):
         if not categories.exists():
             return Response("No categories found", status=status.HTTP_404_NOT_FOUND)
         
-        port = request.META.get("SERVER_PORT")
-
         # Get the IP addresses associated with the hostname
         host_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
 
         # Filter out localhost addresses (those starting with "127.")
         filtered_ip_list = []
+        
         for ip in host_ip_list:
             if not ip.startswith("127."):
                 filtered_ip_list.append(ip)
@@ -8021,26 +8021,38 @@ def download_product_data_excel(request):
         if not server_ip:
             try:
                 soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
                 soc.connect(('8.8.8.8', 53))
+
                 server_ip = soc.getsockname()[0]
+
                 soc.close()
+
             except Exception as e:
                 server_ip = None
 
-        # server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-        
         # Create a new Excel workbook and select the active sheet
         workbook = openpyxl.Workbook()
+        
         sheet = workbook.active
 
         sheet.title = "Sheet1"
         
-        sheet.append([
-            "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-            "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
-            "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-            "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
-        ])
+        if not vendor_instance.secondary_language:
+            sheet.append([
+                "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+
+        else:
+            sheet.append([
+                "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
         
         for category in categories:
             category_product_joint = ProductCategoryJoint.objects.filter(
@@ -8055,8 +8067,6 @@ def download_product_data_excel(request):
                         
             if category.is_active == True:
                 is_category_active = "yes"
-            
-            # category_image = f"http://{server_ip}:{port}{category.categoryImage.url}" if category.categoryImage else ""
             
             category_image = category.categoryImageUrl if category.categoryImageUrl else ""
             
@@ -8079,11 +8089,19 @@ def download_product_data_excel(request):
                 ).order_by("modifierGroup__name", "-modifierGroup__active")
 
                 if not product_modifier_group_joint.exists():
-                    sheet.append([
-                        f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                        f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                        f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                    ])
+                    if not vendor_instance.secondary_language:
+                        sheet.append([
+                            f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
+
+                    else:
+                        sheet.append([
+                            f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
 
                 else:
                     for modifier_group_info in product_modifier_group_joint:
@@ -8111,15 +8129,27 @@ def download_product_data_excel(request):
                             if modifier_info.modifier.modifierImg:
                                 modifier_image = modifier_info.modifier.modifierImg
 
-                            sheet.append([
-                                f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                                f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                                f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
-                                f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
-                                f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
-                            ])
+                            if not vendor_instance.secondary_language:
+                                sheet.append([
+                                    f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
+
+                            else:
+                                sheet.append([
+                                    f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}", f"{modifier_info.modifier.modifierDesc_locale}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -8141,22 +8171,6 @@ def download_product_data_excel(request):
     except Exception as e:
         print(e)
         return HttpResponse("Something went wrong", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # # To return excel file
-    # with open(file_path, 'rb') as excel_file:
-    #     response = FileResponse(excel_file.read(), as_attachment=True, filename=file_name)
-    # return response
-
-    # # To return excel file as Base64
-    # with open(file_path, 'rb') as excel_file:
-    #     excel_content = excel_file.read()
-        
-    # base64_encoded = b64encode(excel_content).decode('utf-8')
-    
-    # response = HttpResponse(base64_encoded, content_type='text/plain')
-    # response['Content-Disposition'] = 'attachment; filename="file.xlsx"'
-    
-    # return response
 
 
 @api_view(["POST"])
