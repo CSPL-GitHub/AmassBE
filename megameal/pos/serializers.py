@@ -99,6 +99,7 @@ class ProductCategorySerializer(serializers.ModelSerializer):
         model = ProductCategory
         fields = (
             "id",
+            "categoryStation",
             "categoryPLU",
             "categoryName",
             "categoryName_locale",
