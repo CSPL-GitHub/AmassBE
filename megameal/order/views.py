@@ -3,12 +3,9 @@ from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
-from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
 from core.POS_INTEGRATION.staging_pos import StagingIntegration
-from core.POS_INTEGRATION.square_pos import SquareIntegration
-from core.PLATFORM_INTEGRATION.koms_order import KomsEcom
 from koms.views import createOrderInKomsAndWoms
-from core.utils import CorePlatform, OrderStatus, UpdatePoint
+from core.utils import CorePlatform, UpdatePoint
 from order.models import Order, Customer, OrderPayment, LoyaltyProgramSettings, LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory
 from order import order_helper
 from core.utils import API_Messages

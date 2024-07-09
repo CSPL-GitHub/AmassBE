@@ -3,11 +3,8 @@ from core.POS_INTEGRATION.staging_pos import StagingIntegration
 from core.models import POS_Settings, Platform
 from order.models import Order
 from core.utils import API_Messages,OrderAction, UpdatePoint
-from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
-from core.POS_INTEGRATION.square_pos import SquareIntegration
 from core.PLATFORM_INTEGRATION.koms_order import KomsEcom
 from django.db import transaction
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
 import copy
 
 

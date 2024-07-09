@@ -15,7 +15,7 @@ from django.template.defaultfilters import slugify
 
 
 def order_count(start_date, end_date, order_type, vendor_id):
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=("Mobile App", "Website"), isActive=True, VendorId=vendor_id).first()
     
     orders = Order.objects.filter(OrderDate__date__range=(start_date, end_date),  vendorId=vendor_id)
 
