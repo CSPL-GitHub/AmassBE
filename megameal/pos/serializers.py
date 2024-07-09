@@ -36,6 +36,7 @@ class WaiterSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
+            "name_locale",
             "phone_number",
             "email",
             "username",
@@ -63,7 +64,7 @@ class FloorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Floor
-        fields = ("id", "floorId", "name", "name_ar", "is_active", "table_count", "vendorId")
+        fields = ("id", "floorId", "name", "name_locale", "is_active", "table_count", "vendorId")
 
 
 class HotelTableSerializer(serializers.ModelSerializer):
