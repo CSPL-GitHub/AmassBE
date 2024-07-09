@@ -72,7 +72,8 @@ class ProductCategory(models.Model):
             self.categoryName_locale = self.categoryName
 
         if not self.categoryDescription_locale:
-            self.categoryDescription_locale = self.categoryDescription
+            if self.categoryDescription:
+                self.categoryDescription_locale = self.categoryDescription
 
         super().save(*args, **kwargs)
 
@@ -119,7 +120,8 @@ class Product(models.Model):
             self.productName_locale = self.productName
 
         if not self.productDesc_locale:
-            self.productDesc_locale = self.productDesc
+            if self.productDesc:
+                self.productDesc_locale = self.productDesc
 
         super().save(*args, **kwargs)
 
@@ -176,7 +178,8 @@ class ProductModifierGroup(models.Model):
             self.name_locale = self.name
 
         if not self.modifier_group_description_locale:
-            self.modifier_group_description_locale = self.modifier_group_description
+            if self.modifier_group_description:
+                self.modifier_group_description_locale = self.modifier_group_description
 
         super().save(*args, **kwargs)
 
@@ -216,7 +219,8 @@ class ProductModifier(models.Model):
             self.modifierName_locale = self.modifierName
 
         if not self.modifierDesc_locale:
-            self.modifierDesc_locale = self.modifierDesc
+            if self.modifierDesc:
+                self.modifierDesc_locale = self.modifierDesc
         
         super().save(*args, **kwargs)
         return self
