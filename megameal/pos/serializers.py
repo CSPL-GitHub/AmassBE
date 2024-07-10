@@ -227,6 +227,7 @@ class StationModelSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "station_name",
+            "station_name_locale",
             "client_id",
             "client_secrete",
             "tag",
