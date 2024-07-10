@@ -391,9 +391,7 @@ def createOrder(request,vendorId=1):
                 "remake": False,
                 "customerName": "test",
                 "status": "pending",  # Initial status will be pending
-                "orderPointId": CorePlatform.KIOSK,
-                "orderPointName": CorePlatform.KIOSK.label,
-                "className":"KIOSK",
+                "Platform": 'Kiosk',
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('name') if request.data.get('name') else "Guest",

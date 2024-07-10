@@ -172,7 +172,6 @@ def womsCreateOrder2(request):
         "customerName": "MD1",
         "status": 1,
         "server": ', '.join(str(item['waiterName']) for item in data['tables']),
-        "orderPointId": 1,
         "isHigh": True if data["priority"] else False,
         "note":  data["productNote"] if data["productNote"] else "note" 
     }
@@ -262,9 +261,7 @@ def womsCreateOrder(request):
                 "remake": False,
                 "customerName": request.data.get('name') if request.data.get('name') else "test",
                 "status": "pending",
-                "orderPointId": CorePlatform.WOMS,
-                "orderPointName": CorePlatform.WOMS.label,
-                "className":"WomsEcom",
+                "Platform": "WOMS",
                 "points_redeemed":request.data.get('points_redeemed') or 0,
                 "customer": {
                     # "internalId": "1",
