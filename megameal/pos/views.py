@@ -1125,7 +1125,6 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        platformData = Platform.objects.get(pk=platform)
         
         order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
         order_data = order_data.filter(platform=platform)
@@ -1229,20 +1228,20 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         try:
             payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
             
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
+            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
             
-            payment_mode = get_key_value(language, "payment_type", payment_type)
+            payment_mode = get_key_value(language, "payment_type", payment_type.type)
             
-            payment_details ={
+            payment_details = {
                 "total": payment_details_order.TotalAmount,
                 "subtotal": payment_details_order.subtotal,
                 "tax": payment_details_order.tax,
                 "delivery_charge": payment_details_order.delivery_charge,
                 "discount": payment_details_order.discount,
                 "tip": payment_details_order.tip,
-                "paymentKey": payment_type.last().paymentKey,
-                "platform": payment_type.last().platform,
-                "status": payment_type.last().status,
+                "paymentKey": payment_type.paymentKey,
+                "platform": payment_type.platform,
+                "status": payment_type.status,
                 "mode": payment_mode
             }
             
@@ -1251,16 +1250,16 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
             payment_mode = get_key_value(language, "payment_type", 1)
 
-            payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
+            payment_details = {
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip": 0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
                 "mode": payment_mode
             }
             
@@ -1285,8 +1284,8 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         except Exception as e:
             print(e)
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
         single_order["platform_details"] = platform_details
@@ -1319,21 +1318,21 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 shipping_address = ""
 
             customer_details = {
-                "id" : customer.customerId.pk,
-                "name" : customer_name,
-                "mobile" : customer.customerId.Phone_Number,
-                "email" : customer.customerId.Email if customer.customerId.Email else "",
-                "shipping_address" : shipping_address
+                "id": customer.customerId.pk,
+                "name": customer_name,
+                "mobile": customer.customerId.Phone_Number,
+                "email": customer.customerId.Email if customer.customerId.Email else "",
+                "shipping_address": shipping_address
             }
 
         except Exception as e:
             print(e)
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name": "",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
         single_order["customer_details"] = customer_details
@@ -1380,6 +1379,7 @@ def order_data_socket(request):
     is_dashboard = body_data.get("is_dashboard")
     s_date = body_data.get("start_date")
     e_date = body_data.get("end_date")
+    language = body_data.get("language", "English")
 
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
@@ -1416,7 +1416,6 @@ def order_data_socket(request):
 
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        platformData = Platform.objects.get(pk=platform)
         
         order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
         order_data = order_data.filter(platform=platform)
@@ -1515,38 +1514,46 @@ def order_data_socket(request):
     orders_for_page = page_obj.object_list
 
     for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
+        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
 
+        payment_mode = ""
+        
         try:
             payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
+            
+            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
+
+            payment_mode = get_key_value(language, "payment_type", payment_type.type)
             
             payment_details ={
-                "total":payment_details_order.TotalAmount,
-                "subtotal":payment_details_order.subtotal,
-                "tax":payment_details_order.tax,
-                "delivery_charge":payment_details_order.delivery_charge,
-                "discount":payment_details_order.discount,
-                "tip":payment_details_order.tip,
-                "paymentKey":payment_type.last().paymentKey,
-                "platform":payment_type.last().platform,
-                "status":payment_type.last().status,
-                "mode":PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+                "total": payment_details_order.TotalAmount,
+                "subtotal": payment_details_order.subtotal,
+                "tax": payment_details_order.tax,
+                "delivery_charge": payment_details_order.delivery_charge,
+                "discount": payment_details_order.discount,
+                "tip": payment_details_order.tip,
+                "paymentKey": payment_type.paymentKey,
+                "platform": payment_type.platform,
+                "status": payment_type.status,
+                "mode": payment_mode
             }
             
         except Exception as e:
             print("Error", e)
+
+            payment_mode = get_key_value(language, "payment_type", 1)
+
             payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
-                "mode": PaymentType.get_payment_str(PaymentType.CASH)
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip": 0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
+                "mode": payment_mode
             }
         
         single_order['payment']=payment_details
@@ -1554,16 +1561,24 @@ def order_data_socket(request):
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
+            platform_name = ""
+            
+            if language == "English":
+                platform_name = platform.platform.Name
+
+            else:
+                platform_name = platform.platform.Name_locale
+            
             platform_details = {
                 "id": platform.platform.pk,
-                "name": platform.platform.Name
+                "name": platform_name
             }
 
         except Exception as e:
             print(e)
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
         single_order["platform_details"] = platform_details
@@ -1596,21 +1611,21 @@ def order_data_socket(request):
                 shipping_address = ""
 
             customer_details = {
-                "id" : customer.customerId.pk,
-                "name" : customer_name,
-                "mobile" : customer.customerId.Phone_Number,
-                "email" : customer.customerId.Email if customer.customerId.Email else "",
-                "shipping_address" : shipping_address
+                "id": customer.customerId.pk,
+                "name": customer_name,
+                "mobile": customer.customerId.Phone_Number,
+                "email": customer.customerId.Email if customer.customerId.Email else "",
+                "shipping_address": shipping_address
             }
 
         except Exception as e:
             print(e)
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name": "",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
         single_order["customer_details"] = customer_details
