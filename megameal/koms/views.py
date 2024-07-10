@@ -473,8 +473,6 @@ def createOrderInKomsAndWoms(orderJson):
         order_data["status"] = 1 # pending order
         order_data["externalOrderStatus"] = 1
         order_data["order_type"] = order_data["orderType"]
-        # order_data["order_point"] = order_data["orderPointId"]
-        order_data["order_point"] = 1
         order_data["arrival_time"] = order_data["arrivalTime"]
         order_data["order_note"] = order_data["note"]
         order_data["isHigh"] = False if order_data.get('isHigh') is None else order_data["isHigh"]
