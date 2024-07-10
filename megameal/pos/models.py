@@ -12,6 +12,14 @@ def validate_phone_number_length(value):
         raise ValidationError("Phone number must be exactly 10 digits.")
 
 
+class POSMenu(models.Model):
+    is_sop_active = models.BooleanField(default=False)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.vendor.Name
+
+
 class StoreTiming(models.Model):
     DAYS_OF_WEEK_CHOICES = [
         ('Monday', 'Monday'),

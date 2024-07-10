@@ -47,7 +47,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -8316,6 +8316,38 @@ def is_platform(request):
     
     except Exception as e:
         return Response(f"{str(e)}", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+def get_pos_menu(request):
+    vendor_id = request.GET.get('vendor')
+
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    pos_menu = POSMenu.objects.filter(vendor=vendor_id).first()
+
+    if not pos_menu:
+        return JsonResponse({"message": "POS menu not configured"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    return JsonResponse(
+        {
+            "message": "",
+            "is_sop_active": pos_menu.is_sop_active,
+        }, status=status.HTTP_400_BAD_REQUEST
+    )
+
 
 
 class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
