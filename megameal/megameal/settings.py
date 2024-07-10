@@ -31,7 +31,6 @@ INSTALLED_APPS = [
     'useradmin',
     'kiosk',
     'order',
-    'webhook',
     'koms',
     'woms',
     'realtime',
@@ -78,58 +77,40 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels.layers.InMemoryChannelLayer'
     },
-    # "default": {
-    #     "BACKEND": "channels_redis.core.RedisChannelLayer",
-    #     "CONFIG": {
-    #         "hosts": [("localhost", 6379)],
-    #     },
-    # },
 }
 
 DATABASES = {
+    # Development
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'megameal_arabic',
-        'USER': 'postgres',
-        'PASSWORD': 'postgres',
-        'HOST': 'localhost',
+        'NAME': 'megameal_dev',
+        'USER': 'root',
+        'PASSWORD': 'Root@123',
+        'HOST': 'localhost', # 213.210.36.38
         'PORT': '5432',
     }
-
-    # Development
-    # 'default': {
-    #     'ENGINE': 'django.db.backends.postgresql',
-    #     'NAME': 'domecore',
-    #     'USER': 'root',
-    #     'PASSWORD': 'Root@123',
-    #     'HOST': '151.80.237.29',
-    #     'PORT': '5432',
-    # }
 
     # Testing
     # 'default': {
     #     'ENGINE': 'django.db.backends.postgresql',
-    #     'NAME': 'core_test',
-    #     'USER': 'postgres',
-    #     'PASSWORD': 'postgres@123',
-    #     'HOST': '151.80.237.29',
+    #     'NAME': 'megameal_test',
+    #     'USER': 'root',
+    #     'PASSWORD': 'Root@123',
+    #     'HOST': 'localhost', # 213.210.36.38
     #     'PORT': '5432',
     # }
 
     # Production
     # 'default': {
     #     'ENGINE': 'django.db.backends.postgresql',
-    #     'NAME': 'demo_prod4',
-    #     'USER': 'postgres',
+    #     'NAME': 'megameal_prod',
+    #     'USER': 'root',
     #     'PASSWORD': 'Root@123',
-    #     'HOST': '94.23.80.228',
+    #     'HOST': 'localhost', # 213.210.36.38
     #     'PORT': '5432',
     # }
 }
 
-
-# Password validation
-# https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
 
 AUTH_PASSWORD_VALIDATORS = [
     {
@@ -146,8 +127,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-# Internationalization
-# https://docs.djangoproject.com/en/2.0/topics/i18n/
 
 LANGUAGE_CODE = 'en-us'
 
@@ -159,9 +138,6 @@ USE_L10N = True
 
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/2.0/howto/static-files/
 
 LOGGING = {
     'version': 1,
@@ -185,10 +161,10 @@ LOGGING = {
 
 STATIC_URL = '/static/'
 
-# STATIC_ROOT=os.path.join(BASE_DIR,'static')
+STATIC_ROOT=os.path.join(BASE_DIR,'static')
 STATIC_DIR=os.path.join(BASE_DIR,'static')
 
-STATICFILES_DIRS =(STATIC_DIR, 'static/admin-lte/',)
+STATICFILES_DIRS =('static/admin-lte/',)
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 MEDIA_URL = '/media/'
@@ -197,15 +173,16 @@ MEDIA_URL = '/media/'
 PROJECT_APP = os.path.basename(BASE_DIR)
 
 
-CORS_ORIGIN_ALLOW = True
-CORS_ALLOW_ALL_ORIGINS = True
-li=[
+allowed_origins = [
     "http://0.0.0.1:8001",
 ]
-CSRF_TRUSTED_ORIGINS = li
-CORS_ORIGIN_WHITELIST = li
-CORS_ALLOWED_ORIGINS = li
-CSRF_TRUSTED_ORIGINS = li
+
+CORS_ORIGIN_ALLOW = True
+CORS_ALLOW_ALL_ORIGINS = True
+CSRF_TRUSTED_ORIGINS = allowed_origins
+CORS_ORIGIN_WHITELIST = allowed_origins
+CORS_ALLOWED_ORIGINS = allowed_origins
+CSRF_TRUSTED_ORIGINS = allowed_origins
 
 
 # Email Settings
