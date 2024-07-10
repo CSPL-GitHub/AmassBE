@@ -23,7 +23,7 @@ ALLOWED_HOSTS = ['*']
 
 
 # Required for excel file handling in core app
-HOST = os.environ.get("HOST", default="http://localhost:8004/")
+HOST = os.environ.get("HOST", default="http://localhost:8001/")
 
 
 INSTALLED_APPS = [
