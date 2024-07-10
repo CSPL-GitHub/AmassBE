@@ -1,3 +1,4 @@
+.vscode
 *.pyc
 *.pys
 env
@@ -6,7 +7,11 @@ __pycache__
 venv
 
 megameal/db.sqlite3
-megameal/error.log
+error.log
+megameal/static
+
+megameal/media/Product Details Excel
+megameal/media/Excel Downloads
 
 megameal/static/__pycache__
 

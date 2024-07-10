@@ -3,17 +3,14 @@ from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
-from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
 from core.POS_INTEGRATION.staging_pos import StagingIntegration
-from core.POS_INTEGRATION.square_pos import SquareIntegration
-from core.PLATFORM_INTEGRATION.koms_order import KomsEcom
 from koms.views import createOrderInKomsAndWoms
-from core.utils import CorePlatform, OrderStatus, UpdatePoint
+from core.utils import CorePlatform, UpdatePoint
 from order.models import Order, Customer, OrderPayment, LoyaltyProgramSettings, LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory
 from order import order_helper
 from core.utils import API_Messages
 from core.models import POS_Settings, Vendor, Product, ProductCategoryJoint, ProductModifier, ProductModifierGroup
-from koms.models import Stations
+from koms.models import Station
 from koms.models import Order as KOMSOrder
 from django.http import JsonResponse
 from django.utils import timezone
@@ -238,7 +235,7 @@ def getPrepTime(plu,vendorId):
         print(f"Unexpected {err=}, {type(err)=}")
         prd=ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=plu).first())
         # return {"prepTime":0,"tag":}[]
-        stn=Stations.objects.filter(station_name=prd.category.categoryStation.station_name,vendorId=vendorId).first()
+        stn=Station.objects.filter(station_name=prd.category.categoryStation.station_name,vendorId=vendorId).first()
         return {"prepTime":prd.product.preparationTime,"tag":stn.pk}
     
 @api_view(['post'])
@@ -307,7 +304,7 @@ def womsCreateOrder(request):
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
                 except Product.DoesNotExist:

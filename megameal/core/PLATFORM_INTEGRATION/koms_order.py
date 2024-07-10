@@ -4,17 +4,27 @@ import pytz
 import requests
 from datetime import datetime,timedelta
 from core.utils import * 
+from koms.models import Station
+
+
 
 class KomsEcom():
-    def openOrder(self,order):
-        from koms.views import createOrderInKomsAndWoms 
+    def openOrder(self, order):
+        from koms.views import createOrderInKomsAndWoms
+
         try:
-            data=order
+            data = order
+
+            vendor_id = data["vendorId"]
+
+            language = data.get("language", "English")
+
             res = {
+                "language": language,
                 "orderId": data.get('internalOrderId') ,
-                "master_id":data.get('master_id'),
-                "externalOrderId":data.get('externalOrderId'),
-                "orderType":OrderType.get_order_type_value( data['orderType']),
+                "master_id": data.get('master_id'),
+                "externalOrderId": data.get('externalOrderId'),
+                "orderType": OrderType.get_order_type_value( data['orderType']),
                 "arrivalTime": data['arrivalTime'] if data['arrivalTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
                 "pickupTime": data['pickupTime'] if data['pickupTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
                 "deliveryIsAsap": data['deliveryIsAsap'],
@@ -26,55 +36,94 @@ class KomsEcom():
                 "server": ', '.join(str(item['waiterName']) if item.get('waiterName') else 'none'  for item in data['tables']) if data.get('tables') else '',
                 # "orderPointId": Platform.objects.filter(Name=data['orderPointName']).first().pk,
                 "isHigh": True if "priority" in  data else False,
-                "note":  data["note"] if data["note"] else "None",
-                "vendorId":data["vendorId"] 
+                "note": data["note"] if data["note"] else "None",
+                "vendorId": vendor_id 
             }
+
             try:
-                res['orderPointId']=Platform.objects.filter(Name=data['orderPointName']).first().pk
+                res['orderPointId'] = Platform.objects.filter(Name=data['orderPointName']).first().pk
+            
             except Exception as e:
                 print(e)
-                res['orderPointId']=1
+                res['orderPointId'] = 1
+
             #########
             totalPrepTime=0
+
             for index,itemData in enumerate(data['items']):
-                data['items'][index]["prepTime"]=self.getPrepTime(itemData["plu"])
-                totalPrepTime= totalPrepTime+data['items'][index]["prepTime"]
-            res["totalPrepTime"]=totalPrepTime
+                data['items'][index]["prepTime"] = self.getPrepTime(itemData["plu"])
+                
+                totalPrepTime = totalPrepTime+data['items'][index]["prepTime"]
+
+            res["totalPrepTime"] = totalPrepTime
             
             if totalPrepTime>0:
                 current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+
                 new_time = current_time + timedelta(minutes=totalPrepTime)
-                res["pickupTime"]=f"{str(datetime.today().date())}T{new_time.strftime('%H:%M:%S')}"
+
+                res["pickupTime"] = f"{str(datetime.today().date())}T{new_time.strftime('%H:%M:%S')}"
             #############
-            itemCategories = list(set(ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=i['plu'],vendorId_id=data["vendorId"]).first().pk).category.categoryName for i in data['items']))
+           
+            itemCategoriesSet = set()
+
+            for i in data['items']:
+                product = Product.objects.filter(PLU=i['plu'], vendorId_id=vendor_id).first()
+
+                if product is not None:
+                    productCategoryJoint = ProductCategoryJoint.objects.get(product=product.pk)
+                    itemCategoriesSet.add(productCategoryJoint.category.categoryName)
+
+            itemCategories = list(itemCategoriesSet)
+            
             for item in itemCategories:
-                prods=[]
+                prods = []
+
                 for i in data['items'] :
                     print(i)
-                    categoryJoint=ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=i['plu'],vendorId=data["vendorId"]).first().pk)
+
+                    product_id = Product.objects.filter(PLU=i['plu'], vendorId=vendor_id).first().pk
+                    
+                    categoryJoint = ProductCategoryJoint.objects.filter(product=product_id, vendorId=vendor_id).first()
+
+                    station_id = 1
+                
+                    if categoryJoint:
+                        if categoryJoint.category.categoryStation:
+                            station_id = categoryJoint.category.categoryStation.pk
+
+                        else:
+                            station = Station.objects.filter(vendorId=vendor_id).first()
+
+                            if station:
+                                station_id = station.pk
+                    
                     if categoryJoint.category.categoryName == item:
-                        sub=[]
+                        sub = []
+                        
                         for subItem in i['modifiers']:
                             sub.append({
                                 "plu": subItem['plu'],
                                 "name": subItem['name'],
-                                "status":subItem["status"] if subItem.get("status") else False,
-                                "quantity":subItem['quantity'],
-                                "group":subItem['group']
-                            } )
+                                "status": subItem["status"] if subItem.get("status") else False,
+                                "quantity": subItem['quantity'],
+                                "group": subItem['group']
+                            })
+                        
                         prods.append({
-                        "plu": i['plu'],
-                        "name": i.get('productName') or  i.get('name'),
-                        "quantity": i['quantity'],
-                        "tag":  1,
-                        "subItems": sub,
-                        "itemRemark": i.get('itemRemark'),
-                        "prepTime": i['prepTime']
+                            "plu": i['plu'],
+                            "name": i.get('productName') or  i.get('name'),
+                            "quantity": i['quantity'],
+                            "tag": station_id,
+                            "subItems": sub,
+                            "itemRemark": i.get('itemRemark'),
+                            "prepTime": i['prepTime']
                         })
-                        # print(prods)
+
                     res['items'][item] = prods
-            # print("KomsEcom OpenOrder",res)
+            
             return createOrderInKomsAndWoms(orderJson=res)
+        
         except Exception as e:
             print("Error", e)
             return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.ERROR:str(e)}

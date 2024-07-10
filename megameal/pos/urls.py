@@ -20,18 +20,15 @@ router.register("setting/departments", views.DepartmentModelViewSet, basename="d
 
 
 urlpatterns = [
-   path('login/',views.login), # Loging api for POS
-   path('allProducts/',views.allProducts), # All products api for POS
+   path('login/', views.login),
+   path('language/', views.pos_lanuage_setting, name="language"),
+   path('pos_menu/', views.get_pos_menu, name="pos_menu"),
    path('allCategory/',views.allCategory), # All Category api for POS
-   path('allCategory/<int:id>',views.allCategory), # Single Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
-   path('productByCategory/<int:id>',views.productByCategory), # Single Category product api for POS
-   path('search/<str:search>/',views.searchProduct), # search products by name
+   path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
    path('dashboard/', views.dashboard, name="dashboard"),
-   # path('dashboard/order_status_type_details/', views.order_status_type_details, name="order_status_type_details"),
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
-   path('dashboard/top_selling_product_details/', views.top_selling_product_details, name="top_selling_product_details"),
-   path('dashboard/modifier_update/', views.modifier_update, name="modifier_update"),
+   path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
    path('orderList/', views.orderList, name="orderList"),
    path('', include(router.urls)),
@@ -43,7 +40,7 @@ urlpatterns = [
    path('order_details/', views.order_details, name="order_details"),
    path('updatePaymentDetails/', views.updatePaymentDetails, name="updatePaymentDetails"),
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
-   path('storetime/', views.storetime, name="storetime"),
+   path('store_status/', views.update_store_status, name="store_status"),
    path('order_payment/', views.order_payment, name="order_payment"),
    path('order_data_socket/', views.order_data_socket, name="order_data_socket"), # for order_data socket testing purpose
    path('excel_upload/', views.excel_upload, name="excel_upload"),

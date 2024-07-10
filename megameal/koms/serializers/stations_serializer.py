@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from koms.models import Stations
+from koms.models import Station
 
 class Stations_serializer(serializers.ModelSerializer):
     # creator = serializers.ReadOnlyField(source='creator.username')
@@ -7,7 +7,7 @@ class Stations_serializer(serializers.ModelSerializer):
     # colorCode = serializers.CharField(source='color_code')
 
     class Meta:
-        model = Stations
+        model = Station
         fields = "__all__"
 
 class StationsReadSerializer(serializers.ModelSerializer):
@@ -18,5 +18,5 @@ class StationsReadSerializer(serializers.ModelSerializer):
     colorCode = serializers.CharField(source='color_code')
 
     class Meta:
-        model = Stations
+        model = Station
         fields = ('id','name','colorCode')

@@ -4,7 +4,6 @@ from koms.models import Order as KOMSOrder
 from core.models import Vendor, Platform
 from inventory.models import InventorySyncErrorLog
 from inventory.utils import sync_order_content_with_inventory
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
 from django.utils import timezone
 from datetime import timedelta
 from django.db.models.signals import post_save
@@ -53,35 +52,6 @@ def create_loyalty_points_credit_history(sender, instance, created, **kwargs):
                             existing_points_balance = customer_instance.loyalty_points_balance
                             customer_instance.loyalty_points_balance = existing_points_balance + credit_history_instance.points_credited
                             customer_instance.save()
-
-                        # WooCommerce syncing
-                        # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId, Name="WooCommerce", isActive=True).first()
-
-                        # if woocommerce_platform:
-                        #     woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, instance.vendorId)
-
-                        #     if woocommerce_customer_details.status_code == 404:
-                        #         pass
-
-                        #     elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                        #         woocommerce_customer_details = woocommerce_customer_details.json()
-
-                        #         if woocommerce_customer_details.get('id'):
-                        #             balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                        #                 woocommerce_customer_details.get('id'),
-                        #                 customer_instance.loyalty_points_balance,
-                        #                 instance.vendorId
-                        #             )
-
-                        #             if balance_update_response == True:
-                        #                 pass
-                        #                 # notify(type=3, msg='0', desc='Loyalty points synced', stn=['POS'], vendorId=vendor_id)
-
-                        #             else:
-                        #                 raise LoyaltyPointsSyncError("Points not synced")
-
-                        #     else:
-                        #         raise LoyaltyPointsSyncError("Points not synced")
 
             except Exception as e:
                 print("create_loyalty_points_credit_history Signal:\n", e)

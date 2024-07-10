@@ -1,16 +1,15 @@
 from rest_framework.decorators import api_view
-from django.http import JsonResponse, FileResponse, HttpResponse
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
+from django.http import JsonResponse, HttpResponse
 from koms.serializers.content_history_serializer import Content_history_serializer
 from kiosk.models import KioskOrderData
 from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
-    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Product_Option_Joint, Platform,
-    ProductModifierAndModifierGroupJoint, Product_Tax, POS_Settings
+    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
+    ProductModifierAndModifierGroupJoint, Product_Tax
 )
 from order import order_helper
-from woms.models import Hotal_Tables, Waiter, Floor
+from woms.models import HotelTable, Waiter, Floor
 from woms.views import getTableData
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
@@ -18,15 +17,15 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
-from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType, Short_Codes
+from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Value, FloatField, Q, IntegerField, ExpressionWrapper, Count
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
-    Order_tables, Order_content, Order as KOMSOrder, OrderStatusName, Order_modifer, Stations, Staff,
+    Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Station, Staff,
 )
 from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
 from django.utils import timezone
@@ -48,10 +47,9 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.shortcuts import render, redirect
-from pos.models import PosUser ,StoreTiming, Banner, Setting, CoreUserCategory, CoreUser, Department
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu
 from pos.forms import PosUserForm
 from django.conf import settings
-from base64 import b64encode
 from collections import OrderedDict
 from django.core.files.storage import default_storage
 from core.excel_file_upload import process_excel
@@ -60,12 +58,13 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
 from static.order_status_const import WOMS
-from pos.utils import order_count, process_product_excel
+from pos.utils import order_count, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
+from pos.language import get_key_value, check_key_exists, all_platform_locale, product_tag_locale
 import pytz
 import re
 import openpyxl
@@ -283,366 +282,340 @@ def login(request):
         username = request.data.get("name")
         password = request.data.get("password")
 
-        user = PosUser.objects.filter(username=username, password=password).first()
+        user = POSUser.objects.filter(username=username, password=password, is_active=True).first()
+
+        if not user:
+            return JsonResponse({
+                "message": "User not found",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_id = user.vendor.pk
+
+        vendor_instance = Vendor.objects.filter(pk=user.vendor.pk).first()
+
+        if not vendor_instance:
+            return JsonResponse({
+                "message": "Invalid Vendor",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+
+        if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+            return JsonResponse({
+                "message": "User not found",
+                "user_id": 0,
+                "token": "",
+                "name": "",
+                "email": "",
+                "primary_language": "",
+                "secondary_language": "",
+                "selected_language": "",
+                "currency": "",
+                "currency_symbol": "",
+                "vendor_id": 0
+            }, status=status.HTTP_400_BAD_REQUEST)
 
         return JsonResponse({
+            "message": "",
             "user_id": user.pk,
-            "vendorid": user.vendor.pk,
-            "token":"",
-            "name":user.name,
-            "email":user.email,
-            "image":''
-            })
-    except:
-        return JsonResponse({"error":"Not found"}, status=400)   
+            "token": "",
+            "name": user.name,
+            "email": user.email,
+            "primary_language": vendor_instance.primary_language,
+            "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
+            "selected_language": vendor_instance.selected_language,
+            "currency": vendor_instance.currency,
+            "currency_symbol": vendor_instance.currency_symbol,
+            "vendor_id": vendor_id,
+        }, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({
+            "message": str(e),
+            "user_id": 0,
+            "token": "",
+            "name": "",
+            "email": "",
+            "primary_language": "",
+            "secondary_language": "",
+            "currency": "",
+            "currency_symbol": "",
+            "vendor_id": 0
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
-@api_view(['POST'])
-def allProducts(request,id=0):
-    data = request.data
-    page_number = request.data['page_number']
-    page_limit = request.data['page_limit']
-    vendorId=request.GET.get("vendorId")
-    listOfProducts=[]
-    data=ProductCategory.objects.filter(pk=id,vendorId=vendorId,categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=vendorId)   
-    for category in data:
-        for product in Product.objects.filter(isDeleted=False,vendorId=vendorId,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
-            productVariants=[]
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,vendorId=vendorId,isDeleted=False):
-                    images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
-                        if k is not None:
-                            images.append(str(k.image))
-                    options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk,vendorId=vendorId):
-                        options.append(
-                            {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
-                            }
-                        )
-                    productVariants.append({
-                        "text":prdVariants.productName,
-                        # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-                        # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
-                        "cost": prdVariants.productPrice,
-                        "description":prdVariants.productDesc,
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
-                        "options":options
-                    })
+@api_view(['GET', 'POST'])
+def pos_lanuage_setting(request):
+    vendor_id = request.GET.get("vendor")
 
-            images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
-                if k is not None:
-                    images.append(str(k.url))
-            
-            modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
-                mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
-                    mods.append(
-                        {
-                            "cost":mod.modifierPrice,
-                            "modifierId": mod.pk,
-                            "name":mod.modifierName,
-                            "description": mod.modifierDesc,
-                            "quantity": mod.modifierQty,
-                            "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":mod.modifierImg
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid Vendor ID", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
 
-                        }                    
-                    )
-                if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                 modGrp.append(
-                    {
-                        "name":prdModGrpJnt.modifierGroup.name,
-                        "plu":prdModGrpJnt.modifierGroup.PLU,
-                        "min":prdModGrpJnt.min,
-                        "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
-                        "type":prdModGrpJnt.modifierGroup.modGrptype,
-                        "modifiers":mods
-                    }
-                )
-            listOfProducts.append({
-                "categoryId": category.pk,
-                "categoryName":category.categoryName,
-                "prdouctId": product.pk,
-                "text":product.productName,
-                "imagePath": images[0] if len(images)!=0 else '',
-                "images":images if len(images)>0  else '',
-                "quantity": 1,
-                "cost": product.productPrice,
-                "description":product.productDesc,
-                "allowCustomerNotes": True,
-                "plu":product.PLU,
-                "active": product.active,
-                "note":'',
-                "isTaxable":product.taxable,
-                "type":product.productType,
-                "sortOrder":product.sortOrder,
-                "variant":productVariants,
-                "modifiersGroup":modGrp,
-            })
-    paginator = Paginator(listOfProducts, page_limit)
-    page=paginator.get_page(page_number)
-    return JsonResponse({"products":[i for i in page],"total_pages": paginator.num_pages,})
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-@api_view(['GET'])
-def allCategory(request,id=0):
-    data = []
-    port = request.META.get("SERVER_PORT")
-    server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == "GET":
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    
+    else:
+        language = request.GET.get("language")
 
-    info = ProductCategory.objects.filter(vendorId=request.GET.get("vendorId"),categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=request.GET.get("vendorId"))
-               
-    for i in info:
-        res = {}
-        res["categoryId"] = i.pk
-        res["categoryPlu"] = i.categoryPLU
-        res["name"] = i.categoryName
-        res["description"] = i.categoryDescription
-        res["sortOrder"] = i.categorySortOrder
-        res["image"] = i.categoryImageUrl if i.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
-        # res["image"] = f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
+        if not language:
+            return JsonResponse({"message": "Language not specified", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
 
-        # if ProductCategoryJoint.objects.filter(category=i.pk):
-        #     if ProductImage.objects.filter(product=ProductCategoryJoint.objects.filter(category=i.pk).first().product.pk).first():
-        #         res["image"]=ProductImage.objects.filter(product=ProductCategoryJoint.objects.filter(category=i.pk).first().product.pk).first().url
-        #     else:
-        #         res["image"]=""
+        vendor_instance.selected_language = language
+        vendor_instance.save()
 
-        data.append(res)
-
-    return JsonResponse({"categories":data})
-
-
-def productByCategory(request,id=0):
-    print(id)
-    vendorId=request.GET.get("vendorId")
-    products={}
-    data=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=vendorId)   
-    for category in data:
-        listOfProducts=[]
-        for product in Product.objects.filter(isDeleted=False,vendorId=vendorId,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
-            productVariants=[]
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,vendorId=vendorId,isDeleted=False):
-                    images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
-                        if k is not None:
-                            images.append(str(k.image))
-                    options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk,vendorId=vendorId):
-                        options.append(
-                            {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
-                            }
-                        )
-                    productVariants.append({
-                        "text":prdVariants.productName,
-                        # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-                        # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
-                        "cost": prdVariants.productPrice,
-                        "description":prdVariants.productDesc,
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
-                        "options":options
-                    })
-
-            images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
-                if k is not None:
-                    images.append(str(k.url))
-            
-            modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
-                mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
-                    mods.append(
-                        {
-                            "cost":mod.modifier.modifierPrice,
-                            "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
-                            "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
-                            "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                            # "image":mod.modifier.modifierImg,
-                            "active": mod.modifier.active
-
-                        }                    
-                    )
-                if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                 modGrp.append(
-                    {
-                        "id": prdModGrpJnt.modifierGroup.pk,
-                        "name":prdModGrpJnt.modifierGroup.name,
-                        "plu":prdModGrpJnt.modifierGroup.PLU,
-                        # "min":prdModGrpJnt.min,
-                        # "max":prdModGrpJnt.max,
-                        "min":prdModGrpJnt.modifierGroup.min,
-                        "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
-                        "type":prdModGrpJnt.modifierGroup.modGrptype,
-                        "active":prdModGrpJnt.modifierGroup.active,
-                        "modifiers":mods
-                    }
-                )
-                
-                
-            listOfProducts.append({
-                "categoryId": category.pk,
-                "categoryName":category.categoryName,
-                "prdouctId": product.pk,
-                "tags": product.tag or "",
-                "text":product.productName,
-                "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                "quantity": 1,
-                "cost": product.productPrice,
-                "active": product.active,
-                "description":product.productDesc,
-                "allowCustomerNotes": True,
-                "totalSale":0,
-                "totalSaleCount":0,
-                "totalSaleQty":0,
-                # "vendorId": product.vendorId.pk,
-                "plu":product.PLU,
-                "note":'',
-                "isTaxable":product.taxable,
-                "type":product.productType,
-                "sortOrder":product.sortOrder,
-                "variant":productVariants,
-                "modifiersGroup":modGrp,
-            })
-        products[category.pk]=listOfProducts
-    return JsonResponse({"products":products})
+        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
-def searchProduct(request,search):
-    vendorId=request.GET.get("vendorId")
-    products={}
-    data= ProductCategory.objects.filter(vendorId=vendorId)   
-    listOfProducts=[]
-    for category in data:
-        for product in Product.objects.filter(vendorId=vendorId,productName__icontains=search,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
-            productVariants=[]
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(vendorId=vendorId,productParentId=product.pk):
-                    images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
-                        if k is not None:
-                            images.append(str(k.image))
-                    options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
-                        options.append(
+def allCategory(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
+
+        categories = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+        
+        category_list = []
+
+        if language == "English":
+            for single_category in categories:
+                category_list.append({
+                    "categoryId": single_category.pk,
+                    "categoryPlu": single_category.categoryPLU,
+                    "name": single_category.categoryName,
+                    "description": single_category.categoryDescription,
+                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                    "is_active": single_category.is_active
+                })
+
+        else:
+            for single_category in categories:
+                category_list.append({
+                    "categoryId": single_category.pk,
+                    "categoryPlu": single_category.categoryPLU,
+                    "name": single_category.categoryName_locale,
+                    "description": single_category.categoryDescription_locale,
+                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                    "is_active": single_category.is_active
+                })
+
+        return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "categories": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def productByCategory(request, id=0):
+    try:
+        vendor_id=request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+        search_text = request.GET.get("search")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
+
+        if id != 0:
+            data = ProductCategory.objects.filter(pk=id)
+
+        else:
+            data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+        
+        products = {}
+
+        for category in data:
+            product_list = []
+
+            filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
+            
+            if search_text:
+                if language == "English":
+                    filtered_products = filtered_products.filter(productName__icontains=search_text)
+
+                else:
+                    filtered_products = filtered_products.filter(productName_locale__icontains=search_text)
+            
+            for product in filtered_products:
+                # product_variants = []
+
+                # if product.productType == "Variant":
+                #     for variant in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
+                #         images = []
+
+                #         for instance in ProductImage.objects.filter(product=variant.pk):
+                #             if instance is not None:
+                #                 images.append(str(instance.image))
+                        
+                #         options = []
+
+                #         for varinatJoint in Product_Option_Joint.objects.filter(productId=variant.pk, vendorId=vendor_id):
+                #             options.append(
+                #                 {
+                #                     "optionId":varinatJoint.optionId.optionId, 
+                #                     "optionValueId":varinatJoint.optionValueId.itemOptionId 
+                #                 }
+                #             )
+
+                #         product_variants.append({
+                #             "text":variant.productName,
+                #             # "imagePath": HOST+variant.productThumb.name if variant.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
+                #             # "images":images if len(images)  else [HOST+DEFAULTIMG],
+                #             "quantity": 0,
+                #             "cost": variant.productPrice,
+                #             "description":variant.productDesc,
+                #             "allowCustomerNotes": True,
+                #             "plu":variant.PLU,
+                #             "type":variant.productType,
+                #             "options":options
+                #         })
+
+                images = []
+
+                product_images = ProductImage.objects.filter(product=product.pk, vendorId=vendor_id)
+
+                for instance in product_images:
+                    if instance is not None:
+                        images.append(str(instance.url))
+                
+                modifier_group_list = []
+
+                product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
+                
+                if product_and_modifier_group_joint:
+                    for product_and_modifier_group_instance in product_and_modifier_group_joint:
+                        modifier_list = []
+
+                        modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_and_modifier_group_instance.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id)
+                        
+                        if modifier_and_group_joint:
+                            for modifier_and_group_instance in modifier_and_group_joint:
+                                modifier_name = ""
+                                modifier_description = ""
+
+                                if language == "English":
+                                    modifier_name = modifier_and_group_instance.modifier.modifierName
+                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc
+
+                                else:
+                                    modifier_name = modifier_and_group_instance.modifier.modifierName_locale
+                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
+                                
+                                modifier_list.append(
+                                    {
+                                        "cost": modifier_and_group_instance.modifier.modifierPrice,
+                                        "modifierId": modifier_and_group_instance.modifier.pk,
+                                        "name": modifier_name,
+                                        "description": modifier_description,
+                                        "quantity": 0,
+                                        "plu": modifier_and_group_instance.modifier.modifierPLU,
+                                        "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                                        # "image":modifier_and_group_instance.modifier.modifierImg,
+                                        "active": modifier_and_group_instance.modifier.active
+                                    }                    
+                                )
+
+                        if product_and_modifier_group_instance.modifierGroup.isDeleted == False: 
+                            modifier_group_name = ""
+                            modifier_group_description = ""
+
+                            if language == "English":
+                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
+                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
+                            
+                            else:
+                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
+                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
+
+                            modifier_group_list.append(
                             {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
+                                "id": product_and_modifier_group_instance.modifierGroup.pk,
+                                "name": modifier_group_name,
+                                "plu": product_and_modifier_group_instance.modifierGroup.PLU,
+                                "description": modifier_group_description,
+                                # "min": product_and_modifier_group_instance.min,
+                                # "max": product_and_modifier_group_instance.max,
+                                "min": product_and_modifier_group_instance.modifierGroup.min,
+                                "max": product_and_modifier_group_instance.modifierGroup.max,
+                                # "type": product_and_modifier_group_instance.modifierGroup.modGrptype,
+                                "active": product_and_modifier_group_instance.modifierGroup.active,
+                                "modifiers": modifier_list
                             }
                         )
-                    productVariants.append({
-                        "text":prdVariants.productName,
-                        "imagePath":  images[0] if len(images)!=0 else '',
-                        "images":images if len(images)  else [],
-                        "quantity": prdVariants.productQty,
-                        "cost": prdVariants.productPrice,
-                        "description":prdVariants.productDesc,
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
-                        "options":options
-                    })
-
-            images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
-                if k is not None:
-                    images.append(str(k.url))
-            
-            modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
-                mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
-                    mods.append(
-                        {
-                            "cost":mod.modifier.modifierPrice,
-                            "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
-                            "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
-                            "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg,
-                            "active": mod.modifier.active
-
-                        }                    
-                    )
-                if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                 modGrp.append(
-                    {
-                        "id": prdModGrpJnt.modifierGroup.pk,
-                        "name":prdModGrpJnt.modifierGroup.name,
-                        "plu":prdModGrpJnt.modifierGroup.PLU,
-                        # "min":prdModGrpJnt.min,
-                        # "max":prdModGrpJnt.max,
-                        "min":prdModGrpJnt.modifierGroup.min,
-                        "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
-                        "type":prdModGrpJnt.modifierGroup.modGrptype,
-                        "active":prdModGrpJnt.modifierGroup.active,
-                        "modifiers":mods
-                    }
-                )
-                
                     
+                category_name = ""
+                product_name = ""
+                product_description = ""
+                product_tag = ""
+
+                if language == "English":
+                    category_name = category.categoryName
+                    product_name = product.productName
+                    product_description = product.productDesc if product.productDesc else ""
+                    product_tag = product.tag if product.tag else ""
                 
-            listOfProducts.append({
-                "categoryId": category.pk,
-                "categoryName":category.categoryName,
-                "prdouctId": product.pk,
-                "text":product.productName,
-                "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                "quantity": 1,
-                "cost": product.productPrice,
-                "description":product.productDesc,
-                "active": product.active,
-                "tags": product.tag,
-                "allowCustomerNotes": True,
-                "totalSale":0,
-                "totalSaleCount":0,
-                "totalSaleQty":0,
-                # "vendorId": product.vendorId.pk,
-                "plu":product.PLU,
-                "note":'',
-                "isTaxable":product.taxable,
-                "type":product.productType,
-                "sortOrder":product.sortOrder,
-                "variant":productVariants,
-                "modifiersGroup":modGrp,
-            })
-        products[category.pk]=listOfProducts
-    # return JsonResponse({"products":products})
-    return JsonResponse({"products":{"1":listOfProducts}})
+                else:
+                    category_name = category.categoryName_locale
+                    product_name = product.productName_locale
+                    product_description = product.productDesc_locale if product.productDesc_locale else ""
+                    product_tag = product_tag_locale[product.tag] if product.tag else ""
+                
+                product_list.append({
+                    "categoryId": category.pk,
+                    "categoryName": category_name,
+                    "productId": product.pk,
+                    "plu": product.PLU,
+                    "name": product_name,
+                    "description": product_description,
+                    "cost": product.productPrice,
+                    "tag":  product_tag,
+                    "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                    "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                    "isTaxable": product.taxable,
+                    "type": product.productType,
+                    "variant": [],
+                    "quantity": 0, # Required for Flutter model
+                    "active": product.active,
+                    "modifiersGroup": modifier_group_list,
+                })
+                
+            products[category.pk] = product_list
+
+        return JsonResponse({"message": "", "products": products}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "products": {}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
 def dashboard(request):
     vendor_id = request.GET.get("vendor")
+    language = request.GET.get("language", "English")
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
@@ -697,9 +670,9 @@ def dashboard(request):
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-    online_order_platform = Platform.objects.filter(Name="WooCommerce", VendorId=vendor_id).first()
-
     online_order_platform_id = ""
+
+    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if online_order_platform:
         online_order_platform_id = str(online_order_platform.pk)
@@ -717,7 +690,7 @@ def dashboard(request):
     total_orders_pickedup = orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
     total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
     total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
-    online_orders_count = orders.filter(platform__corePlatformType=CorePlatform.get_core_platform('WOOCOMMERCE')).count()
+    online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
 
     orders = orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
 
@@ -835,8 +808,16 @@ def dashboard(request):
         if product_image:    
             image_url = product_image.url
 
+        product_name = ""
+
+        if language == "English":
+            product_name = product.productName
+        
+        else:
+            product_name = product.productName_locale
+        
         item['id'] = product.pk
-        item['product_name'] = product.productName
+        item['product_name'] = product_name
         item['image'] = image_url
         item['price'] = product.productPrice
         item['sale'] = item['quantity_sold'] * product.productPrice
@@ -844,7 +825,7 @@ def dashboard(request):
         list_of_items.append(item)
 
     order_details = {
-        "online_order_platform_id": online_order_platform_id,
+        "online_order_platform_id": online_order_platform_id, # Required for Flutter model
         "active_products": active_product_count,
         "total_sale": total_sale,
         "total_orders": total_orders,
@@ -875,211 +856,10 @@ def modifier_update(request):
 
         ProductModifier.objects.filter(modifierSKU=modifier.modifierSKU).update(active=request.data['active'])
 
-        # try:
-        #     id=WooCommerce.getModifierUsingSKU(sku=modifier.modifierSKU,vendorId=modifier.vendorId)
-        #     platform = Platform.objects.get(VendorId=modifier.vendorId, corePlatformType=CorePlatform.WOOCOMMERCE)
-        #     catlogHeaders = {
-        #         "Content-Type": "application/json"
-        #     }
-        #     payload = {
-        #         "hide":0 if modifier.active else 1
-        #     }
-        #     url = platform.baseUrl + "wp-json/v1/custom/updateModifierStatus/"+str(id['response']['id'])
-        #     wooResponse = requests.request("POST", url, headers=catlogHeaders,data=json.dumps(payload))
-        #     print(json.dumps(wooResponse.json()))
-        # except Exception as err:
-        #     print(err)
-
         return JsonResponse({"message": "Modifier status updated successfully"}, content_type="application/json")
     
     else:
         return JsonResponse({"message": "Invalid request method"}, status=400, content_type="application/json")
-
-
-@api_view(["POST"])
-def top_selling_product_details(request):
-    required_fields = {"vendor_id", "start_date", "end_date", "product_id", "page_number", "page_limit"}
-    
-    missing_fields = required_fields - set(request.data.keys())
-
-    if missing_fields:
-        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
-    vendor_id = request.data.get('vendor_id')
-    start_date = request.data.get('start_date')
-    end_date = request.data.get('end_date')
-    product_id = request.data.get('product_id')
-    page_number = request.data.get('page_number')
-    page_limit = request.data.get('page_limit')
-
-    if not (vendor_id and product_id):
-        return Response("Invalid vendor ID or product ID", status=status.HTTP_400_BAD_REQUEST)
-    
-    if (not (start_date and end_date)) or (start_date > end_date):
-        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
-    
-    if (not (page_limit and page_number)) or (page_number < 0):
-        return Response("Invalid page_limit or page_number parameter", status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        vendor_id = int(vendor_id)
-        product_id = int(product_id)
-        page_limit = int(page_limit)
-        page_number = int(page_number)
-
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-
-    except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
-
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    product_instance = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
-
-    if not (vendor_instance and product_instance):
-        return Response("Vendor or Product does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    paginated_data = []
-    
-    orders = Order_content.objects.filter(
-        SKU=product_instance.PLU,
-        orderId__order_status=10,
-        orderId__master_order__Status=OrderStatus.get_order_status_value('COMPLETED'),
-        orderId__master_order__orderpayment__status=True,
-        orderId__master_order__OrderDate__date__range=(start_date, end_date),
-        orderId__master_order__vendorId=vendor_id,
-        orderId__vendorId=vendor_id
-    ).order_by("-orderId__master_order__OrderDate__date")
-    
-    if not orders.exists():
-        return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": paginated_data
-        })
-    
-    order_summary = []
-
-    product_price = product_instance.productPrice
-
-    if start_date == end_date:
-        current_start_date = datetime.now().date()
-        current_end_date = datetime.now().date()
-    
-        if (start_date == current_start_date) and (end_date == current_end_date):
-            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-            start_datetime = datetime.combine(start_date, store_timing.open_time)
-
-            current_datetime = datetime.now()
-            end_datetime = current_datetime + timedelta(minutes=59, seconds=59)
-
-            current_time = start_datetime
-
-        elif (start_date != current_start_date) and (end_date != current_end_date):
-            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-            start_datetime = datetime.combine(start_date, store_timing.open_time)
-
-            if end_date == datetime.now().date():
-                end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
-            else:
-                end_datetime = datetime.combine(start_date, store_timing.close_time)
-
-            current_time = start_datetime
-
-        while current_time <= end_datetime:
-            next_time = current_time + timedelta(hours=1)
-
-            quantity_sold = orders.filter(
-                orderId__master_order__OrderDate__range=(current_time, next_time)
-            ).aggregate(sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0))))['sum']
-
-            total_sale = quantity_sold * product_price
-                
-            order_summary.append({
-                "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
-
-            current_time = next_time
-        
-        if len(order_summary) == 1:
-            first_item = order_summary[0]
-            date_value = first_item["order_date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(hours=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_summary.append({
-                "order_date": date_value,
-                "quantity_sold": 0.0,
-                "total_sale": 0.0
-            })
-    
-    else:
-        unique_order_dates = set(orders.values_list('orderId__master_order__OrderDate__date', flat=True))
-
-        date_strings = []
-
-        for date in unique_order_dates:
-            date_strings.append(str(date))
-
-        date_strings.sort(reverse=True)
-
-        unique_order_dates = date_strings
-        
-        for unique_date in unique_order_dates:
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
-                sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0)))
-            )['sum']
-
-            total_sale = quantity_sold * product_price
-                
-            order_summary.append({
-                "order_date": unique_date,
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
-
-        if len(order_summary) == 1:
-            first_item = order_summary[0]
-            date_value = first_item["order_date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(days=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_summary.append({
-                "order_date": date_value,
-                "quantity_sold": 0.0,
-                "total_sale": 0.0
-            })
-
-    order_summary = sorted(order_summary, key=date_sort_top_selling_products, reverse=True)
-        
-    paginator = Paginator(order_summary, page_limit)
-    page = paginator.get_page(page_number) 
-    
-    for order in page:
-        paginated_data.append({
-            "order_date": order['order_date'],
-            "quantity_sold": order['quantity_sold'],
-            "total_sale": order['total_sale']
-        })
-
-    return JsonResponse({
-        "page_number": page.number,
-        "total_pages": paginator.num_pages,
-        "orders": paginated_data
-    })
 
 
 @api_view(["POST"])
@@ -1234,249 +1014,10 @@ def order_status_type_summary(request):
     })
 
 
-# @api_view(["POST"])
-# def order_status_type_details(request):
-#     try:
-#         required_fields = {
-#             "vendor_id", "order_status_code", "order_type_code", "order_date", "page_number", "page_limit"
-#         }
-        
-#         missing_fields = required_fields - set(request.data.keys())
-
-#         if missing_fields:
-#             return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
-#         try:
-#             vendor_id = int(request.data.get('vendor_id'))
-#             order_status_code = int(request.data.get('order_status_code'))
-#             order_type_code = int(request.data.get('order_type_code'))
-#             page_number = int(request.data.get('page_number'))
-#             page_limit = int(request.data.get('page_limit'))
-
-#             if any(value < 0 for value in (vendor_id, order_status_code, order_type_code, page_number, page_limit)):
-#                 raise ValueError
-            
-#             order_date = datetime.strptime(request.data.get('order_date'), '%Y-%m-%d').date()
-
-#         except Exception:
-#             return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
-        
-#         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-#         if not vendor_instance:
-#             return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-        
-#         orders =  Order_content.objects.filter(
-#             orderId__arrival_time__date=order_date,
-#             orderId__vendorId=vendor_id
-#         )
-        
-#         if order_type_code != 0:
-#             orders = orders.filter(orderId__order_type=order_type_code)
-        
-#         if order_status_code in [2, 3, 4, 6, 7, 8, 9]:
-#             orders = orders.filter(orderId__order_status__in=[2, 3, 4, 6, 7, 8, 9])
-                
-#         else:
-#             orders = orders.filter(orderId__order_status=order_status_code)
-        
-#         if not orders.exists():
-#             return JsonResponse({
-#                 "page_number": 1,
-#                 "total_pages": 1,
-#                 "orders": [],
-#             })
-
-#         orders = orders.order_by("-orderId__master_order__OrderDate")
-        
-#         paginator = Paginator(orders, 10)
-
-#         page_obj = paginator.get_page(page_number)
-
-#         orders_for_page = page_obj.object_list
-        
-#         order_id_list = tuple(sorted(set(orders_for_page.values_list('orderId', flat=True)), reverse=True))
-        
-#         order_list = []
-#         shipping_address = defaultdict(list)
-
-#         for order_id in order_id_list:
-#             order_items = []
-
-#             order_details = Order_content.objects.filter(orderId=order_id)
-
-#             for order in order_details:
-#                 try:
-#                     product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=order.SKU)
-
-#                     try:
-#                         modifiers = Order_modifer.objects.filter(contentID=order.pk)
-#                         modifier_list = defaultdict(list)
-#                         for modifier in modifiers:
-#                             modifier_list[product.product.pk].append({
-#                                 'modifier_name': modifier.name,
-#                                 'modifier_plu': modifier.SKU,
-#                                 'modifier_quantity': modifier.quantity,
-#                                 'modifier_price': ProductModifier.objects.get(modifierPLU=modifier.SKU, vendorId=vendor_id).modifierPrice,
-#                                 'modifier_img': ProductModifier.objects.get(modifierPLU=modifier.SKU, vendorId=vendor_id).modifierImg
-#                             })
-
-#                         seen = set()
-#                         new_l = []
-
-#                         for d in modifier_list[product.product.pk]:
-#                             t = tuple(d.items())
-
-#                             if t not in seen:
-#                                 seen.add(t)
-#                                 new_l.append(d)
-
-#                         modifier_list[product.product.pk] = new_l
-
-#                     except:
-#                         modifiers = None
-
-#                     image_list = []
-
-#                     images = ProductImage.objects.filter(product=product.product.pk)
-
-#                     for image in images:
-#                         if image.url and (image.is_url_selected==True):
-#                             image_list.append(image.url)
-
-#                     order_items.append({
-#                         'quantity': order.quantity,
-#                         'product_plu': order.SKU,
-#                         'product_name': product.product.productName,
-#                         'product_description': product.product.productDesc,
-#                         'is_unlimited': product.product.Unlimited,
-#                         'preparation_time': product.product.preparationTime,
-#                         'is_taxable': product.product.taxable,
-#                         'product_image': image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-#                         'category': product.category.categoryName,
-#                         "product_note": order.note,
-#                         "unit_price": product.product.productPrice,
-#                         'modifiers': modifier_list[product.product.pk]
-#                     })
-                    
-#                 except Exception as e:
-#                     print("Error: ", e)
-                
-#             koms_order = KOMSOrder.objects.get(pk=order_id)
-            
-#             external_order_id = koms_order.externalOrderId
-            
-#             order_details = Order.objects.filter(externalOrderld=external_order_id).first() or \
-#                 Order.objects.filter(pk=external_order_id).first()
-
-#             address = Address.objects.filter(customer=order_details.customerId, type='shipping_address', is_selected=True).first()
-
-#             if not address:
-#                 shipping_address = {
-#                     "address_line_1": "",
-#                     "address_line_2": "",
-#                     "city": "",
-#                     "state": "",
-#                     "country": "",
-#                     "zipcode": "",
-#                 }
-
-#             else:
-#                 shipping_address = {
-#                     "address_line_1": address.address_line1,
-#                     "address_line_2": address.address_line2,
-#                     "city": address.city,
-#                     "state": address.state,
-#                     "country": address.country,
-#                     "zipcode": address.zipcode,
-#                 }
-
-#             platform_name = order_details.platform.Name
-
-#             external_order_id = order_details.externalOrderld
-
-#             order_data={
-#                 "orderId": order_details.pk,
-#                 "staging_order_id": order_id,
-#                 "external_order_id": external_order_id,
-#                 "status": koms_order.order_status,
-#                 "order_note": order_details.Notes,
-#                 "total_tax": order_details.tax,
-#                 "total_discount": order_details.discount,
-#                 "delivery_charge": order_details.delivery_charge,
-#                 "subtotal": order_details.subtotal,
-#                 "total_amount": order_details.TotalAmount,
-#                 "order_datetime": order_details.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-#                 "arrival_time": order_details.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-#                 "order_type": order_details.orderType,
-#                 "platform_name": platform_name,
-#                 "customer_name": order_details.customerId.FirstName + " " + order_details.customerId.LastName,
-#                 "customer_phone": order_details.customerId.Phone_Number,
-#                 "customer_email": order_details.customerId.Email,
-#                 "delivery_address": shipping_address,
-#                 "items": order_items
-#             }
-
-#             try:
-#                 payment_details_order = order_details
-
-#                 payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
-
-#                 payment_details ={
-#                     "total":payment_details_order.TotalAmount,
-#                     "subtotal":payment_details_order.subtotal,
-#                     "tax":payment_details_order.tax,
-#                     "delivery_charge":payment_details_order.delivery_charge,
-#                     "discount":payment_details_order.discount,
-#                     "tip":payment_details_order.tip,
-#                     "paymentKey":payment_type.last().paymentKey if payment_type.last().paymentKey else '',
-#                     "platform":payment_type.last().platform if payment_type.last().platform else '',
-#                     "status":payment_type.last().status,
-#                     "mode":PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
-#                 }
-
-#                 if payment_details['mode']=='CASH':
-#                     payment_details['paymentKey']=''
-#                     payment_details['platform']=''
-            
-#             except Exception as e:
-#                 payment_details ={
-#                     "total":0.0,
-#                     "subtotal":0.0,
-#                     "tax":0.0,
-#                     "delivery_charge":0.0,
-#                     "discount":0.0,
-#                     "tip":0.0,
-#                     "paymentKey":"",
-#                     "platform":"",
-#                     "status":False,
-#                     "mode": PaymentType.get_payment_str(PaymentType.CASH)
-#                 }
-#                 print("Error", e)
-            
-#             order_data['payment']=payment_details
-#             order_list.append(order_data)
-
-#         return JsonResponse({
-#             "page_number": page_number,
-#             "total_pages": paginator.num_pages,
-#             "orders": order_list
-#         })
- 
-#     except Exception as e:
-#         print(e)
-
-#         return JsonResponse({
-#             "page_number": 1,
-#             "total_pages": 1,
-#             "orders": [],
-#         })
-
-
 @api_view(["GET"])
 def showtabledetails(request):
     try:
-        data=Hotal_Tables.objects.filter(vendorId=request.GET.get('vendorId'))
+        data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
         data=data.order_by('tableNumber')
         return Response([ getTableData(i,request.GET.get('vendorId')) for i in data ]) 
     except Exception as e :
@@ -1487,7 +1028,7 @@ def showtabledetails(request):
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId)
+        data=HotelTable.objects.filter(vendorId=vendorId)
         tableCapacity =list(set([ i.tableCapacity for i in data]))
         table = [str(i) for i in tableCapacity]
         return JsonResponse({ "tableCapacity": table}, safe=False)
@@ -1507,8 +1048,6 @@ def productStatusChange(request):
 
             res = Product.objects.get(pk=data["productId"], vendorId=vendor_id)
 
-            # prod=WooCommerce.disalbeProductUsingId(sku=res.SKU,active=res.active,vendorId=res.vendorId)
-            
             return JsonResponse({'productId': res.pk, 'status':res.active})
         
         else:
@@ -1518,12 +1057,10 @@ def productStatusChange(request):
             return JsonResponse({'error': e}, status=400)
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None):
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
         print("Starting koms thread...")
         thr = threading.Thread(
-                target=order_data,
-                args=(),
-                kwargs={
+                target=order_data, args=(), kwargs={
                     "vendor_id":vendor_id,
                     "page_number":page_number,
                     "search":search,
@@ -1534,15 +1071,18 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
                     "platform":platform,
                     "s_date":s_date,
                     "e_date":e_date,
-                    "is_dashboard":is_dashboard
+                    "is_dashboard":is_dashboard,
+                    "language": language
                 }
             )
+        
         thr.setDaemon(True)
         thr.start()
+
         return {"connecting":False}
 
 
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None):
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
         return error_message
@@ -1585,17 +1125,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1690,55 +1223,69 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
     orders_for_page = page_obj.object_list
 
     for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
+        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
         
         try:
             payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
             
-            payment_details ={
-                "total":payment_details_order.TotalAmount,
-                "subtotal":payment_details_order.subtotal,
-                "tax":payment_details_order.tax,
-                "delivery_charge":payment_details_order.delivery_charge,
-                "discount":payment_details_order.discount,
-                "tip":payment_details_order.tip,
-                "paymentKey":payment_type.last().paymentKey,
-                "platform":payment_type.last().platform,
-                "status":payment_type.last().status,
-                "mode":PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
+            
+            payment_mode = get_key_value(language, "payment_type", payment_type.type)
+            
+            payment_details = {
+                "total": payment_details_order.TotalAmount,
+                "subtotal": payment_details_order.subtotal,
+                "tax": payment_details_order.tax,
+                "delivery_charge": payment_details_order.delivery_charge,
+                "discount": payment_details_order.discount,
+                "tip": payment_details_order.tip,
+                "paymentKey": payment_type.paymentKey,
+                "platform": payment_type.platform,
+                "status": payment_type.status,
+                "mode": payment_mode
             }
             
         except Exception as e:
             print("Error", e)
-            payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
-                "mode": PaymentType.get_payment_str(PaymentType.CASH)
+
+            payment_mode = get_key_value(language, "payment_type", 1)
+
+            payment_details = {
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip": 0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
+                "mode": payment_mode
             }
             
-        single_order['payment']=payment_details
+        single_order['payment'] = payment_details
 
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
+            platform_name = ""
+            
+            if language == "English":
+                platform_name = platform.platform.Name
+
+            else:
+                platform_name = platform.platform.Name_locale
+            
             platform_details = {
-                "id" : platform.platform.pk,
-                "name" :"order online" if platform.platform.Name == "WooCommerce" else platform.platform.Name
+                "id": platform.platform.pk,
+                "name": platform_name
             }
 
         except Exception as e:
             print(e)
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
         single_order["platform_details"] = platform_details
@@ -1771,21 +1318,21 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 shipping_address = ""
 
             customer_details = {
-                "id" : customer.customerId.pk,
-                "name" : customer_name,
-                "mobile" : customer.customerId.Phone_Number,
-                "email" : customer.customerId.Email if customer.customerId.Email else "",
-                "shipping_address" : shipping_address
+                "id": customer.customerId.pk,
+                "name": customer_name,
+                "mobile": customer.customerId.Phone_Number,
+                "email": customer.customerId.Email if customer.customerId.Email else "",
+                "shipping_address": shipping_address
             }
 
         except Exception as e:
             print(e)
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name": "",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
         single_order["customer_details"] = customer_details
@@ -1812,8 +1359,8 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         'order_details': order_details,
     }
     
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-"+str(vendor_id), username="CORE",)
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-"+str(vendor_id), username="CORE",)
+    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
+    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
     
     return response_data
 
@@ -1832,6 +1379,7 @@ def order_data_socket(request):
     is_dashboard = body_data.get("is_dashboard")
     s_date = body_data.get("start_date")
     e_date = body_data.get("end_date")
+    language = body_data.get("language", "English")
 
     if vendor_id == None:
         error_message = "Vendor ID cannot be empty"
@@ -1868,17 +1416,10 @@ def order_data_socket(request):
 
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        platformData = Platform.objects.get(pk=platform)
-
-        if str(platformData.Name).lower() == "woocommerce":
-            order_data = Order.objects.filter(pk__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('pk', flat=True))
         
-        else:
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-            order_data = order_data.filter(platform=platform)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = order_data.filter(platform=platform)
+        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1973,38 +1514,46 @@ def order_data_socket(request):
     orders_for_page = page_obj.object_list
 
     for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
+        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
 
+        payment_mode = ""
+        
         try:
             payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk)
+            
+            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
+
+            payment_mode = get_key_value(language, "payment_type", payment_type.type)
             
             payment_details ={
-                "total":payment_details_order.TotalAmount,
-                "subtotal":payment_details_order.subtotal,
-                "tax":payment_details_order.tax,
-                "delivery_charge":payment_details_order.delivery_charge,
-                "discount":payment_details_order.discount,
-                "tip":payment_details_order.tip,
-                "paymentKey":payment_type.last().paymentKey,
-                "platform":payment_type.last().platform,
-                "status":payment_type.last().status,
-                "mode":PaymentType.get_payment_str(payment_type.last().type) if payment_type else PaymentType.get_payment_str(PaymentType.CASH)
+                "total": payment_details_order.TotalAmount,
+                "subtotal": payment_details_order.subtotal,
+                "tax": payment_details_order.tax,
+                "delivery_charge": payment_details_order.delivery_charge,
+                "discount": payment_details_order.discount,
+                "tip": payment_details_order.tip,
+                "paymentKey": payment_type.paymentKey,
+                "platform": payment_type.platform,
+                "status": payment_type.status,
+                "mode": payment_mode
             }
             
         except Exception as e:
             print("Error", e)
+
+            payment_mode = get_key_value(language, "payment_type", 1)
+
             payment_details ={
-                "total":0.0,
-                "subtotal":0.0,
-                "tax":0.0,
-                "delivery_charge":0.0,
-                "discount":0.0,
-                "tip":0.0,
-                "paymentKey":"",
-                "platform":"",
-                "status":False,
-                "mode": PaymentType.get_payment_str(PaymentType.CASH)
+                "total": 0.0,
+                "subtotal": 0.0,
+                "tax": 0.0,
+                "delivery_charge": 0.0,
+                "discount": 0.0,
+                "tip": 0.0,
+                "paymentKey": "",
+                "platform": "",
+                "status": False,
+                "mode": payment_mode
             }
         
         single_order['payment']=payment_details
@@ -2012,16 +1561,24 @@ def order_data_socket(request):
         try:
             platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
+            platform_name = ""
+            
+            if language == "English":
+                platform_name = platform.platform.Name
+
+            else:
+                platform_name = platform.platform.Name_locale
+            
             platform_details = {
-                "id" : platform.platform.pk,
-                "name" :"order online" if platform.platform.Name == "WooCommerce" else platform.platform.Name
+                "id": platform.platform.pk,
+                "name": platform_name
             }
 
         except Exception as e:
             print(e)
             platform_details = {
-                "id" : 0,
-                "name" :""
+                "id": 0,
+                "name": ""
             }
 
         single_order["platform_details"] = platform_details
@@ -2054,21 +1611,21 @@ def order_data_socket(request):
                 shipping_address = ""
 
             customer_details = {
-                "id" : customer.customerId.pk,
-                "name" : customer_name,
-                "mobile" : customer.customerId.Phone_Number,
-                "email" : customer.customerId.Email if customer.customerId.Email else "",
-                "shipping_address" : shipping_address
+                "id": customer.customerId.pk,
+                "name": customer_name,
+                "mobile": customer.customerId.Phone_Number,
+                "email": customer.customerId.Email if customer.customerId.Email else "",
+                "shipping_address": shipping_address
             }
 
         except Exception as e:
             print(e)
             customer_details = {
-                "id" : 0,
-                "name" :"",
-                "mobile" : "",
-                "email" : "",
-                "shipping_address" : ""
+                "id": 0,
+                "name": "",
+                "mobile": "",
+                "email": "",
+                "shipping_address": ""
             }
 
         single_order["customer_details"] = customer_details
@@ -2157,7 +1714,7 @@ class FloorViewSet(viewsets.ModelViewSet):
     
 
 class HotelTableViewSet(viewsets.ModelViewSet):
-    queryset = Hotal_Tables.objects.all()
+    queryset = HotelTable.objects.all()
     serializer_class = HotelTableSerializer
     filter_class = HotelTableFilter
     filter_backends = [DjangoFilterBackend]
@@ -2166,12 +1723,12 @@ class HotelTableViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = Hotal_Tables.objects.filter(vendorId=vendor_id).order_by('tableNumber')
+            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
 
             return queryset
         
         else:
-            return Hotal_Tables.objects.none()
+            return HotelTable.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -2205,7 +1762,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username="CORE",
         )
 
-        waiter_heads = Waiter.objects.filter(waiterHead=True, vendorId=instance.vendorId.pk)
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
 
         if waiter_heads:
             for head in waiter_heads:
@@ -2234,7 +1791,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             vendorId=instance.vendorId.pk
         )
 
-        waiter_heads = Waiter.objects.filter(waiterHead=True, vendorId=instance.vendorId.pk)
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
 
         if waiter_heads:
             for head in waiter_heads:
@@ -2250,14 +1807,18 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 @api_view(['POST'])
 def createOrder(request):
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get("language", "English")
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
     
     try:
         print(request.data)
-        orderid=vendorId+str(CorePlatform.POS)+datetime.now().strftime("%H%M%S")
+
+        orderid = vendorId + str(CorePlatform.POS) + datetime.now().strftime("%H%M%S")
+
         result = {
+                "language": language,
                 "internalOrderId": orderid,
                 "vendorId": vendorId,
                 "externalOrderId":orderid,
@@ -2271,9 +1832,8 @@ def createOrder(request):
                 "remake": False,
                 "customerName": request.data.get('name') if request.data.get('name') else "",
                 "status": "pending",
-                "orderPointId": CorePlatform.POS,
-                "orderPointName": CorePlatform.POS.label,
-                "className":"POS",
+                "orderPointId": 6,
+                "Platform": "POS",
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",
@@ -2316,6 +1876,7 @@ def createOrder(request):
                 "points_redeemed": request.data.get("points_redeemed"),
                 "points_redeemed_by": request.data.get("points_redeemed_by"),
             }
+        
         # if request.data.get('promocodes'):
         #     discount=Order_Discount.objects.get(pk=request.data.get('promocodes')[0]['id'])
         #     result['discount']={
@@ -2325,16 +1886,20 @@ def createOrder(request):
         #                     "discountName": discount.discountName,
         #                     "discountCost": discount.value
         #                 }
-            # +++++++++++ Item In order
+        
+        # +++++++++++ Item In order
         items = []
+
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
+                    
                 except Product.DoesNotExist:
                     return {API_Messages.ERROR:" Not found"}
+                
                 itemData = {
                     "plu": corePrd.productParentId.PLU if corePrd.productParentId != None else corePrd.PLU,
                     "sku": item.get("sku"),
@@ -2342,7 +1907,6 @@ def createOrder(request):
                     # Variation Id instead of name
                     "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
                     "quantity": item["quantity"],
-                    "tag": ProductCategoryJoint.objects.get(product=corePrd.pk).category.pk,  # Station tag will be handled in koms
                     "subItems":  [
                            {
                         "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
@@ -2365,58 +1929,83 @@ def createOrder(request):
                 }
                 
                 if corePrd.productParentId != None:
-                    itemData["variant"] = {
-                        "plu": corePrd.PLU
-                    }
+                    itemData["variant"] = {"plu": corePrd.PLU}
+
                 #####++++++++ Modifiers
                 items.append(itemData)
+
         result["items"] = items
-            # +++++++++++ Item In order
+
+        # +++++++++++ Item In order
         result["tip"] = request.data['tip'] 
+
         # return JsonResponse(result)
         tokenlist=KioskOrderData.objects.filter(date=datetime.today().date()).values_list('token')
-        token=1 if len(tokenlist)==0 else max(tokenlist)[0]+1
+
+        token=1 if len(tokenlist)==0 else max(tokenlist)[0] + 1
+
         # res=KomsEcom().openOrder(result)
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
-        saveData=KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
+        res = order_helper.OrderHelper.openOrder(result, vendorId)
+        
+        saveData = KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        
         if saveData.is_valid():
             saveData.save()
+
             if Order.objects.filter(externalOrderld=orderid).exists():
                 return JsonResponse({'token':token, "external_order_id":orderid})
+            
             else:
                 return JsonResponse({'token':token, "external_order_id":""})
-        return JsonResponse(
-                {"msg": "Something went wrong"}, status=400
-            )
+        
+        return JsonResponse({"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
+
 
 @api_view(['GET'])
 def platform_list(request):
-    vendor_id = request.GET.get('vendorId', None)
+    vendor_id = request.GET.get('vendorId')
+    language = request.GET.get('language', 'en')
 
     if vendor_id == None:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
-
-    platforms = Platform.objects.filter(VendorId=vendor_id, isActive=True).exclude(orderActionType=2)
+        return JsonResponse({"error": "Vendor Id cannot be empty"}, safe=False, status=status.HTTP_400_BAD_REQUEST)
 
     platform_details = []
 
-    platform_details.append({
+    if language == "English":
+        platform_details.append({
             "id": "",
             "name": "All"
         })
 
-    for platform in platforms:
+    else:
         platform_details.append({
-            "id": platform.pk,
-            "name": "order online" if platform.Name == "WooCommerce" else platform.Name
+            "id": "",
+            "name": all_platform_locale["All"]
         })
+    
+    platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
 
-    return JsonResponse({'platforms':platform_details}, status=200)
+    platform_name = ""
+    
+    if platforms:
+        for platform in platforms:
+            if language == "English":
+                platform_name = platform.Name
+                
+            else:
+                platform_name = platform.Name_locale
+
+            platform_details.append({
+                "id": platform.pk,
+                "name": platform_name
+            })
+
+    return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
 
 @api_view(["GET"])
 def order_details(request):
@@ -2425,22 +2014,26 @@ def order_details(request):
     platform_name = request.GET.get('platform')
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    
     if platform_name == None or platform_name == '""' or platform_name == '' or len(platform_name) == 0:
-        return JsonResponse({"error": "Platform name cannot be empty"}, status=400)
+        return JsonResponse({"error": "Platform name cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
     koms_order_status_list = []
-    koms_order_status = OrderStatusName.objects.filter(vendorId=1)
 
-    for status in koms_order_status:
-        name = status.orderName.lower()
+    koms_order_status = KOMSOrderStatus.objects.all()
 
-        if name!="closed" or name!="canceled":
-           koms_order_status_list.append(status.pk)
+    for status_value in koms_order_status:
+        name = status_value.get_status_display()
+
+        if name!="CLOSED" or name!="CANCELED":
+           koms_order_status_list.append(status_value.status)
+
         else:
-            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=400)
+            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=status.HTTP_400_BAD_REQUEST)
 
     order_info = {}
     payment_details = {}
@@ -2454,16 +2047,16 @@ def order_details(request):
         koms_order_id = koms_order.pk
 
         if koms_order.order_status in koms_order_status_list:
-            platforms = ((Platform.objects.filter(VendorId=vendor_id).exclude(Name="WooCommerce")).values_list("Name", flat=True))
+            platforms = Platform.objects.filter(VendorId=vendor_id).values_list("Name", flat=True)
 
             platform_list = []
+
             for platform in platforms:
                 platform_list.append(platform.lower())
             
-            if str(platform_name).lower() == "woocommerce":
-                order = Order.objects.get(pk=external_order_id)
-            elif str(platform_name).lower() in platform_list:
+            if str(platform_name).lower() in platform_list:
                 order = Order.objects.get(externalOrderld=external_order_id)
+
             else:
                 return JsonResponse({"error": "Invalid platform name"}, status=400)
 
@@ -2599,7 +2192,6 @@ def order_details(request):
                             "max": modifier_group_info.max,
                             "id": modifier_group_info.pk,
                             "active": modifier_group_info.active,
-                            "sortOrder": modifier_group_info.sortOrder,
                             "modifiers": modifier_list[key]
                         })
 
@@ -2611,7 +2203,7 @@ def order_details(request):
                         "text": item.product.productName,
                         "isTaxable": item.product.taxable,
                         "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "images":image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
                         "categoryName": item.category.categoryName,
                         "note": order.note if order.note else "",
                         "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
@@ -2621,16 +2213,18 @@ def order_details(request):
                     
                 order_detail = OrderItem.objects.filter(orderId=order_id).first()
 
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
+                total_points_redeemed = 0
+                
+                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
 
-                if loyalty_points_redeem_history:
-                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+                if loyalty_program:
+                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
 
-                    if not total_points_redeemed:
-                        total_points_redeemed = 0
+                    if loyalty_points_redeem_history.exists():
+                        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-                else:
-                    total_points_redeemed = 0
+                        if not total_points_redeemed:
+                            total_points_redeemed = 0
 
                 order_info["staging_orderId"] = int(koms_order_id)
                 order_info["core_orderId"] = order_id
@@ -2650,6 +2244,7 @@ def order_details(request):
                 if order_detail.orderId.platform == None:
                     platform_id = 0
                     platform_name = ""
+
                 else:
                     platform_id = order_detail.orderId.platform.pk
                     platform_name = order_detail.orderId.platform.Name
@@ -2658,11 +2253,11 @@ def order_details(request):
                 platform_details["name"] = platform_name
 
                 return JsonResponse({
-                        "payment_details": payment_details,
-                        "customer_details": customer_details,
-                        "table_details": table_details,
-                        "platform_details": platform_details,
-                        "order_info": order_info
+                    "payment_details": payment_details,
+                    "customer_details": customer_details,
+                    "table_details": table_details,
+                    "platform_details": platform_details,
+                    "order_info": order_info
                 })
             
             else:
@@ -2673,12 +2268,14 @@ def order_details(request):
         
     else:
         return JsonResponse({"error": "Order details not found"}, status=400)
-                
+
+
 @api_view(['POST'])
 def updatePaymentDetails(request):
     data = request.data
 
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get('language', 'en')
 
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
@@ -2696,12 +2293,8 @@ def updatePaymentDetails(request):
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
 
     oldStatus = order.order_status
-
-    if str(data['platform']).lower() == 'woocommerce':
-        coreOrder = Order.objects.get(pk=order.externalOrderId)
     
-    else:
-        coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
+    coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
         
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
     
@@ -2747,7 +2340,7 @@ def updatePaymentDetails(request):
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
             
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
                 webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(i.pk)+"------"+str(vendorId),username="CORE",)
 
@@ -2762,7 +2355,7 @@ def updatePaymentDetails(request):
     # processStation(oldStatus=str(oldStatus),currentStatus=str(orderStatus),orderId=content.orderId.pk,station=content.stationId,vendorId=vendorId)
     allStationWiseRemove(id=order.pk,old=str(oldStatus),current=str(oldStatus),vendorId=vendorId)
     allStationWiseSingle(id=order.pk,vendorId=vendorId)
-    waiteOrderUpdate(orderid=order.pk,vendorId=vendorId)
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
     allStationWiseCategory(vendorId=vendorId) 
 
     return JsonResponse({})
@@ -2774,9 +2367,11 @@ def update_order_koms(request):
 
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
+    language = request.GET.get("language", "English")
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
         return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+    
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
         return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
 
@@ -2939,6 +2534,10 @@ def update_order_koms(request):
                     else:
                         order_status = 8
 
+                    product_category_joint = ProductCategoryJoint.objects.filter(
+                        product__PLU=product["plu"], product__vendorId=vendor_id, vendorId=vendor_id
+                    ).first()
+                    
                     item = Order_content.objects.create(
                         orderId = koms_order_details,
                         name = product["text"],
@@ -2949,11 +2548,12 @@ def update_order_koms(request):
                         SKU = product["plu"],
                         tag = 1,
                         categoryName = product["categoryName"],
-                        stationId = Stations.objects.filter(vendorId=vendor_id).first(),
+                        stationId = product_category_joint.category.categoryStation.pk if product_category_joint else Station.objects.filter(vendorId=vendor_id).first(),
                         status = order_status,
                         isrecall = False,
                         isEdited = 0,
-                        )
+                    )
+
                     if koms_order_details.order_status != 1:
                         koms_order_details.order_status = 8
                         koms_order_details.save()
@@ -2993,7 +2593,7 @@ def update_order_koms(request):
             webSocketPush(message={"id": koms_order_id,"orderId": koms_order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendor_id)+'-'+str(old_status_of_order),username="CORE",) 
             allStationWiseRemove(id=koms_order_id, old=str(old_status_of_order), current=str(new_status_of_order), vendorId=vendor_id)
             allStationWiseSingle(id=koms_order_id,vendorId=vendor_id)
-            waiteOrderUpdate(orderid=koms_order_id,vendorId=vendor_id)
+            waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
             allStationWiseCategory(vendorId=vendor_id)
             
             return JsonResponse({"message": "Success"}, status=200)
@@ -3026,42 +2626,36 @@ def  orderList(request):
 
 
 @api_view(["POST"])
-def storetime(request):
+def update_store_status(request):
     vendor_id = request.GET.get("vendorId")
-    pos_set = POS_Settings.objects.filter(VendorId=vendor_id)
-    if request.data.get("store") == "":
-        return Response(data={"store_status":pos_set.first().store_status},status=status.HTTP_200_OK)
-    pos_set.update(store_status=request.data.get("store"))
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor_id,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
+    store_status = request.data.get("store")
 
-    if woocommerce_platform:
-        payload = {
-                    "data": 
-                    {   
-                        "store_toggle":"1" if request.data.get("store") else "0"
-                    }
-                }
-        
-        url = woocommerce_platform.baseUrl + "?rest_route=/storetime/v1/slot/update"
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
 
-        wooResponse = requests.request(
-            "POST",
-            url,
-            headers={"Content-Type": "application/json"},
-            data=json.dumps(payload)
-        )
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-        if wooResponse.status_code == 200:
-           return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
-        
-        else:
-            return Response(status=status.HTTP_400_BAD_REQUEST)
-        
-    return Response(data={"store_status":request.data.get("store")},status=status.HTTP_200_OK)
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if store_status is None:
+        return JsonResponse({"message": "Invalid store status"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
+
+    if not pos_store_setting:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
+
+    pos_store_setting.store_status = store_status
+    pos_store_setting.save()
+
+    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status=status.HTTP_200_OK)
 
 
 
@@ -3181,76 +2775,52 @@ def excel_download_for_dashboard(request):
     vendor_id = json_data.get("vendor_id")
     start_date = json_data.get("start_date")
     end_date = json_data.get("end_date")
-    platform_id = json_data.get("platform_id")
-    order_type = json_data.get("order_type")
-    order_status = json_data.get("order_status")
+    platform_id = json_data.get("platform_id", "All")
+    order_type = json_data.get("order_type", "All")
+    order_status = json_data.get("order_status", "All")
+    language = json_data.get("language", "English")
 
     if (vendor_id == None) or (vendor_id == ""):
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (start_date == None) or (start_date == ""):
-        return JsonResponse({"error": "Start date cannot be empty"}, status=400)
+        return JsonResponse({"error": "Start date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if (end_date == None) or (end_date == ""):
-        return JsonResponse({"error": "End date cannot be empty"}, status=400)
-        
-    if platform_id == None:
-        return JsonResponse({"error": "Platform cannot be empty"}, status=400)
+        return JsonResponse({"error": "End date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if order_type == None:
-        return JsonResponse({"error": "Order Type cannot be empty"}, status=400)
-    
-    if order_status == None:
-        return JsonResponse({"error": "Order Status cannot be empty"}, status=400)
-    
-    if (order_type == "All") or (order_type == ""):
-        order_type_parameter = "All"
-    elif order_type == "1":
-        order_type_parameter = "Pickup"
-    elif order_type == "2":
-        order_type_parameter = "Delivery"
-    elif order_type == "3":
-        order_type_parameter = "Dine In"
-    else:
-        return JsonResponse({"error": "Order Type does not exist"}, status=400)
+    if platform_id == "":
+        platform_id = "All"
 
-    if (order_status == "All") or (order_status == ""):
-        order_status_parameter = "All"
-    elif order_status == "1":
-        order_status_parameter = "Pending"
-    elif order_status == "2":
-        order_status_parameter = "Processing"
-    elif order_status == "3":
-        order_status_parameter = "Complete" #Ready
-    elif order_status == "4":
-        order_status_parameter = "On Hold"
-    elif order_status == "5":
-        order_status_parameter = "Cancelled"
-    elif order_status == "6":
-        order_status_parameter = "Recalled"
-    elif order_status == "7":
-        order_status_parameter = "High Priority"
-    elif order_status == "8":
-        order_status_parameter = "Assigned"
-    elif order_status == "9":
-        order_status_parameter = "Incoming"
-    elif order_status == "10":
-        order_status_parameter = "Closed"
-    else:
-        return JsonResponse({"error": "Order Status does not exist"}, status=400)
+    if order_type == "":
+        order_type = "All"
 
-    if (platform_id == "") or (platform_id == "All"):
+    if order_status == "":
+        order_status = "All"
+
+    if language == "":
+        language = "English"
+    
+    if check_key_exists(language, "order_type", order_type) == False:
+        return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    if check_key_exists(language, "koms_order_status", order_status) == False:
+        return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    order_type_parameter = get_key_value(language, "order_type", order_type)
+    order_status_parameter = get_key_value(language, "koms_order_status", order_status)
+
+    if platform_id == "All":
         platform_parameter = "All"
+        
     else:
         platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            if platform_parameter.Name.lower() == "woocommerce":
-                platform_parameter = "Order Online"
-            else:
-                platform_parameter = platform_parameter.Name
+            platform_parameter = platform_parameter.Name
+
         else:
-            return JsonResponse({"error": "Platform does not exist"}, status=400)
+            return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     start_date_parameter = datetime.strptime(str(start_date), '%Y-%m-%d').date()
     end_date_parameter = datetime.strptime(str(end_date), '%Y-%m-%d').date()
@@ -3267,8 +2837,6 @@ def excel_download_for_dashboard(request):
 
     koms_order_data = KOMSOrder.objects.filter(arrival_time__range=(start_date, end_date), vendorId=vendor_id)
 
-    # koms_order_data_count = koms_order_data.count()
-
     if (platform_id == "All") or (platform_id == ""):
         pass
 
@@ -3280,19 +2848,14 @@ def excel_download_for_dashboard(request):
         if platform_info:
             external_order_ids = list(koms_order_data.values_list('externalOrderId', flat=True))
 
-            if str(platform_info.Name).lower() == "woocommerce":
-                # For WooCommerce, primary key of order_order table is external ID in koms_order table
-                order_data = Order.objects.filter(pk__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('pk', flat=True))
-            else:
-                order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
-                order_data = order_data.filter(platform=platform_id)
-                external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+            order_data = order_data.filter(platform=platform_id)
+            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
             
             koms_order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
+        
         else:
-            return JsonResponse({"error": "Platform not found"}, status=400)
+            return JsonResponse({"error": "Platform not found"}, status=status.HTTP_400_BAD_REQUEST)
         
     if (order_type == "All") or (order_type == ""):
         pass
@@ -3312,27 +2875,14 @@ def excel_download_for_dashboard(request):
 
     order_ids = list(KOMSOrder.objects.filter(externalOrderId__in=external_order_ids).values_list('pk', flat=True))
 
-    # order_ids_count = len(order_ids)
-
     order_content = Order_content.objects.filter(orderId__in = order_ids)
 
-    # order_content_ids = order_content.values_list('orderId', flat=True).distinct()
-
-    # order_ids_not_in_order_content = []
-    # for order_id in order_ids:
-    #     if order_id not in order_content_ids:
-    #         order_ids_not_in_order_content.append(order_id)
-    
     try:
         with transaction.atomic():    
             for content in order_content:
                 koms_orders = KOMSOrder.objects.filter(pk=content.orderId.pk, vendorId=vendor_id)
 
-                # komsorder_ids = koms_orders.values_list('pk', flat=True)
-
                 for order in koms_orders:
-                    # single_order = getOrder(ticketId=order.pk, vendorId=vendor_id)
-
                     order_id = order.externalOrderId
                     
                     order_detail = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
@@ -3342,109 +2892,27 @@ def excel_download_for_dashboard(request):
                     if order_detail:
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
-                        if order_detail.orderType == 1:
-                            order_type = "Pickup"
-                        elif order_detail.orderType == 2:
-                            order_type = "Delivery"
-                        elif order_detail.orderType == 3:
-                            order_type = "Dine In"
+                        order_type = get_key_value(language, "order_type", order_detail.orderType)
 
-                        if order.order_status == 1:
-                            order_status = "Pending"
-                        elif order.order_status == 2:
-                            order_status = "Processing"
-                        elif order.order_status == 3:
-                            order_status = "Complete" #Ready
-                        elif order.order_status == 4:
-                            order_status = "On Hold"
-                        elif order.order_status == 5:
-                            order_status = "Cancelled"
-                        elif order.order_status == 6:
-                            order_status = "Recalled"
-                        elif order.order_status == 7:
-                            order_status = "High Priority"
-                        elif order.order_status == 8:
-                            order_status = "Assigned"
-                        elif order.order_status == 9:
-                            order_status = "Incoming"
-                        elif order.order_status == 10:
-                            order_status = "Closed"
+                        order_status = get_key_value(language, "koms_order_status", order.order_status)
                         
                         if payment_detail:
-                            # payment_info ={
-                            #     "total":order_detail.TotalAmount,
-                            #     "subtotal":order_detail.subtotal,
-                            #     "tax":order_detail.tax,
-                            #     "delivery_charge":order_detail.delivery_charge,
-                            #     "discount":order_detail.discount,
-                            #     "tip":order_detail.tip,
-                            #     "paymentKey":payment_detail.paymentKey,
-                            #     "platform":payment_detail.platform,
-                            #     "status":payment_detail.status,
-                            #     "mode":PaymentType.get_payment_str(payment_detail.type) if payment_detail else PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             if payment_detail.status == True:
-                                payment_status = "Paid"
+                                payment_status = get_key_value(language, "payment_status", "True")
+                            
                             else:
-                                payment_status = "Pending"
+                                payment_status = get_key_value(language, "payment_status", "False")
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
-                            payment_type = PaymentType.get_payment_str(payment_detail.type)
+                            payment_type = get_key_value(language, "payment_type", payment_detail.type)
                             
                         else:
-                            # payment_info ={
-                            #     "total":0.0,
-                            #     "subtotal":0.0,
-                            #     "tax":0.0,
-                            #     "delivery_charge":0.0,
-                            #     "discount":0.0,
-                            #     "tip":0.0,
-                            #     "paymentKey":"",
-                            #     "platform":"",
-                            #     "status":False,
-                            #     "mode": PaymentType.get_payment_str(PaymentType.CASH)
-                            # }
-
                             transaction_id = ""
-                            payment_status = "Unknown"
+                            payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
                             
-                        # single_order['payment'] = payment_info
-
-                        if order_detail.platform.Name == "WooCommerce":
-                            platform_name = "Order Online"
-                        else:
-                            platform_name = order_detail.platform.Name
-
-                        # customer = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-
-                        # if customer: 
-                        #     customer_details = {
-                        #         "id" : customer.customerId.pk,
-                        #         "name" :customer.customerId.FirstName + " " + customer.customerId.LastName,
-                        #         "mobile" : customer.customerId.Phone_Number if customer.customerId.Phone_Number else "",
-                        #         "email" : customer.customerId.Email if customer.customerId.Email else "",
-                        #         "billing_address" : "" if not customer.customerId.Billing_Address else customer.customerId.Billing_Address.address_line1 + " " + customer.customerId.Billing_Address.address_line2 + " " + customer.customerId.Billing_Address.city + " " + customer.customerId.Billing_Address.state + " " + customer.customerId.Billing_Address.country + " " + customer.customerId.Billing_Address.zipcode,
-                        #         "shipping_address" : "" if not customer.customerId.Shipping_Address else customer.customerId.Shipping_Address.address_line1 + " " + customer.customerId.Shipping_Address.address_line2 + " " + customer.customerId.Shipping_Address.city + " " + customer.customerId.Shipping_Address.state + " " + customer.customerId.Shipping_Address.country + " " + customer.customerId.Shipping_Address.zipcode
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # else:
-                        #     customer_details = {
-                        #         "id" : 0,
-                        #         "name" :"",
-                        #         "mobile" : "",
-                        #         "email" : "",
-                        #         "billing_address" : "",
-                        #         "shipping_address" : ""
-                        #     }
-
-                        #     single_order["customer_details"] = customer_details
-
-                        # order_details[order.pk]=single_order
+                        platform_name = order_detail.platform.Name
 
                         order_details[order_id] = {
                             "order_id": order_id,
@@ -3463,18 +2931,26 @@ def excel_download_for_dashboard(request):
                         print(f"Order details not found for external order ID {order_id}")
                         return JsonResponse(response_data, status=500)
 
-            # order_ids = list(order_details.keys())
-
-            # order_ids = sorted(order_ids, reverse=True)
-
-            # print(order_details)
-    
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
 
-    order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
+    # order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
 
+    new_order_details = OrderedDict()
+    sorted_items = []
+
+    for key, value in order_details.items():
+        order_time = value.get("order_time", "")
+        sorted_items.append((order_time, int(key)))
+
+    sorted_items.sort()
+
+    for order_time, order_id in sorted_items:
+        new_order_details[order_id] = order_details[order_id]
+
+    order_details = new_order_details
+    
     order_count = len(order_details)
     
     total_amount_paid = 0.0
@@ -3489,9 +2965,6 @@ def excel_download_for_dashboard(request):
     discount_sum = discount_sum or 0.0
     
     total_amount_paid = "{:.2f}".format(subtotal_sum - discount_sum)
-    
-    # for details in order_details.values():
-    #     total_amount_paid = total_amount_paid + details["amount_paid"]
 
     # Create a new Excel workbook and select the active sheet
     workbook = openpyxl.Workbook()
@@ -3505,7 +2978,7 @@ def excel_download_for_dashboard(request):
     sheet.append(['', '', '', '', '', '', '', '', ''])
 
     # Write headers
-    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time (IST)', 'Payment Type', 'Payment Status', 'Transaction ID'])
+    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     for order_id, details in order_details.items():
         sheet.append([
@@ -3566,7 +3039,7 @@ def get_pos_user(request):
     page = int(request.GET.get('pageIndex', 1)) # pageIndex variable should not be renamed as it is required for jsGrid plugin
     page_size = int(request.GET.get('pageSize', 10)) # pageSize variable should not be renamed as it is required for jsGrid plugin
 
-    vendors = PosUser.objects.all().order_by('pk')
+    vendors = POSUser.objects.all().order_by('pk')
 
     paginated_data = []
     
@@ -3614,7 +3087,7 @@ def create_pos_user(request):
 
 
 def update_pos_user(request, pos_user_id):
-    pos_user = get_object_or_404(PosUser, id=pos_user_id)
+    pos_user = get_object_or_404(POSUser, id=pos_user_id)
 
     if request.method == "POST":
         form = PosUserForm(request.POST, instance=pos_user)
@@ -3650,7 +3123,7 @@ def update_pos_user(request, pos_user_id):
 def delete_pos_user(request, pos_user_id):
     try:
         if request.method == "POST":
-            pos_user = PosUser.objects.filter(pk=pos_user_id)
+            pos_user = POSUser.objects.filter(pk=pos_user_id)
 
             pos_user.delete()
 
@@ -3665,41 +3138,57 @@ def delete_pos_user(request, pos_user_id):
 
 @api_view(['GET'])
 def get_store_timings(request):
-    vendor = request.GET.get("vendorId")
+    vendor_id = request.GET.get("vendorId")
 
-    data = StoreTiming.objects.filter(vendor=vendor)
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    data = StoreTiming.objects.filter(vendor=vendor_id)
 
     slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
 
     serialized = StoreTImingSerializer(data, many=True)
 
+    pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    store_status = POS_Settings.objects.filter(VendorId=vendor).first()
+    if not pos_store_setting:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
 
-    store_status_value = store_status.store_status
+    store_status = pos_store_setting.store_status
+
+    store_status_value = store_status
 
     if store_status_value == False:
         store_status_final = False
 
     if not serialized.data:
-        return Response({
-            "store_status": store_status_value,
-            "store_timing": []
-        })
+        return Response({"store_status": store_status_value, "store_timing": []})
+    
     else:
-        if store_status.store_status==False:
-            store_status_final =  False 
-        elif slot==None:
+        if store_status == False:
+            store_status_final =  False
+
+        elif slot == None:
             store_status_final = True 
-        elif  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday:
+
+        elif (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday:
             store_status_final = True  
+
         else:
             store_status_final =  False
 
-    return Response({
-        "store_status": store_status_final,
-        "store_timing": serialized.data
-    })
+    return JsonResponse({"store_status": store_status_final, "store_timing": serialized.data})
 
 @api_view(['POST'])
 def set_store_timings(request):
@@ -3709,15 +3198,6 @@ def set_store_timings(request):
 
     body_data['platform'] = None
 
-    woocommerce_platform = Platform.objects.filter(
-        VendorId=vendor,
-        corePlatformType=CorePlatform.WOOCOMMERCE,
-        isActive=True
-    ).first()
-
-    if woocommerce_platform:
-        body_data['platform'] = woocommerce_platform.pk
-
     serialized = StoreTImingSerializer(data=body_data)
 
     # update store_timings
@@ -3726,11 +3206,7 @@ def set_store_timings(request):
         serialized = StoreTImingSerializer(instance=data, data=body_data)
 
     if serialized.is_valid():
-        slot=serialized.save()
-
-        # if woocommerce_platform:
-        #     wooResponse = WooCommerce.set_store_timings(vendorId=vendor, day=slot)
-        #     print(wooResponse)
+        slot = serialized.save()
 
         return Response(serialized.data, status=status.HTTP_200_OK)
     
@@ -3742,11 +3218,13 @@ def set_store_timings(request):
 def delete_store_timings(request):
     try:
         data = StoreTiming.objects.get(pk=request.GET.get("id"))
-        # wooResponse = WooCommerce.delete_store_timings(vendorId=data.vendor,day=data)
+
         data.delete()
+
     except Exception as e:
         print(e)
         return Response(status=status.HTTP_404_NOT_FOUND)
+    
     return Response(status=status.HTTP_200_OK)
 
 
@@ -3802,28 +3280,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to create Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -3860,27 +3316,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         catCreateRes = WooCommerce.createCategory(instance, instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' created. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         catCreateRes = WooCommerce.updateCategory(instance, response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' updated. response::{catCreateRes}")
-                #     elif response["code"] == Short_Codes.ERROR:
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": "Unable to update Category"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Category synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = serializer.instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -3903,31 +3338,6 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
         try:
             with transaction.atomic():
                 instance = self.get_object()
-
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getCategoryUsingSlug(instance.categorySlug, instance.vendorId.pk)
-
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteCategoryUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Product Category '{instance.categoryName}' will be deleted. response::{wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Category deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Category not found in wordpress")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Category not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Category delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
                 vendor_id = instance.vendorId.pk
                 
@@ -3955,6 +3365,7 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=404)
@@ -3967,7 +3378,12 @@ def get_products(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if product_name:
-        products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+
+        else:
+            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+    
     else:
         products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -3976,8 +3392,10 @@ def get_products(request):
 
         try:
             paginated_products = paginator.page(page_number)
+        
         except PageNotAnInteger:
             paginated_products = paginator.page(1)
+        
         except EmptyPage:
             paginated_products = paginator.page(paginator.num_pages)
 
@@ -3986,100 +3404,9 @@ def get_products(request):
         total_pages = paginator.num_pages
 
         for single_product in paginated_products:
-            selected_image = ProductImage.objects.filter(product=single_product.pk).first()
+            product_info = get_product_data(single_product, vendor_id)
 
-            product_data = {
-                "id": single_product.pk,
-                "plu": single_product.PLU,
-                "name": single_product.productName,
-                "description": single_product.productDesc if single_product.productDesc else "",
-                "price": single_product.productPrice,
-                "is_active": single_product.active,
-                "tag": single_product.tag if single_product.tag else "",
-                "is_displayed_online": single_product.is_displayed_online,
-                "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                "vendorId": single_product.vendorId.pk,
-                "categories": [],
-                # "images": {"urls": [], "paths": []},
-                "images": [],
-                "modifier_groups": [],
-            }
-
-            product_category = ProductCategoryJoint.objects.filter(product=single_product.pk, vendorId=vendor_id).first()
-
-            if product_category:
-                if product_category.category:
-                    product_data["categories"].append({
-                    "id": product_category.category.pk,
-                    "plu": product_category.category.categoryPLU,
-                    "name": product_category.category.categoryName,
-                    "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
-                    "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
-                    "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
-                    "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
-                })
-
-            # else:
-                # return Response(f"{single_product.productName} has no category", status=404)
-
-            product_images = ProductImage.objects.filter(product=single_product.pk, vendorId=vendor_id)
-
-            if product_images:
-                for product_image in product_images:
-                    if product_image.url:
-                    #     product_data["images"]["urls"].append({
-                    #         "id": product_image.pk,
-                    #         "product_id": product_image.product.pk,
-                    #         "image": product_image.url if product_image.url else "",
-                    #         "is_selected": product_image.is_url_selected
-                    #     })
-
-                    # if product_image.image:
-                    #     product_data["images"]["paths"].append({
-                    #         "id": product_image.pk,
-                    #         "product_id": product_image.product.pk,
-                    #         "image": product_image.image.url if product_image.image else "",
-                    #         "is_selected": product_image.is_image_selected
-                    #     })
-
-                    # if product_image.image:
-                        product_data["images"].append({
-                            "id": product_image.pk,
-                            "image": product_image.url,
-                            "is_selected": True
-                        })
-
-            product_modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=single_product.pk, vendorId=vendor_id)
-            
-            if product_modifier_groups:
-                for modifier_group in product_modifier_groups:
-                    modifier_data = []
-                    joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=modifier_group.modifierGroup.pk, vendor=vendor_id)
-
-                    if joint_details.count() > 0:
-                        for joint in joint_details:
-                            modifier_data.append({
-                                "id": joint.modifier.pk,
-                                "plu": joint.modifier.modifierPLU,
-                                "name": joint.modifier.modifierName,
-                                "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                                "price": joint.modifier.modifierPrice,
-                                "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
-                                "is_active": joint.modifier.active,
-                            })
-                    
-                    product_data["modifier_groups"].append({
-                        "id": modifier_group.modifierGroup.pk,
-                        "plu": modifier_group.modifierGroup.PLU,
-                        "name": modifier_group.modifierGroup.name,
-                        "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
-                        "min": modifier_group.modifierGroup.min,
-                        "max": modifier_group.modifierGroup.max,
-                        "is_active": modifier_group.modifierGroup.active,
-                        "modifiers": modifier_data
-                    })
-            
-            response_data.append(product_data)
+            response_data.append(product_info)
 
         response = {
             "total_pages": total_pages,
@@ -4131,15 +3458,7 @@ def create_product(request):
         images_data = []
         modifier_groups_data = []
 
-        categories_response = []
-        # images_response = {"urls": [], "paths": []}
-        images_response = []
-        modifier_groups_response = []
-        modifiers_response = []
-
-        image_url_keys = []
         image_path_keys = []
-        is_url_selected_keys = []
         is_image_selected_keys = []
 
         with transaction.atomic():
@@ -4156,31 +3475,21 @@ def create_product(request):
 
             for key in request.data.keys():
                 if key.startswith('images-'):
-                    # if key.endswith('-url'):
-                    #     image_url_keys.append(key)
                     if key.endswith('-image'):
                         image_path_keys.append(key)
-                    # if key.endswith('-is_url_selected'):
-                    #     is_url_selected_keys.append(key)
+                    
                     if key.endswith('-is_image_selected'):
                         is_image_selected_keys.append(key)
 
-            # if len(image_url_keys) == len(image_path_keys) == len(is_url_selected_keys) == len(is_image_selected_keys):
             if len(image_path_keys) == len(is_image_selected_keys):
                 for iterator in range(len(image_path_keys)):
-                #     image_url = request.data.get(image_url_keys[iterator], None)
-                #     image_path = request.FILES.get(image_path_keys[iterator], None)
-                #     is_url_selected = request.data.get(is_url_selected_keys[iterator], None)
                     image_path = request.data.get(image_path_keys[iterator], None)
                     is_image_selected = request.data.get(is_image_selected_keys[iterator], None)
 
-
-                    # if (image_url == None) and (image_path == None):
                     if (image_path == None):
                         pass
+
                     else:
-                        # images_data.append({'url': image_url, 'image': image_path, 'is_url_selected':is_url_selected, 'is_image_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
-                        # images_data.append({'url': None, 'image': image_path, 'is_url_selected':False, 'is_image_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
                         images_data.append({'url': image_path, 'is_url_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
             
             else:
@@ -4193,16 +3502,6 @@ def create_product(request):
                 if product_category_joint_serializer.is_valid():
                     product_category_joint = product_category_joint_serializer.save()
 
-                    categories_response.append({
-                        "id": product_category_joint.category.pk,
-                        "plu": product_category_joint.category.categoryPLU,
-                        "name": product_category_joint.category.categoryName,
-                        "description": product_category_joint.category.categoryDescription if product_category_joint.category.categoryDescription else "",
-                        "image_path": product_category_joint.category.categoryImage.url if product_category_joint.category.categoryImage else "",
-                        "image_url": product_category_joint.category.categoryImageUrl if product_category_joint.category.categoryImageUrl else "",
-                        "image_selection": product_category_joint.category.image_selection if product_category_joint.category.image_selection else ""
-                    })
-
                 else:
                     print(product_category_joint_serializer.errors)
 
@@ -4211,29 +3510,6 @@ def create_product(request):
 
                 if image_serializer.is_valid():
                     images = image_serializer.save()
-
-                    # if images.url:
-                    #     images_response["urls"].append({
-                    #         "id": images.pk,
-                    #         "product_id": images.product.pk,
-                    #         "image": images.url,
-                    #         "is_selected": images.is_url_selected,
-                    #     })
-
-                    # if images.image:
-                    #     images_response["paths"].append({
-                    #         "id": images.pk,
-                    #         "product_id": images.product.pk,
-                    #         "image": images.image.url,
-                    #         "is_selected": images.is_image_selected
-                    #     })
-
-                    # if images.image:
-                    images_response.append({
-                        "id": images.pk,
-                        "image": images.url,
-                        "is_selected": True
-                    })
                     
                 else:
                     print("image save error :: ", image_serializer.errors)
@@ -4246,70 +3522,10 @@ def create_product(request):
                 if product_modGroup_joint_serializer.is_valid():
                     product_modGroup_joint = product_modGroup_joint_serializer.save()
 
-                    joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_modGroup_joint.modifierGroup.pk, vendor=vendor_id)
-
-                    if joint_details.count() > 0:
-                        for joint in joint_details:
-                            modifiers_response.append({
-                                "id": joint.modifier.pk,
-                                "plu": joint.modifier.modifierPLU,
-                                "name": joint.modifier.modifierName,
-                                "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                                "price": joint.modifier.modifierPrice,
-                                "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
-                                "is_active": joint.modifier.active,
-                            })
-
-                    modifier_groups_response.append({
-                        "id": product_modGroup_joint.modifierGroup.pk,
-                        "plu": product_modGroup_joint.modifierGroup.PLU,
-                        "name": product_modGroup_joint.modifierGroup.name,
-                        "description": product_modGroup_joint.modifierGroup.modifier_group_description if product_modGroup_joint.modifierGroup.modifier_group_description else "",
-                        "min": product_modGroup_joint.modifierGroup.min,
-                        "max": product_modGroup_joint.modifierGroup.max,
-                        "is_active": product_modGroup_joint.modifierGroup.active,
-                        "modifiers": modifiers_response
-                    })
-
                 else:
                     print(product_modGroup_joint_serializer.errors)
                     transaction.set_rollback(True)
                     return Response("Not a valid Modifier group", status=status.HTTP_400_BAD_REQUEST)
-
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     wCatPrdMapping = {}
-
-            #     for i in ProductCategoryJoint.objects.filter(product=product.pk):
-            #         response = WooCommerce.getCategoryUsingSlug(i.category.categorySlug, i.category.vendorId)
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wCatPrdMapping[i.category.pk]=response["response"].get("id")
-                
-            #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                
-            #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #         wordpress_response = WooCommerce.createProduct(product, product.vendorId, wCatPrdMapping)
-            #         print(f"Product '{product.productName}' created. response: {wordpress_response}")
-            #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #         wordpress_response = WooCommerce.updateProduct(response["response"].get("id"), product, product.vendorId, wCatPrdMapping)
-            #         print(f"Product '{product.productName}' updated.  response: {wordpress_response}")
-            #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #         print("WP error")
-            #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=product.vendorId.pk)
-            #         transaction.set_rollback(True)
-            #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-            #     woocommerce_response = WooCommerce.updateProductModifierGroupJointByProduct(product, vendor_id)
-                
-            #     if woocommerce_response.get("code") == Short_Codes.CONNECTED_AND_UPDATED:
-            #         notify(type=3, msg='0', desc='Product synced', stn=['POS'], vendorId=product.vendorId.pk)
-            #     else:
-            #         print("WP error")
-            #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=product.vendorId.pk)
-            #         transaction.set_rollback(True)
-            #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
@@ -4322,31 +3538,15 @@ def create_product(request):
                 else:
                     notify(type=3, msg='0', desc='Product synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            selected_image = ProductImage.objects.filter(product=product.pk).first()
+            product_info = get_product_data(product, vendor_id)
             
-            return JsonResponse({
-                "id": product.pk,
-                "plu": product.PLU,
-                "name": product.productName,
-                "description": product.productDesc if product.productDesc else "",
-                "price": product.productPrice,
-                "is_active": product.active,
-                "tag": product.tag if product.tag else "",
-                "is_displayed_online": product.is_displayed_online,
-                "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                "vendorId": product.vendorId.pk,
-                "categories": categories_response,
-                "images": images_response,
-                "modifier_groups": modifier_groups_response
-            }, status=status.HTTP_201_CREATED)
+            return JsonResponse(product_info, status=status.HTTP_201_CREATED)
     
     return Response(product_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["PUT", "PATCH"])
 def update_product(request, product_id):
-    print(request.data)
-
     vendor_id = request.POST.get('vendorId', None)
     
     if vendor_id is None:
@@ -4370,6 +3570,7 @@ def update_product(request, product_id):
 
             # Check if a product with the new PLU already exists while editing
             new_plu = request.data.get('PLU')
+            
             existing_product_with_new_plu = Product.objects.filter(PLU=new_plu, vendorId=vendor_id).exclude(pk=product_id).first()
 
             if existing_product_with_new_plu:
@@ -4378,25 +3579,10 @@ def update_product(request, product_id):
             if product_serializer.is_valid():
                 category_ids = []
                 modifier_group_ids = []
-                # categories_data = []
-                # modifier_groups_data = []
                 images_data = []
 
-                categories_response = []
-                modifier_groups_response = []
-                # images_response = {"urls": [], "paths": []}
-                images_response = []
-
-                image_url_keys = []
                 image_path_keys = []
-                is_url_selected_keys = []
                 is_image_selected_keys = []
-
-                edit_image_ids = []
-                # edit_image_url_keys = []
-                edit_image_path_keys = []
-                # edit_is_url_selected_keys = []
-                edit_is_image_selected_keys = []
 
                 with transaction.atomic():
                     updated_product = product_serializer.save()
@@ -4414,54 +3600,17 @@ def update_product(request, product_id):
                             if key.endswith('-is_image_selected'):
                                 is_image_selected_keys.append(key)
 
-                            # if key.endswith('-image-id-edit'):
-                            #     edit_image_ids.append(key)
-                            # # if key.endswith('-url-edit'):
-                            # #     edit_image_url_keys.append(key)
-                            # if key.endswith('-image-edit'):
-                            #     edit_image_path_keys.append(key)
-                            # # if key.endswith('-is_url_selected-edit'):
-                            # #     edit_is_url_selected_keys.append(key)
-                            # if key.endswith('-is_image_selected-edit'):
-                            #     edit_is_image_selected_keys.append(key)
-                    
-                    # if len(edit_image_ids) == len(edit_image_url_keys) == len(edit_image_path_keys) == len(edit_is_url_selected_keys) == len(edit_is_image_selected_keys):
-                    # if len(edit_image_ids) == len(edit_image_path_keys) == len(edit_is_image_selected_keys):
-                    #     for iterator in range(len(edit_image_ids)):
-                    #         edit_image_id = request.data.get(edit_image_ids[iterator], None)
-                    #         # edit_image_url = request.data.get(edit_image_url_keys[iterator], None)
-                    #         edit_image_path = request.FILES.get(edit_image_path_keys[iterator], None)
-                    #         # edit_is_url_selected = request.data.get(edit_is_url_selected_keys[iterator], None)
-                    #         edit_is_image_selected = request.data.get(edit_is_image_selected_keys[iterator], None)
-
-                    #         image_instance = ProductImage.objects.filter(pk=edit_image_id).first()
-                                
-                    #         if image_instance:
-                    #             # image_instance.url = edit_image_url
-                    #             image_instance.image = edit_image_path
-                    #             # image_instance.is_url_selected = edit_is_url_selected
-                    #             image_instance.is_image_selected = edit_is_image_selected
-                    #             image_instance.save()
-                    #         else:
-                    #             return Response("images-0-edit-image-id invalid", status=status.HTTP_400_BAD_REQUEST)
-                            
-                    # else:
-                    #     return Response("Image keys do not match", status=status.HTTP_400_BAD_REQUEST)
-                    
                     ProductImage.objects.filter(product=updated_product.pk, vendorId=vendor_id).delete()
                     
-                    # if len(image_url_keys) == len(image_path_keys) == len(is_url_selected_keys) == len(is_image_selected_keys):
                     if len(image_path_keys) == len(is_image_selected_keys):
                         for iterator in range(len(image_path_keys)):
-                            # image_url = request.data.get(image_url_keys[iterator], None)
-                            # image_path = request.FILES.get(image_path_keys[iterator], None)
                             image_path = request.data.get(image_path_keys[iterator], None)
-                            print(image_path)
-                            # is_url_selected = request.data.get(is_url_selected_keys[iterator], None)
+                            
                             is_image_selected = request.data.get(is_image_selected_keys[iterator], None)
-                            print(is_image_selected)
+                            
                             if ProductImage.objects.filter(product=updated_product.pk, image=image_path, is_image_selected=is_image_selected, vendorId=vendor_id).exists():
                                 pass
+
                             else:
                                 images_data.append({"product":updated_product.pk, "url":image_path, "is_url_selected":is_image_selected, "vendorId":vendor_id})
 
@@ -4469,12 +3618,12 @@ def update_product(request, product_id):
                         transaction.set_rollback(True)
                         return Response("Image keys do not match", status=status.HTTP_400_BAD_REQUEST)
                     
-                    print(images_data)
                     for image_data in images_data:
                         product_image_serializer = ProductImagesSerializer(data=image_data)
+                        
                         if product_image_serializer.is_valid():
                             img=product_image_serializer.save()
-                            print(img)
+                            
                         else:
                             print(product_image_serializer.errors)
                     
@@ -4498,22 +3647,6 @@ def update_product(request, product_id):
                     for category_id in missing_category_ids:
                         ProductCategoryJoint.objects.filter(product=updated_product.pk, category=category_id, vendorId=vendor_id).delete()
                     
-                    # for category_data in categories_data:
-                    #     product_category_joint_serializer = ProductCategoryJointSerializer(data=category_data)
-                        
-                    #     if product_category_joint_serializer.is_valid():
-                    #         product_category_joint_serializer.save()
-                    #     else:
-                    #         print(product_category_joint_serializer.errors)
-
-                    # for modifier_group_data in modifier_groups_data:
-                    #     product_modgroup_joint_serializer = ProductModGroupJointSerializer(data=modifier_group_data)
-
-                    #     if product_modgroup_joint_serializer.is_valid():
-                    #         product_modgroup_joint_serializer.save()
-                    #     else:
-                    #         print(product_modgroup_joint_serializer.errors)
-                        
                     product_modgroup_joint_ids = list(ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).values_list('modifierGroup_id', flat=True))
                     
                     modifier_group_ids_not_in_joint = []
@@ -4534,100 +3667,6 @@ def update_product(request, product_id):
                     for group_id in missing_modifier_group_ids:
                         ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, modifierGroup=group_id, vendorId=vendor_id).delete()
                     
-                    product_images_joint = ProductImage.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-
-                    if product_images_joint:
-                        for joint in product_images_joint:
-                            if joint.url:
-                            #     images_response.append({
-                            #         "id": joint.pk,
-                            #         "product_id": joint.product.pk,
-                            #         "url": joint.url,
-                            #         "is_url_selected": joint.is_url_selected,
-                            # })
-
-                            # if joint.image:
-                                images_response.append({
-                                    "id": joint.pk,
-                                    "product_id": joint.product.pk,
-                                    "image": joint.url,
-                                    "is_selected": True
-                            })
-                    
-                    product_category_joint = ProductCategoryJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-                    
-                    if product_category_joint:
-                        for joint in product_category_joint:
-                            if joint.category:
-                                categories_response.append({
-                                "id": joint.category.pk,
-                                "plu": joint.category.categoryPLU,
-                                "name": joint.category.categoryName,
-                                "description": joint.category.categoryDescription if joint.category.categoryDescription else "",
-                                "image_path": joint.category.categoryImage.url if joint.category.categoryImage else "",
-                                "image_url": joint.category.categoryImageUrl if joint.category.categoryImageUrl else "",
-                            })
-
-                    product_modgroup_joint = ProductAndModifierGroupJoint.objects.filter(product=updated_product.pk, vendorId=vendor_id).order_by("-pk")
-                    
-                    if product_modgroup_joint:
-                        for joint in product_modgroup_joint:
-                            modifiers_response = []
-
-                            modifiers = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=joint.modifierGroup.pk, vendor=vendor_id)
-
-                            if modifiers.count() > 0:    
-                                for modifer_info in modifiers:
-                                    modifiers_response.append({
-                                        "id": modifer_info.modifier.pk,
-                                        "plu": modifer_info.modifier.modifierPLU,
-                                        "name": modifer_info.modifier.modifierName,
-                                        "description": modifer_info.modifier.modifierDesc if modifer_info.modifier.modifierDesc else "",
-                                        "price": modifer_info.modifier.modifierPrice,
-                                        "image": modifer_info.modifier.modifierImg if modifer_info.modifier.modifierImg else "",
-                                        "is_active": modifer_info.modifier.active,
-                                    })
-                            
-                            modifier_groups_response.append({
-                                "id": joint.modifierGroup.pk,
-                                "plu": joint.modifierGroup.PLU,
-                                "name": joint.modifierGroup.name,
-                                "description": joint.modifierGroup.modifier_group_description,
-                                "min": joint.modifierGroup.min,
-                                "max": joint.modifierGroup.max,
-                                "is_active": joint.modifierGroup.active,
-                                "modifiers": modifiers_response
-                            })
-                    
-                    # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                    # WooCommerce syncing
-                    # if woocommerce_platform:
-                    #     wCatPrdMapping = {}
-
-                    #     WooCommerce.updateProductModifierGroupJointByProduct(product, vendor_id)
-
-                    #     for i in ProductCategoryJoint.objects.filter(product=product.pk):
-                    #         response = WooCommerce.getCategoryUsingSlug(i.category.categorySlug, i.category.vendorId)
-                    #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                    #             wCatPrdMapping[i.category.pk]=response["response"].get("id")
-                        
-                    #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                        
-                    #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                    #         wordpress_response = WooCommerce.createProduct(product, product.vendorId, wCatPrdMapping)
-                    #         print(f"Product '{product.productName}' created. response: {wordpress_response}")
-                    #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                    #         wordpress_response = WooCommerce.updateProduct(response["response"].get("id"), product, product.vendorId, wCatPrdMapping)
-                    #         print(f"Product '{product.productName}' updated.  response: {wordpress_response}")
-                    #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                    #         print("WP error")
-                    #         notify(type=6, msg='0', desc='Product sync error', stn=['POS'], vendorId=updated_product.vendorId.pk)
-                    #         transaction.set_rollback(True)
-                    #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                        
-                    #     notify(type=3, msg='0', desc='Product synced', stn=['POS'], vendorId=updated_product.vendorId.pk)
-                    
                     inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                     if inventory_platform:
@@ -4639,29 +3678,18 @@ def update_product(request, product_id):
                         else:
                             notify(type=3, msg='0', desc='Product synced with Inventory', stn=['POS'], vendorId=vendor_id)
                     
+                    product = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+
+                    product_info = get_product_data(product, vendor_id)
                     
-                    selected_image = ProductImage.objects.filter(product=updated_product.pk).first()
-                    
-                    return JsonResponse({
-                        "id": product.pk,
-                        "plu": product.PLU,
-                        "name": product.productName,
-                        "description": product.productDesc if product.productDesc else "",
-                        "price": product.productPrice,
-                        "is_active": product.active,
-                        "tag": product.tag if product.tag else "",
-                        "is_displayed_online": product.is_displayed_online,
-                        "selected_image": selected_image.url if selected_image and selected_image.url else "",
-                        "vendorId": product.vendorId.pk,
-                        "categories": categories_response,
-                        "images": images_response,
-                        "modifier_groups": modifier_groups_response
-                    }, status=status.HTTP_200_OK)
+                    return JsonResponse(product_info, status=status.HTTP_200_OK)
                 
             else:
                 return Response(product_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        
         else:
             return Response("Product does not exist", status=status.HTTP_404_NOT_FOUND)
+    
     else:
         return Response("Product ID empty", status=status.HTTP_400_BAD_REQUEST)
 
@@ -4687,34 +3715,6 @@ def delete_product(request, product_id):
     if product:
         try:
             with transaction.atomic():
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getProductUsingSku(product.SKU, product.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteProductUsingId(response["response"].get("id"), product.vendorId, None)
-                        
-                #         print(f"Product '{product.productName}' will be deleted.  response: {wordpress_response}")
-                        
-                #         notify(type=3, msg='0', desc='Product deleted', stn=['POS'], vendorId=product.vendorId.pk)
-                        
-                #         product.delete()
-
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Product not found in wordpress")
-                #         notify(type=6, msg='0', desc='Product delete error', stn=['POS'], vendorId=product.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Product not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         notify(type=6, msg='0', desc='Product delete error', stn=['POS'], vendorId=product.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
 
                 if inventory_platform:
@@ -4764,7 +3764,13 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         name_query = request.GET.get('name', None)
         
         if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+            language = request.GET.get('language', "English")
+
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
@@ -4790,28 +3796,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_create(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -4847,28 +3831,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
                 serializer.is_valid(raise_exception=True)
                 self.perform_update(serializer)
 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = serializer.instance
-                    
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         wordpress_response = WooCommerce.createModifierGroup(instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be created.  response: {wordpress_response}")
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.updateModifierGroup(response["response"].get("id"), instance, instance.vendorId.pk, {})
-                #         print(f"Mod Group '{instance.name}' will be updated.  response: {wordpress_response}")
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier group sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     notify(type=3, msg='0', desc='Modifier Group synced', stn=['POS'], vendorId=instance.vendorId.pk)
-                
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -4892,31 +3854,6 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
             with transaction.atomic():
                 instance = self.get_object()
                 
-                # woocommerce_platform = Platform.objects.filter(VendorId=instance.vendorId.pk, Name="WooCommerce", isActive=True).first()
-                
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     response = WooCommerce.getModifierGroupUsingSlug(instance.slug, instance.vendorId.pk)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteModifierGroupUsingId(response["response"].get("id"), instance.vendorId.pk)
-                #         print(f"Mod Group '{instance.name}' will be deleted.  response: {wordpress_response}")
-                #         self.perform_destroy(instance)
-                #         notify(type=3, msg='0', desc='Modifier Group deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Modifier group not found in wordpress")
-                #         notify(type=6, msg='0', desc='Modifier group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Modifier group not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier Group delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 vendor_id = instance.vendorId.pk
                 
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
@@ -4943,6 +3880,7 @@ def get_modifiers(request):
     modifier_name = request.GET.get("modifierName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "English")
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=status.HTTP_404_NOT_FOUND)
@@ -4955,7 +3893,12 @@ def get_modifiers(request):
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
     if modifier_name:
-        modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+        if language == "English":
+            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+
+        else:
+            modifiers = ProductModifier.objects.filter(modifierName_locale__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+            
     else:
         modifiers = ProductModifier.objects.filter(vendorId=vendor_id).order_by('-pk')
 
@@ -4974,32 +3917,9 @@ def get_modifiers(request):
         total_pages = paginator.num_pages
 
         for single_modifier in paginated_modifiers:
-            modifier_data = {
-                "id": single_modifier.pk,
-                "plu": single_modifier.modifierPLU,
-                "name": single_modifier.modifierName,
-                "description": single_modifier.modifierDesc if single_modifier.modifierDesc else "",
-                "image": single_modifier.modifierImg if single_modifier.modifierImg else "",
-                "price": single_modifier.modifierPrice,
-                "is_active": single_modifier.active,
-                "vendorId": single_modifier.vendorId.pk,
-                "modifier_groups": [],
-            }
+            modifier_info = get_modifier_data(single_modifier, vendor_id)
 
-            modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=single_modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_group_joint:
-                modifier_data["modifier_groups"].append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-
-            response_data.append(modifier_data)
+            response_data.append(modifier_info)
 
         response = {
             "total_pages": total_pages,
@@ -5031,6 +3951,7 @@ def create_modifier(request):
     
     try:
         vendor_id = int(vendor_id)
+    
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
 
@@ -5048,7 +3969,6 @@ def create_modifier(request):
 
     if modifier_serializer.is_valid():
         modifier_groups_ids = []
-        modifier_groups_data = []
 
         with transaction.atomic():
             modifier = modifier_serializer.save()
@@ -5066,44 +3986,6 @@ def create_modifier(request):
 
                 ProductModifierAndModifierGroupJoint.objects.create(modifier=modifier_instance, modifierGroup=modifier_group_instance, vendor=vendor_instance)
 
-            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_modgroup_joint:
-                modifier_groups_data.append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-            
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     instance = modifier
-            #     coreModItms = ProductModifierAndModifierGroupJoint.objects.filter(vendor=instance.vendorId, modifier=instance.pk)
-                
-            #     for coreModItm in coreModItms:
-            #         grp = WooCommerce.getModifierGroupUsingSlug(coreModItm.modifierGroup.slug, instance.vendorId)
-            #         response = WooCommerce.getModifierUsingGroupSKU(coreModItm.modifier.modifierSKU, grp["response"].get("id"), instance.vendorId)
-                    
-            #         if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #             wordpress_response = WooCommerce.createModifier(coreModItm.modifier, instance.vendorId, grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wordpress_response = WooCommerce.updateModifier(coreModItm.modifier, instance.vendorId,grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' updated. response: {wordpress_response}")
-            #         if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #             print("WP error")
-            #             notify(type=6, msg='0', desc='Modifier sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-            #             transaction.set_rollback(True)
-            #             return JsonResponse({"error": f"{response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-            #     notify(type=3, msg='0', desc='Modifier synced', stn=['POS'], vendorId=instance.vendorId.pk)
-            
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
             if inventory_platform:
@@ -5115,16 +3997,9 @@ def create_modifier(request):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            return JsonResponse({
-                "id": modifier.pk,
-                "plu": modifier.modifierPLU,
-                "name": modifier.modifierName,
-                "description": modifier.modifierDesc if modifier.modifierDesc else "",
-                "image": modifier.modifierImg if modifier.modifierImg else "",
-                "price": modifier.modifierPrice,
-                "is_active": modifier.active,
-                "modifier_groups": modifier_groups_data
-            }, status=status.HTTP_201_CREATED)
+            modifier_info = get_modifier_data(modifier, vendor_id)
+            
+            return JsonResponse(modifier_info, status=status.HTTP_201_CREATED)
     
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -5159,6 +4034,7 @@ def update_modifier(request, modifier_id):
 
     # Check if a modifier with the new PLU already exists while editing
     new_plu = request.data.get('modifierPLU')
+
     existing_modifier_with_new_plu = ProductModifier.objects.filter(modifierPLU=new_plu, vendorId=vendor_id).exclude(pk=modifier_id).first()
 
     if existing_modifier_with_new_plu:
@@ -5166,7 +4042,6 @@ def update_modifier(request, modifier_id):
     
     if modifier_serializer.is_valid():
         modifier_groups_ids = []
-        modifier_groups_data = []
         
         with transaction.atomic():
             updated_modifier = modifier_serializer.save()
@@ -5190,44 +4065,6 @@ def update_modifier(request, modifier_id):
 
                 ProductModifierAndModifierGroupJoint.objects.create(modifier=modifier_instance, modifierGroup=modifier_group_instance, vendor=vendor_instance)
 
-            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_modgroup_joint:
-                modifier_groups_data.append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
-        
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing
-            # if woocommerce_platform:
-            #     instance = updated_modifier
-            #     coreModItms = ProductModifierAndModifierGroupJoint.objects.filter(vendor=instance.vendorId,modifier=instance.pk)
-                
-            #     for coreModItm in coreModItms:
-            #         grp = WooCommerce.getModifierGroupUsingSlug(coreModItm.modifierGroup.slug, instance.vendorId)
-            #         response = WooCommerce.getModifierUsingGroupSKU(coreModItm.modifier.modifierSKU, grp["response"].get("id"), instance.vendorId)
-                    
-            #         if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-            #             wordpress_response = WooCommerce.createModifier(coreModItm.modifier, instance.vendorId, grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-            #             wordpress_response = WooCommerce.updateModifier(coreModItm.modifier, instance.vendorId,grp["response"].get("id"))
-            #             print(f"Modifier '{instance.modifierName}' created. response: {wordpress_response}")
-            #         if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-            #             print("WP error")
-            #             notify(type=6, msg='0', desc='Modifier sync error', stn=['POS'], vendorId=instance.vendorId.pk)
-            #             transaction.set_rollback(True)
-            #             return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                
-            #     notify(type=3, msg='0', desc='Modifier synced', stn=['POS'], vendorId=instance.vendorId.pk)
-            
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
             if inventory_platform:
@@ -5239,21 +4076,13 @@ def update_modifier(request, modifier_id):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            return JsonResponse({
-                "id": modifier.pk,
-                "plu": modifier.modifierPLU,
-                "name": modifier.modifierName,
-                "description": modifier.modifierDesc if modifier.modifierDesc else "",
-                "image": modifier.modifierImg if modifier.modifierImg else "",
-                "price": modifier.modifierPrice,
-                "is_active": modifier.active,
-                "modifier_groups": modifier_groups_data
-            }, status=status.HTTP_201_CREATED)
+            modifier_info = get_modifier_data(updated_modifier, vendor_id)
+            
+            return JsonResponse(modifier_info, status=status.HTTP_201_CREATED)
         
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
-
 
 @api_view(["DELETE"])
 def delete_modifier(request, modifier_id):
@@ -5280,46 +4109,6 @@ def delete_modifier(request, modifier_id):
     if modifier:
         try:
             with transaction.atomic():
-                # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                # WooCommerce syncing
-                # if woocommerce_platform:
-                #     instance = modifier
-                #     response = WooCommerce.getModifierUsingSKU(instance.modifierSKU, instance.vendorId)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_AND_FOUND:
-                #         wordpress_response = WooCommerce.deleteModifierUsingId(instance, instance.vendorId)
-                #         print(f"Mod Group '{instance.modifierName}' will be deleted.  response: {wordpress_response}")
-                        
-                #         modifier.delete()
-
-                #         notify(type=3, msg='0', desc='Modifier deleted', stn=['POS'], vendorId=instance.vendorId.pk)
-                
-                #         return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-                #     if response["code"] == Short_Codes.CONNECTED_BUT_NOTFOUND:
-                #         print(f"Modifier not found in wordpress")
-                #         notify(type=6, msg='0', desc='Modifier delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         transaction.set_rollback(True)
-                #         return JsonResponse({"Modifier not found in wordpress"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-                    
-                #     if (response["code"] == Short_Codes.ERROR) or (wordpress_response["code"] == 1):
-                #         print(f"error , {response}")
-                #         notify(type=6, msg='0', desc='Modifier delete error', stn=['POS'], vendorId=instance.vendorId.pk)
-                #         # webSocketPush(
-                #         #     message={
-                #         #         "type": 5,
-                #         #         "orderId": 0,
-                #         #         "description": 'Modifier delete error',
-                #         #         "status": 5,
-                #         #         "order_type": 10,
-                #         #     }, room_name="MESSAGE"+'-'+str(instance.vendorId.pk)+'-'+str("POS"), username="CORE"
-                #         # )
-
-                #         transaction.set_rollback(True)
-                        
-                #         return JsonResponse({"error": f"{wordpress_response.get('response', {}).get('message')}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
                 inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
                 if inventory_platform:
@@ -5888,7 +4677,7 @@ def get_orders_of_customer(request):
                     'product_plu': content.SKU,
                     'product_name': product.product.productName,
                     'tag': product.product.tag,
-                    'is_unlimited': product.product.Unlimited,
+                    'is_unlimited': product.product.is_unlimited,
                     'preparation_time': product.product.preparationTime,
                     'is_taxable': product.product.taxable,
                     'product_image': image_url,
@@ -6209,19 +4998,6 @@ def create_loyalty_points_settings(request):
                 vendor = vendor
             )
 
-            # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-            # WooCommerce syncing as entry in wordpress will already be created
-            # if woocommerce_platform:
-            #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-            #     if woocommerce_response == True:
-            #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-            #     else:
-            #         transaction.set_rollback(True)
-            #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-            
             settings_data = {}
 
             settings_data["id"] = settings.pk
@@ -6277,19 +5053,6 @@ def update_loyalty_points_settings(request):
 
         settings.save()
 
-        # woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-        # WooCommerce syncing
-        # if woocommerce_platform:
-        #     woocommerce_response = WooCommerce.update_loyalty_program_settings(vendor_id, settings)
-
-        #     if woocommerce_response == True:
-        #         notify(type=3, msg='0', desc='Loyalty program settings synced', stn=['POS'], vendorId=settings.vendor.pk)
-
-        #     else:
-        #         transaction.set_rollback(True)
-        #         return Response("WooCommerce syncing error", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
         settings_data = {}
 
         settings_data["id"] = settings.pk
@@ -6311,6 +5074,7 @@ def redeem_loyalty_points(request):
     customer_id = body_data.get('customer_id')
     external_order_id = body_data.get('external_order_id')
     is_wordpress = body_data.get('is_wordpress')
+    language = body_data.get('language')
 
     if not all((vendor_id, customer_id, external_order_id)):
         return Response("Vendor ID, Customer ID, Order ID or is_wordpress is empty", status=status.HTTP_400_BAD_REQUEST)
@@ -6432,40 +5196,9 @@ def redeem_loyalty_points(request):
                         customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                         customer_instance.save()
 
-                    # WooCommerce syncing
-                    # if is_wordpress == False:
-                    #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                    #     if woocommerce_platform:
-                    #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                    #         if woocommerce_customer_details.status_code == 404:
-                    #             pass
-
-                    #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                    #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                    #             if woocommerce_customer_details.get('id'):
-                    #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                    #                     woocommerce_customer_details.get('id'),
-                    #                     customer_instance.loyalty_points_balance,
-                    #                     vendor_id
-                    #                 )
-
-                    #                 if balance_update_response == True:
-                    #                     notify(type=3, msg='0', desc='Loyalty points synced', stn=['POS'], vendorId=vendor_id)
-
-                    #                 else:
-                    #                     transaction.set_rollback(True)
-                    #                     return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
-
-                    #         else:
-                    #             transaction.set_rollback(True)
-                        #             return Response("WooCommerce syncing error", status=status.HTTP_400_BAD_REQUEST)
-
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
             
-                    waiteOrderUpdate(orderid=koms_order.pk, vendorId=vendor_id) # call socket
+                    waiteOrderUpdate(orderid=koms_order.pk, language=language, vendorId=vendor_id) # call socket
                     
                     return Response("Points redeemed", status=status.HTTP_200_OK)
 
@@ -6621,36 +5354,6 @@ def loyalty_points_redeem(vendor_id, customer_id, master_order_id, is_wordpress,
                                 customer_instance.loyalty_points_balance = customer_instance.loyalty_points_balance - record["utilized_points"]
                                 customer_instance.save()
 
-                                # WooCommerce syncing
-                                # if is_wordpress == False:
-                                #     woocommerce_platform = Platform.objects.filter(VendorId=vendor_id, Name="WooCommerce", isActive=True).first()
-
-                                #     if woocommerce_platform:
-                                #         woocommerce_customer_details = WooCommerce.get_customer_by_phone_number(customer_instance.Phone_Number, vendor_id)
-
-                                #         if woocommerce_customer_details.status_code == 404:
-                                #             pass
-
-                                #         elif woocommerce_customer_details and woocommerce_customer_details.status_code == 200:
-                                #             woocommerce_customer_details = woocommerce_customer_details.json()
-
-                                #             if woocommerce_customer_details.get('id'):
-                                #                 balance_update_response = WooCommerce.update_loyalty_points_balance_of_customer(
-                                #                     woocommerce_customer_details.get('id'),
-                                #                     customer_instance.loyalty_points_balance,
-                                #                     vendor_id
-                                #                 )
-
-                                #                 if balance_update_response == True:
-                                #                     pass
-
-                                #                 else:
-                                #                     transaction.set_rollback(True)
-                                #                     return is_redeemed
-
-                                #         else:
-                                #             transaction.set_rollback(True)
-                                #             return is_redeemed
                             break
 
                 is_redeemed = True
@@ -6693,7 +5396,7 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
 
 
 class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Stations.objects.all().order_by('-pk')
+    queryset = Station.objects.all().order_by('-pk')
     serializer_class = StationModelSerializer
     filter_class = StationFilter
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
@@ -6707,9 +5410,9 @@ class StationModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Stations.objects.filter(vendorId=vendor_id).order_by("-pk")
+            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
         
-        return Stations.objects.none()
+        return Station.objects.none()
 
     
     def list(self, request, *args, **kwargs):
@@ -6796,6 +5499,7 @@ def top_selling_products_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -6824,7 +5528,7 @@ def top_selling_products_report(request):
     if sort_by not in ("ascending", "descending"):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         order_items = Order_content.objects.filter(
@@ -6923,8 +5627,16 @@ def top_selling_products_report(request):
                     if image.url:
                         image_list.append(image.url)
 
+                product_name = ""
+
+                if language == "English":
+                    product_name = products.productName
+
+                else:
+                    product_name = products.productName_locale
+                
                 item['product_id'] = products.pk
-                item['product_name'] = products.productName
+                item['product_name'] = product_name
                 item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                 item['price'] = products.productPrice
                 item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -6955,14 +5667,22 @@ def top_selling_products_report(request):
         sheet.append([''])
 
         # Write headers
-        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price (Rs.)', 'Total Sale (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
 
         if order_items.exists():    
             for item in top_selling_items:
                 products = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
+                product_name = ""
+
+                if language == "English":
+                    product_name = products.productName
+
+                else:
+                    product_name = products.productName_locale
+
                 sheet.append([
-                    products.productName,
+                    product_name,
                     item['quantity_sold'],
                     products.productPrice,
                     item['quantity_sold'] * products.productPrice
@@ -6998,6 +5718,7 @@ def most_repeating_customers_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -7029,7 +5750,7 @@ def most_repeating_customers_report(request):
     if not sort_by:
         sort_by = "descending "
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     if order_type == "all":
         orders = Order.objects.filter(
@@ -7189,8 +5910,16 @@ def most_repeating_customers_report(request):
                         if image.url:
                             image_list.append(image.url)
 
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = products.productName
+
+                    else:
+                        product_name = products.productName_locale
+
                     item['product_id'] = products.pk
-                    item['product_name'] = products.productName
+                    item['product_name'] = product_name
                     item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                     item['price'] = products.productPrice
                     item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -7415,10 +6144,19 @@ def most_repeating_customers_report(request):
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
-                    if list_of_items:
-                        list_of_items = list_of_items + ", " + product.productName
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = product.productName
+
                     else:
-                        list_of_items = product.productName
+                        product_name = product.productName_locale
+                    
+                    if list_of_items:
+                        list_of_items = list_of_items + ", " + product_name
+                        
+                    else:
+                        list_of_items = product_name
         
             customer_orders = Order.objects.filter(
                 customerId=customer["customerId"],
@@ -7526,10 +6264,10 @@ def customers_redeemed_most_points_report(request):
     vendor_id = request.GET.get("vendorId")
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
-    # order_type = request.GET.get('type')
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -7561,59 +6299,13 @@ def customers_redeemed_most_points_report(request):
     if not sort_by:
         sort_by = "descending "
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = Order.objects.filter(
         Status=OrderStatus.get_order_status_value('COMPLETED'),
         OrderDate__date__range=(start_date, end_date),
         vendorId=vendor_id,
     )
-    
-    # if order_type == "all":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "delivery":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('DELIVERY'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "pickup":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('PICKUP'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-
-    # elif order_type == "dinein":
-    #     orders = Order.objects.filter(
-    #         vendorId=vendor_id,
-    #         orderType=OrderType.get_order_type_value('DINEIN'),
-    #         Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #         OrderDate__date__range=(start_date, end_date)
-    #     )
-    
-    # elif order_type == "online":
-    #     if platform:
-    #         orders = Order.objects.filter(
-    #             platform=platform.pk,
-    #             Status=OrderStatus.get_order_status_value('COMPLETED'),
-    #             OrderDate__date__range=(start_date, end_date),
-    #             vendorId=vendor_id
-    #         )
-        
-    #     else:
-    #         return Response("Contact you administrator to activate the platform", status=status.HTTP_400_BAD_REQUEST)
-    
-    # else:
-    #     return Response("Invalid type parameter", status=status.HTTP_400_BAD_REQUEST)
     
     top_customers = LoyaltyPointsRedeemHistory.objects.filter(
         vendor=vendor_id,
@@ -7644,50 +6336,6 @@ def customers_redeemed_most_points_report(request):
                 orderId__master_order__vendorId=vendor_id,
                 orderId__vendorId=vendor_id,
             ).exclude(status=5)
-
-            # if order_type == "all":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-            
-            # elif order_type == "delivery":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DELIVERY'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "pickup":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('PICKUP'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "dinein":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DINEIN'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "online":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__platform=platform.pk,
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
             
             list_of_items = []
 
@@ -7708,8 +6356,16 @@ def customers_redeemed_most_points_report(request):
                         if image.url:
                             image_list.append(image.url)
 
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = products.productName
+
+                    else:
+                        product_name = products.productName_locale
+
                     item['product_id'] = products.pk
-                    item['product_name'] = products.productName
+                    item['product_name'] = product_name
                     item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                     item['price'] = products.productPrice
                     item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -7739,11 +6395,6 @@ def customers_redeemed_most_points_report(request):
                 credit_datetime__date__range=(start_date, end_date)
             ).aggregate(total_points_credited=Sum('points_credited'))['total_points_credited'] or 0
 
-            # sum_of_points_unclaimed = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer_id=customer_id,
-            #     credit_datetime__range=(start_date, end_date)
-            # ).aggregate(total_balance_points=Sum('balance_points'))['total_balance_points'] or 0
-            
             if customer_address:    
                 customer_details.append({
                     "customer_id": customer["customer"],
@@ -7759,7 +6410,6 @@ def customers_redeemed_most_points_report(request):
                     "loyalty_points_balance": customer_info.loyalty_points_balance,
                     "total_points_redeemed": customer['total_points_redeemed'],
                     "total_points_credited": sum_of_points_credited,
-                    # "total_points_unclaimed": sum_of_points_unclaimed,
                     "total_orders_count": total_orders_count,
                     "online_orders_count": online_orders_count,
                     "offline_orders_count": offline_orders_count,
@@ -7783,8 +6433,6 @@ def customers_redeemed_most_points_report(request):
                 "pincode": "",
                 "loyalty_points_balance": customer_info.loyalty_points_balance,
                 "total_points_redeemed": customer['total_points_redeemed'],
-                # "total_points_credited": sum_of_points_credited,
-                # "total_points_unclaimed": sum_of_points_unclaimed,
                 "total_orders_count": total_orders_count,
                 "online_orders_count": online_orders_count,
                 "offline_orders_count": offline_orders_count,
@@ -7812,7 +6460,6 @@ def customers_redeemed_most_points_report(request):
         if platform:
             sheet.append(['Start Date', f'{formatted_start_date}'])
             sheet.append(['End Date', f'{formatted_end_date}'])
-            # sheet.append(['Order Type', f'{order_type}'])
             sheet.append(['Top', f'{top_number}'])
             sheet.append(['Sorted by', f'{sort_by}'])
             sheet.append(['Total records', f'{len(top_customers)}'])
@@ -7823,7 +6470,6 @@ def customers_redeemed_most_points_report(request):
                 'Phone Number',
                 'Email ID',
                 'Address',
-                # 'Total Points Credited',
                 'Total Points Redeemed',
                 'Total Orders',
                 'Total Online Orders',
@@ -7837,7 +6483,6 @@ def customers_redeemed_most_points_report(request):
         else:    
             sheet.append(['Start Date', f'{formatted_start_date}'])
             sheet.append(['End Date', f'{formatted_end_date}'])
-            # sheet.append(['Order Type', f'{order_type}'])
             sheet.append(['Top', f'{top_number}'])
             sheet.append(['Sorted by', f'{sort_by}'])
             sheet.append(['Total records', f'{len(top_customers)}'])
@@ -7848,7 +6493,6 @@ def customers_redeemed_most_points_report(request):
                 'Phone Number',
                 'Email ID',
                 'Address',
-                # 'Total Points Credited',
                 'Total Points Redeemed',
                 'Total Orders',
                 'Total Delivery Orders',
@@ -7867,50 +6511,6 @@ def customers_redeemed_most_points_report(request):
                 orderId__vendorId=vendor_id,
             ).exclude(status=5)
 
-            # if order_type == "all":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-            
-            # elif order_type == "delivery":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DELIVERY'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "pickup":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('PICKUP'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "dinein":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__orderType=OrderType.get_order_type_value('DINEIN'),
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
-            # elif order_type == "online":
-            #     order_items = OrderItem.objects.filter(
-            #         orderId__customerId=customer["customer"],
-            #         orderId__platform=platform.pk,
-            #         orderId__Status=OrderStatus.get_order_status_value('COMPLETED'),
-            #         orderId__OrderDate__date__range=(start_date, end_date),
-            #         vendorId=vendor_id,
-            #     )
-
             top_selling_items = order_items.values('SKU').distinct() \
                                 .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
                                 .filter(quantity_sold__gt=0) \
@@ -7922,10 +6522,19 @@ def customers_redeemed_most_points_report(request):
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
-                    if list_of_items:
-                        list_of_items = list_of_items + ", " + product.productName
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = product.productName
+
                     else:
-                        list_of_items = product.productName
+                        product_name = product.productName_locale
+                    
+                    if list_of_items:
+                        list_of_items = list_of_items + ", " + product_name
+
+                    else:
+                        list_of_items = product_name
     
             customer_orders = orders.filter(customerId=customer["customer"])
 
@@ -7942,18 +6551,9 @@ def customers_redeemed_most_points_report(request):
 
             customer_address = Address.objects.filter(customer=customer["customer"], type='shipping_address', is_selected=True).first()
 
-            # sum_of_points_credited = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer=customer_id,
-            #     credit_datetime__date__range=(start_date, end_date)
-            # ).aggregate(total_points_credited=Sum('points_credited'))['total_points_credited'] or 0
-
-            # sum_of_points_unclaimed = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer_id=customer_id,
-            #     credit_datetime__range=(start_date, end_date)
-            # ).aggregate(total_balance_points=Sum('balance_points'))['total_balance_points'] or 0
-
             if customer_info.FirstName and customer_info.LastName:
                 customer_name = customer_info.FirstName + " " + customer_info.LastName
+
             elif customer_info.FirstName and not customer_info.LastName:
                 customer_name = customer_info.FirstName
 
@@ -7977,7 +6577,6 @@ def customers_redeemed_most_points_report(request):
                 customer_info.Email if customer_info.Email else "",
                 address,
                 customer["total_points_redeemed"],
-                # sum_of_points_credited,
                 total_orders_count,
                 online_orders_count,
                 offline_orders_count,
@@ -7994,7 +6593,6 @@ def customers_redeemed_most_points_report(request):
                     customer_info.Email if customer_info.Email else "",
                     address,
                     customer["total_points_redeemed"],
-                    # sum_of_points_credited,
                     total_orders_count,
                     delivery_orders_count,
                     pickup_orders_count,
@@ -8052,7 +6650,7 @@ def finance_report(request):
     else:
         is_download = str(is_download)
 
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     orders = OrderPayment.objects.filter(
         status=True,
@@ -8280,7 +6878,7 @@ def footfall_revenue_report(request):
     if filter_type not in ('footfall', 'revenue'):
         return Response("Invalid type parameter", status=status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     all_orders = OrderPayment.objects.filter(
         status=True,
@@ -8791,7 +7389,7 @@ def order_report(request):
         return JsonResponse(order_count_details)
     
     elif is_download == "true":
-        platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+        platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
@@ -8848,12 +7446,14 @@ def cancel_order_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -8873,6 +7473,7 @@ def cancel_order_report(request):
 
     try:
         top_number = int(top_number)
+
     except ValueError:
         return Response("Invalid top parameter", status=status.HTTP_400_BAD_REQUEST)
     
@@ -8888,7 +7489,7 @@ def cancel_order_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     cancelled_orders = KOMSOrder.objects.filter(
         master_order__Status=OrderStatus.get_order_status_value('CANCELED'),
@@ -8960,9 +7561,17 @@ def cancel_order_report(request):
             if image.url:
                 image_list.append(image.url)
 
+        product_name = ""
+
+        if language == "English":
+            product_name = product_info.productName
+
+        else:
+            product_name = product_info.productName_locale
+
         cancelled_product_details.append({
             'product_id': product_info.pk,
-            'product_name': product_info.productName,
+            'product_name': product_name,
             'image': image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
             'price': product_info.productPrice,
             'cancel_count': product['cancel_count'],
@@ -8997,7 +7606,7 @@ def cancel_order_report(request):
         sheet.append(['Order Type', f'{order_type}'])
         sheet.append([''])
 
-        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made (Rs.)"])
+        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made"])
         sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
         sheet.append([''])
@@ -9008,7 +7617,7 @@ def cancel_order_report(request):
 
         sheet.append([''])
 
-        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price (Rs.)', 'Estimated Revenue (Rs.)'])
+        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
 
         for product_detail in cancelled_product_details:
             sheet.append([
@@ -9045,6 +7654,7 @@ def pincode_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -9085,7 +7695,7 @@ def pincode_report(request):
     elif order_type == "dinein":
         order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name="WooCommerce", isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
     order_items = Order_content.objects.filter(
         orderId__order_status=10,
@@ -9157,9 +7767,17 @@ def pincode_report(request):
                 if image.url:
                     image_list.append(image.url)
 
+            product_name = ""
+
+            if language == "English":
+                product_name = product_info.productName
+
+            else:
+                product_name = product_info.productName_locale
+
             product_details.append({
                 'product_id': product_info.pk,
-                'product_name': product_info.productName,
+                'product_name': product_name,
                 'image': image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                 'price': product_info.productPrice,
                 'quantity_sold': product['item_count'],
@@ -9217,6 +7835,7 @@ def pincode_report(request):
             for product in info.get('products', []):
                 if list_of_items:
                     list_of_items = list_of_items + ", " + product["product_name"]
+
                 else:
                     list_of_items = product["product_name"]
 
@@ -9249,26 +7868,25 @@ def get_delivery_settings(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-    delivery_settting = Setting.objects.filter(name="delivery", vendor=vendor_id).first()
+    delivery_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    if not delivery_settting:
-        json_data = {
-            "kilometer_limit": 0,
-            "delivery_charges": 0
-        }
+    if not delivery_setting:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
     
-    else:
-        json_data = delivery_settting.json_object
-    
-    return JsonResponse(json_data)
+    return JsonResponse({
+        "message": "",
+        "kilometer_limit": delivery_setting.delivery_kilometer_limit,
+        "delivery_charges": delivery_setting.delivery_charges_for_kilometer_limit
+    })
 
 
 @api_view(["POST"])
@@ -9276,55 +7894,47 @@ def update_delivery_settings(request):
     vendor_id = request.GET.get('vendor')
 
     if not vendor_id:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     kilometer_limit = request.data.get('kilometer_limit')
     delivery_charges = request.data.get('delivery_charges')
 
-    if kilometer_limit is None or delivery_charges is None:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+    if (kilometer_limit is None) or (delivery_charges is None):
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
 
     try:
         kilometer_limit = int(kilometer_limit)
         delivery_charges = int(delivery_charges)
 
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
     
-    json_data = {
-        "kilometer_limit": kilometer_limit,
-        "delivery_charges": delivery_charges
-    }
+    delivery_settting_instance = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    delivery_settting_instance = Setting.objects.filter(name="delivery", vendor=vendor_id).first()
+    if not delivery_settting_instance:
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if delivery_settting_instance:
-        delivery_settting_instance.json_object = json_data
+    delivery_settting_instance.delivery_kilometer_limit = kilometer_limit
+    delivery_settting_instance.delivery_charges_for_kilometer_limit = delivery_charges
 
-        delivery_settting_instance.save()
-        
-        return JsonResponse(delivery_settting_instance.json_object)
-
-    else:
-        delivery_settting = Setting(
-            name="delivery",
-            json_object = json_data,
-            vendor=vendor_instance
-        )
-
-        delivery_settting.save()
-        
-        return JsonResponse(delivery_settting.json_object)
+    delivery_settting_instance.save()
+    
+    return JsonResponse({
+        "message": "",
+        "kilometer_limit": delivery_settting_instance.delivery_kilometer_limit,
+        "delivery_charges": delivery_settting_instance.delivery_charges_for_kilometer_limit
+    })
 
 
 import zipfile
@@ -9406,6 +8016,7 @@ def download_product_excel_upload_template(request):
         
         try:
             vendor_id = int(vendor_id)
+            
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -9422,23 +8033,31 @@ def download_product_excel_upload_template(request):
 
         response = "/media/" + relative_file_path
 
-        if not os.path.exists(file_path):
-            workbook = openpyxl.Workbook()
-            sheet = workbook.active
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
 
+        if not vendor_instance.secondary_language:
             sheet.append([
-                "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image"
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
 
-            directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
-            os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
+        else:
+            sheet.append([
+                "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+            
+        directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
-            workbook.save(file_path)
+        workbook.save(file_path)
 
-            print(f"Excel file '{file_name}' has been created.")
+        print(f"Excel file '{file_name}' has been created.")
         
         return HttpResponse(response, status=status.HTTP_200_OK)
     
@@ -9457,6 +8076,7 @@ def download_product_data_excel(request):
         
         try:
             vendor_id = int(vendor_id)
+
         except ValueError:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
@@ -9470,13 +8090,12 @@ def download_product_data_excel(request):
         if not categories.exists():
             return Response("No categories found", status=status.HTTP_404_NOT_FOUND)
         
-        port = request.META.get("SERVER_PORT")
-
         # Get the IP addresses associated with the hostname
         host_ip_list = socket.gethostbyname_ex(socket.gethostname())[2]
 
         # Filter out localhost addresses (those starting with "127.")
         filtered_ip_list = []
+        
         for ip in host_ip_list:
             if not ip.startswith("127."):
                 filtered_ip_list.append(ip)
@@ -9492,26 +8111,38 @@ def download_product_data_excel(request):
         if not server_ip:
             try:
                 soc = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
                 soc.connect(('8.8.8.8', 53))
+
                 server_ip = soc.getsockname()[0]
+
                 soc.close()
+
             except Exception as e:
                 server_ip = None
 
-        # server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-        
         # Create a new Excel workbook and select the active sheet
         workbook = openpyxl.Workbook()
+        
         sheet = workbook.active
 
         sheet.title = "Sheet1"
         
-        sheet.append([
-            "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-            "Product Name", "Product SKU", "Product Description", "Tag", "Product Price (in Rs.)", "Is Product Active (yes/no)", "Product Image",
-            "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
-            "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price (in Rs.)", "Modifier Active (yes/no)", "Modifier Image"
-        ])
+        if not vendor_instance.secondary_language:
+            sheet.append([
+                "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Modifier Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
+
+        else:
+            sheet.append([
+                "Category Station", "Category Name", "Category Name (Locale)", "Category SKU", "Category Description", "Category Description (Locale)", "Is Category Active (yes/no)", "Category Image",
+                "Product Name", "Product Name (Locale)", "Product SKU", "Product Description", "Product Description (Locale)", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
+                "Modifier Group Name", "Modifier Group Name (Locale)", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Description (Locale)", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
+                "Modifier Name", "Modifier Name (Locale)", "Modifier SKU", "Modifier Description", "Modifier Description (Locale)", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
+            ])
         
         for category in categories:
             category_product_joint = ProductCategoryJoint.objects.filter(
@@ -9526,8 +8157,6 @@ def download_product_data_excel(request):
                         
             if category.is_active == True:
                 is_category_active = "yes"
-            
-            # category_image = f"http://{server_ip}:{port}{category.categoryImage.url}" if category.categoryImage else ""
             
             category_image = category.categoryImageUrl if category.categoryImageUrl else ""
             
@@ -9550,11 +8179,19 @@ def download_product_data_excel(request):
                 ).order_by("modifierGroup__name", "-modifierGroup__active")
 
                 if not product_modifier_group_joint.exists():
-                    sheet.append([
-                        f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                        f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                        f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                    ])
+                    if not vendor_instance.secondary_language:
+                        sheet.append([
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
+
+                    else:
+                        sheet.append([
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                            f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                        ])
 
                 else:
                     for modifier_group_info in product_modifier_group_joint:
@@ -9582,15 +8219,27 @@ def download_product_data_excel(request):
                             if modifier_info.modifier.modifierImg:
                                 modifier_image = modifier_info.modifier.modifierImg
 
-                            sheet.append([
-                                f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                                f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
-                                f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
-                                f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
-                                f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
-                            ])
+                            if not vendor_instance.secondary_language:
+                                sheet.append([
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
+
+                            else:
+                                sheet.append([
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                                    f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
+                                    f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}", f"{modifier_info.modifier.modifierDesc_locale}",
+                                    f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
+                                ])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -9612,22 +8261,6 @@ def download_product_data_excel(request):
     except Exception as e:
         print(e)
         return HttpResponse("Something went wrong", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    # # To return excel file
-    # with open(file_path, 'rb') as excel_file:
-    #     response = FileResponse(excel_file.read(), as_attachment=True, filename=file_name)
-    # return response
-
-    # # To return excel file as Base64
-    # with open(file_path, 'rb') as excel_file:
-    #     excel_content = excel_file.read()
-        
-    # base64_encoded = b64encode(excel_content).decode('utf-8')
-    
-    # response = HttpResponse(base64_encoded, content_type='text/plain')
-    # response['Content-Disposition'] = 'attachment; filename="file.xlsx"'
-    
-    # return response
 
 
 @api_view(["POST"])
@@ -9683,6 +8316,38 @@ def is_platform(request):
     
     except Exception as e:
         return Response(f"{str(e)}", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+def get_pos_menu(request):
+    vendor_id = request.GET.get('vendor')
+
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    pos_menu = POSMenu.objects.filter(vendor=vendor_id).first()
+
+    if not pos_menu:
+        return JsonResponse({"message": "POS menu not configured"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    return JsonResponse(
+        {
+            "message": "",
+            "is_sop_active": pos_menu.is_sop_active,
+        }, status=status.HTTP_400_BAD_REQUEST
+    )
+
 
 
 class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):

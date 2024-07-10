@@ -1,9 +1,8 @@
 from django.shortcuts import render, redirect
 from django.contrib.auth import logout
 from .models import *
-from django.db.models import Q
 from django.contrib import messages
-from django.http import HttpResponse, JsonResponse
+from django.http import JsonResponse
 from django.contrib.auth.models import User
 from django.contrib import messages
 from django.contrib.auth import authenticate, login
@@ -213,15 +212,9 @@ def get_service(request):
             "baseUrl": data.baseUrl,
             "secreateKey": data.secreateKey,
             "secreatePass": data.secreatePass,
-            "APIKey": data.APIKey,
             "VendorId": data.VendorId.pk,
-            "macId": data.macId,
             "isActive": data.isActive,
             "expiryDate": data.expiryDate,
-            "pushMenuUrl": data.pushMenuUrl,
-            "corePlatformType": data.corePlatformType,
-            "className": data.className,
-            "autoSyncMenu": data.autoSyncMenu,
             "orderActionType": data.orderActionType,
         })
 
@@ -287,15 +280,9 @@ def update_service(request, platform_id):
             serialized_data["baseUrl"] = service.baseUrl
             serialized_data["secreateKey"] = service.secreateKey
             serialized_data["secreatePass"] = service.secreatePass
-            serialized_data["APIKey"] = service.APIKey
             serialized_data["VendorId"] = service.VendorId.pk
-            serialized_data["macId"] = service.macId
             serialized_data["isActive"] = service.isActive
             serialized_data["expiryDate"] = service.expiryDate
-            serialized_data["pushMenuUrl"] = service.pushMenuUrl
-            serialized_data["corePlatformType"] = service.corePlatformType
-            serialized_data["className"] = service.className
-            serialized_data["autoSyncMenu"] = service.autoSyncMenu
             serialized_data["orderActionType"] = service.orderActionType
 
             messages.success(request, "Service updated successfully")

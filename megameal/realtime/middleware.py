@@ -1,12 +1,12 @@
 from django.contrib.auth.models import AnonymousUser
-from koms.models import Stations
+from koms.models import Station
 from channels.db import database_sync_to_async
 from channels.middleware import BaseMiddleware
 
 @database_sync_to_async
 def get_user(token_key):
     try:
-        token = Stations.objects.get(key=token_key)#TODO addVendorId
+        token = Station.objects.get(key=token_key)#TODO addVendorId
         return token.pk
     except:
         print('not found')

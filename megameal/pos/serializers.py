@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from woms.models import Waiter, Floor, Hotal_Tables
+from woms.models import Waiter, Floor, HotelTable
 from pos.models import StoreTiming, Banner, CoreUserCategory, CoreUser, Department
 from order.models import Order_Discount
 from core.models import (
@@ -11,7 +11,7 @@ from core.models import (
     ProductModifierGroup,
     ProductModifier,
 )
-from koms.models import Stations, Staff
+from koms.models import Station, Staff
 
 
 
@@ -36,12 +36,14 @@ class WaiterSerializer(serializers.ModelSerializer):
         fields = (
             "id",
             "name",
-            "mobile",
+            "name_locale",
+            "phone_number",
             "email",
             "username",
             "password",
             "image",
-            "waiterHead",
+            "is_waiter_head",
+            "is_active",
             "vendorId",
         )
 
@@ -58,11 +60,11 @@ class FloorSerializer(serializers.ModelSerializer):
     table_count = serializers.SerializerMethodField(read_only=True)
 
     def get_table_count(self, floor):
-        return floor.hotal_tables_set.count()
+        return floor.hoteltable_set.count()
 
     class Meta:
         model = Floor
-        fields = ("id", "floorId", "name", "is_active", "table_count", "vendorId")
+        fields = ("id", "floorId", "name", "name_locale", "is_active", "table_count", "vendorId")
 
 
 class HotelTableSerializer(serializers.ModelSerializer):
@@ -78,7 +80,7 @@ class HotelTableSerializer(serializers.ModelSerializer):
     floorName = serializers.CharField(source="floor.name", read_only=True)
 
     class Meta:
-        model = Hotal_Tables
+        model = HotelTable
         fields = "__all__"
 
 
@@ -98,14 +100,21 @@ class ProductCategorySerializer(serializers.ModelSerializer):
         model = ProductCategory
         fields = (
             "id",
+            "categoryStation",
             "categoryPLU",
             "categoryName",
+            "categoryName_locale",
             "categoryDescription",
-            # "categoryImage",
+            "categoryDescription_locale",
             "categoryImageUrl",
-            # "image_selection",
             "vendorId",
         )
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+        if representation.get('categoryImageUrl') is None:
+            representation['categoryImageUrl'] = ""
+        return representation
 
 
 class ProductSerializer(serializers.ModelSerializer):
@@ -117,7 +126,9 @@ class ProductSerializer(serializers.ModelSerializer):
             "id",
             "PLU",
             "productName",
+            "productName_locale",
             "productDesc",
+            "productDesc_locale",
             "productPrice",
             "productType",
             "active",
@@ -146,9 +157,23 @@ class ProductModGroupJointSerializer(serializers.ModelSerializer):
 
 
 class ModifierGroupSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.context["request"].method in ("PUT", "PATCH",):
+            excluded_fields = ("vendorId",)
+            
+            for field_name in excluded_fields:
+                self.fields.pop(field_name)
+
+    id = serializers.IntegerField(read_only=True)
+
     class Meta:
         model = ProductModifierGroup
-        fields = "__all__"
+        fields = (
+            'id', 'name', 'name_locale', 'modifier_group_description', 'modifier_group_description_locale',
+            'PLU', 'min', 'max', 'active', 'vendorId'
+        )
 
 
 class ModifierSerializer(serializers.ModelSerializer):
@@ -198,7 +223,7 @@ class StationModelSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
-        model = Stations
+        model = Station
         fields = (
             "id",
             "station_name",

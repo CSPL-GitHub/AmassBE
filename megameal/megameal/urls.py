@@ -5,14 +5,14 @@ from django.conf.urls.static import static
 # from megameal import settings
 from django.conf import settings
 
+admin.site.site_header = "MegaMeal Admin Panel"
+
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',include('useradmin.urls')),
-    path('core/',include('core.urls')),
     path('kiosk/',include('kiosk.urls')),
     path('order/',include('order.urls')), 
-    path('webhook/',include('webhook.urls')),
     path('koms/',include('koms.urls')),
     path('woms/',include('woms.urls')),
     path('realtime/', include('realtime.urls')),

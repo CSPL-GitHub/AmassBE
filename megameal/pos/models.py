@@ -12,6 +12,14 @@ def validate_phone_number_length(value):
         raise ValidationError("Phone number must be exactly 10 digits.")
 
 
+class POSMenu(models.Model):
+    is_sop_active = models.BooleanField(default=False)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.vendor.Name
+
+
 class StoreTiming(models.Model):
     DAYS_OF_WEEK_CHOICES = [
         ('Monday', 'Monday'),
@@ -32,13 +40,18 @@ class StoreTiming(models.Model):
     platform = models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
     
 
-class PosUser(models.Model):
+class POSUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     name =  models.CharField(max_length=100)
+    name_locale = models.CharField(max_length=100, blank=True)
+    phone_number = models.PositiveBigIntegerField()
     email = models.EmailField()
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
 
 
 class Banner(models.Model):
@@ -48,10 +61,14 @@ class Banner(models.Model):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
-class Setting(models.Model):
-    name = models.CharField(max_length=100)
-    json_object = models.JSONField()
+class POSSetting(models.Model):
+    store_status = models.BooleanField(default=False)
+    delivery_kilometer_limit = models.IntegerField(default=5)
+    delivery_charges_for_kilometer_limit = models.IntegerField(default=0)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.vendor.Name
 
 
 class CoreUserCategory(Group):
@@ -79,5 +96,5 @@ class Department(models.Model):
 def deactivate_related_users(sender, instance, **kwargs):
     if not kwargs.get('raw', False):  # To avoid signal firing during bulk operations
         if instance.is_active is False:  # When is_active of Vendor changes to False
-            related_users = PosUser.objects.filter(vendor=instance)
+            related_users = POSUser.objects.filter(vendor=instance)
             related_users.update(is_active=False)

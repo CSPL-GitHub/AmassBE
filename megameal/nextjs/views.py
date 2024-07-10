@@ -18,7 +18,7 @@ from core.models import  (
     Product, ProductCategoryJoint, ProductImage, ProductModifier, ProductModifierGroup,
     ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint,POS_Settings
 )
-from pos.models import Setting
+from pos.models import POSSetting
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
@@ -244,7 +244,7 @@ def check_order_items_status(request):
         return JsonResponse({"msg": f"store is already closed"}, status=400)
     
     for item in order_details.get('items', []):
-        product = Product.objects.filter(pk=item['prdouctId'])
+        product = Product.objects.filter(pk=item['productId'])
 
         if product.exists() and product.first().active == False:
             return JsonResponse({"msg": f"{product.first().productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
@@ -280,55 +280,68 @@ def CreateOrder(request):
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
     
     data = StoreTiming.objects.filter(vendor=vendorId)
+
     slot = data.filter(day=datetime.now().strftime("%A")).first()
+
     store_status = POS_Settings.objects.filter(VendorId=vendorId).first()
 
     store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
+    
     print("store_status  ",store_status)
+    
     if store_status == False:
         return JsonResponse({"msg": f"store is already closed"}, status=400)
     
     try:
-        orderid=str(CorePlatform.WOOCOMMERCE)+datetime.now().strftime("%Y%m%d%H%M%S")+vendorId
-        result=request.data
+        orderid = '2' + datetime.now().strftime("%Y%m%d%H%M%S") + vendorId
+
+        result = request.data
+        
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = CorePlatform.WOOCOMMERCE
-        result["orderPointName"] = CorePlatform.WOOCOMMERCE.label
-        result["className"] = "WooCommerce"
+        result["orderPointId"] = 2
+        result["Platform"] = "Website"
         result["payment"]["mode"] = PaymentType.CASH
+
         # if Customer.objects.filter(Phone_Number = result['customer']['phno']).exists():
         #     return JsonResponse({"msg": "Number already in use"}, status=400)
+        
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
             result["payment"]["mode"] = PaymentType.ONLINE
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
+
         for item in result['items']:
-            prod = Product.objects.filter(pk=item['prdouctId'])
+            prod = Product.objects.filter(pk=item['productId'])
+            
             if prod.exists() and prod.first().active == False:
                 return JsonResponse({"msg": f"{prod.first().productName} is no longer availabe"}, status=400)
+            
             item["modifiers"] = [
-                           {
-                        "plu": subItem["plu"],
-                        "name": subItem['name'],
-                        "status":True,
-                        "quantity":subItem["quantity"],
-                        "group": subItemGrp['modGroupId']
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
-                ]
+                {
+                    "plu": subItem["plu"],
+                    "name": subItem['name'],
+                    "status":True,
+                    "quantity":subItem["quantity"],
+                    "group": subItemGrp['modGroupId']
+                } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
+            ]
+            
             item["subItems"] = item["modifiers"]
             item['itemRemark'] = 'None'
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
+
+        res = order_helper.OrderHelper.openOrder(result,vendorId)
+        
         if res[1] == 201:
-            return JsonResponse({'token':res,"orderId":orderid})
+            return JsonResponse({'token': res, "orderId": orderid})
+        
         else:
-            return JsonResponse({"msg": "something went wrong"}, status=400)
+            return JsonResponse({"msg": "something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+        
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
 
     
 @api_view(['POST'])
@@ -337,42 +350,49 @@ def CreateOrderApp(request):
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
+    
     try:
-        orderid=str(CorePlatform.WOOCOMMERCE)+datetime.now().strftime("%Y%m%d%H%M%S")+vendorId
-        result=request.data
+        orderid = '2' + datetime.now().strftime("%Y%m%d%H%M%S") + vendorId
+
+        result = request.data
+
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = CorePlatform.WOOCOMMERCE
-        result["orderPointName"] = CorePlatform.WOOCOMMERCE.label
-        result["className"] = "WooCommerce"
+        result["orderPointId"] = 2
+        result["Platform"] = "Mobile App"
         result["payment"]["mode"] = PaymentType.CASH
+        
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
             result["payment"]["mode"] = PaymentType.ONLINE
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
+        
         for item in result['items']:
             item["modifiers"] = [
-                           {
-                        "plu": subItem["plu"],
-                        "name": subItem['name'],
-                        "status":True,
-                        "quantity":subItem["quantity"],
-                        "group": subItemGrp.get('modGroupId') or subItemGrp.get('id'),
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
-                ]
+                {
+                    "plu": subItem["plu"],
+                    "name": subItem['name'],
+                    "status":True,
+                    "quantity":subItem["quantity"],
+                    "group": subItemGrp.get('modGroupId') or subItemGrp.get('id'),
+                } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
+            ]
+
             item["subItems"] = item["modifiers"]
             item['itemRemark'] = 'None'
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
+
+        res = order_helper.OrderHelper.openOrder(result,vendorId)
+
         if res[1] == 201:
-            return JsonResponse({'token':res,"orderId":orderid})
+            return JsonResponse({'token': res, "orderId": orderid})
+        
         else:
-            return JsonResponse({"msg": "something went wrong"}, status=400)
+            return JsonResponse({"msg": "something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )        
+        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
 
 
 @api_view(['GET'])
@@ -458,8 +478,8 @@ def set_customer_address(request):
     if id:
         serealizer = Addressserializers(data=data,instance=Address.objects.get(pk=id))
 
-    # else :
-    #     Address.objects.filter(customer=data['customer']).update(is_selected=False)
+    else :
+        Address.objects.filter(customer=data['customer']).update(is_selected=False)
 
     if serealizer.is_valid() :
         save = serealizer.save()
@@ -511,7 +531,7 @@ def getTags(request):
 
 
 def getDIstance(source,destination):
-    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyCNlRs8xfM4ZauggHgA5qx23nE4aBN4aQQ"
+    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyBpil2D8QGyYQaxh-kcy_XuYWooNYb_eiE"
     payload = {}
     headers = {}
     response = requests.request("GET", url, headers=headers, data=payload)
@@ -647,9 +667,9 @@ def get_banner(request):
                                         "modifierId": modifier.modifier.pk,
                                         "name": modifier.modifier.modifierName,
                                         "description": modifier.modifier.modifierDesc,
-                                        "quantity": modifier.modifier.modifierQty,
+                                        "quantity": 0, # Required for Flutter model
                                         "plu": modifier.modifier.modifierPLU,
-                                        "status": modifier.modifier.modifierStatus,
+                                        "status": False, # Required for Flutter model
                                         "image": modifier.modifier.modifierImg if modifier.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                                         "active": modifier.modifier.active
                                     })
@@ -661,7 +681,6 @@ def get_banner(request):
                                     "plu": group.modifierGroup.PLU,
                                     "min": group.modifierGroup.min,
                                     "max": group.modifierGroup.max,
-                                    "sortOrder": group.modifierGroup.sortOrder,
                                     "type": group.modifierGroup.modGrptype,
                                     "active": group.modifierGroup.active,
                                     "modifiers": modifier_list
@@ -670,7 +689,7 @@ def get_banner(request):
                         product_list.append({
                             "categoryId": product_category.category.pk,
                             "categoryName":product_category.category.categoryName,
-                            "prdouctId": product.pk,
+                            "productId": product.pk,
                             "tags": product.tag or "",
                             "text": product.productName,
                             "imagePath": product_image_list[0] if len(product_image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
@@ -687,7 +706,6 @@ def get_banner(request):
                             "note": '',
                             "isTaxable": product.taxable,
                             "type": product.productType,
-                            "sortOrder": product.sortOrder,
                             "modifiersGroup": modifier_group_list,
                         })
 
@@ -701,3 +719,223 @@ def get_banner(request):
         "recommendations": recommendation_list,
         "todays_special": todays_special_list
     }, status=status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def get_about_us_data(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = AboutUsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        aboutSection = {
+            "sectionImage": data.sectionImage,
+            "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading,
+            "sectionSubHeading":data.sectionSubHeading,
+            "sectionDescription": [data.sectionDescription],
+        }
+        return Response(aboutSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_section_two_cover(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        sectionTwoCoverImage = {
+            "sectionImage":data.sectionImage,
+            "sectionText": data.sectionText,
+            "buttonText": data.buttonText,
+        }
+        return Response(sectionTwoCoverImage)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(["GET"])
+def get_features_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = FeaturesSection.objects.filter(vendor=vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        featuresSection = {
+            "headingText": data.headingText,
+            "subHeadingText": data.subHeadingText,
+        }
+        featuresArray = []
+        for item in FeaturesSectionItems.objects.filter(featuresSection=data.pk):
+            featuresArray.append({
+                    "featureId": item.pk,
+                    "featureIcon": item.featureIcon,
+                    "featureHeading": item.featureHeading,
+                    "featurePara": item.featurePara,
+                })
+        featuresSection['featuresArray'] = featuresArray
+        
+        return Response(featuresSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
+
+@api_view(['GET'])
+def get_testimonials_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        data = TestimonialsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        data = data.first()
+        testimonialsSection = {
+            "sectionHeading": data.sectionHeading,
+            "sectionSubHeading": data.sectionSubHeading if language == "en" else data.sectionSubHeading,
+        }
+        testimonials = []
+        for item in TestimonialsSectionItems.objects.filter(testimonialsSection=data.pk):
+            testimonials.append({
+                    "testimonialId": item.pk,
+                    "testimonialsImageUrl": item.testimonialsImageUrl,
+                    "testimonialsName": item.testimonialsName,
+                    "testimonialsReview": item.testimonialsReview,
+                })
+        testimonialsSection['testimonials'] = testimonials
+        return Response(testimonialsSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    
+
+@api_view(['GET'])
+def get_home_page_offer_section(request, language="en"):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
+        if not all_data.exists():
+            return Response(f"not found", status=status.HTTP_400_BAD_REQUEST)
+        homePageOffersSection =[{
+            "offerId": data.pk,
+            "discountTextColor": data.discountTextColor,
+            "offerDiscountText":data.offerDiscountText,
+            "offerImage": data.offerImage,
+            "offerTitle": data.offerTitle,
+            "offerDescription": data.offerDescription,
+            "buttonLocation": data.buttonLocation,
+        } for data in all_data]
+        return Response(homePageOffersSection)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    
+    
+@api_view(["GET"])
+def get_homepage_content(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        data = AboutUsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            aboutSection = {}
+        else:
+            data = data.first()
+            aboutSection = {
+                "sectionImage": data.sectionImage,
+                "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading,
+                "sectionSubHeading":data.sectionSubHeading,
+                "sectionDescription": [data.sectionDescription],
+            }
+        
+        data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            sectionTwoCoverImage = {}
+        else:
+            data = data.first()
+            sectionTwoCoverImage = {
+                "sectionImage":data.sectionImage,
+                "sectionText": data.sectionText,
+                "buttonText": data.buttonText,
+            }
+            
+        data = FeaturesSection.objects.filter(vendor=vendor_id)
+        if not data.exists():
+            featuresSection = {}
+        else:
+            data = data.first()
+            featuresSection = {
+                "headingText": data.headingText,
+                "subHeadingText": data.subHeadingText,
+            }
+            featuresArray = []
+            for item in FeaturesSectionItems.objects.filter(featuresSection=data.pk):
+                featuresArray.append({
+                        "featureId": item.pk,
+                        "featureIcon": item.featureIcon,
+                        "featureHeading": item.featureHeading,
+                        "featurePara": item.featurePara,
+                    })
+            featuresSection['featuresArray'] = featuresArray
+            
+        data = TestimonialsSection.objects.filter(vendor = vendor_id)
+        if not data.exists():
+            testimonialsSection = {}
+        else:
+            data = data.first()
+            testimonialsSection = {
+                "sectionHeading": data.sectionHeading,
+                "sectionSubHeading": data.sectionSubHeading if language == "en" else data.sectionSubHeading,
+            }
+            testimonials = []
+            for item in TestimonialsSectionItems.objects.filter(testimonialsSection=data.pk):
+                testimonials.append({
+                        "testimonialId": item.pk,
+                        "testimonialsImageUrl": item.testimonialsImageUrl,
+                        "testimonialsName": item.testimonialsName,
+                        "testimonialsReview": item.testimonialsReview,
+                    })
+                
+        all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
+        if not all_data.exists():
+            homePageOffersSection =[]
+        else:
+            homePageOffersSection =[{
+                "offerId": data.pk,
+                "discountTextColor": data.discountTextColor,
+                "offerDiscountText":data.offerDiscountText,
+                "offerImage": data.offerImage,
+                "offerTitle": data.offerTitle,
+                "offerDescription": data.offerDescription,
+                "buttonLocation": data.buttonLocation,
+            } for data in all_data]
+        
+        return Response({
+            "aboutSection":aboutSection,
+            "sectionTwoCoverImage":sectionTwoCoverImage,
+            "featuresSection":featuresSection,
+            "testimonialsSection":testimonialsSection,
+            "homePageOffersSection":homePageOffersSection
+        })
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+    

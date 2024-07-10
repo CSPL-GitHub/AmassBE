@@ -28,7 +28,7 @@ import socket
 #             "name":data.name,
 #             "email":data.email,
 #             "status":data.status,
-#             "waiterHead":data.waiterHead,
+#             "waiterHead":data.is_waiter_head,
 #             "image" :f"http://{server_ip}:8000{data.image.url}",
 #             }
 #         return Response(res)
@@ -83,7 +83,7 @@ def waiter_login(request):
                 "name": waiter.name,
                 "email": waiter.email,
                 "status": waiter.status,
-                "waiterHead": waiter.waiterHead,
+                "waiterHead": waiter.is_waiter_head,
                 "vendorId": waiter.vendorId.pk,
                 "image": f"http://{server_ip}:{port}{waiter.image.url}",
             }
@@ -100,16 +100,39 @@ def waiter_login(request):
  
  
 @api_view(['GET'])
-def showallWaiterscreen(request):
-    res=[ { 
-           "id":w.pk,
-            "name": w.name,
-            "status": w.status,
-            "image" : w.image.name,
-            "waiterHead":w.waiterHead,
-            "token":w.token,
-                    } for w in Waiter.objects.filter(vendorId=request.GET.get("vendorId")) ] 
-    return JsonResponse({"waiters":res})
+def get_waiters(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
+        
+        waiters = Waiter.objects.filter(is_active=True, vendorId=vendor_id)
+        
+        waiter_list = []
+
+        waiter_name = ""
+        
+        for waiter in waiters:
+            if language == "English":
+                waiter_name = waiter.name
+
+            else:
+                waiter_name = waiter.name_locale
+
+            waiter_info = {
+                "id": waiter.pk,
+                "name": waiter_name,
+                "is_waiter_head": waiter.is_waiter_head
+            }
+
+            waiter_list.append(waiter_info)
+
+        return JsonResponse({"message": "", "waiters": waiter_list}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "waiters": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
  
 def get_total_amount(external_order_id, vendor_id):
@@ -140,55 +163,93 @@ def get_total_amount(external_order_id, vendor_id):
     return float(total_amount)
 
 
-def getTableData(hotelTable,vendorId):
-    data={ 
-                "tableId":hotelTable.pk, 
-                "tableNumber": hotelTable.tableNumber,
-                "waiterId":hotelTable.waiterId.pk if hotelTable.waiterId else 0,
-                "status":hotelTable.status,
-                "waiterName":hotelTable.waiterId.name if hotelTable.waiterId else "",
-                "tableCapacity":hotelTable.tableCapacity, 
-                "guestCount":hotelTable.guestCount,
-                "floorId":hotelTable.floor.pk,
-                "floorName":hotelTable.floor.name
-        }
+def getTableData(hotelTable, vendorId, language="English"):
+    waiter_name = ""
+    floor_name = ""
+
+    if hotelTable:
+        if hotelTable.waiterId:
+            if language == "English":
+                waiter_name = hotelTable.waiterId.name
+                floor_name = hotelTable.floor.name
+
+            else:
+                waiter_name = hotelTable.waiterId.name_locale
+                floor_name = hotelTable.floor.name_locale
+    
+    data = { 
+        "tableId": hotelTable.pk, 
+        "tableNumber": hotelTable.tableNumber,
+        "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
+        "status": hotelTable.status,
+        "waiterName": waiter_name,
+        "tableCapacity": hotelTable.tableCapacity, 
+        "guestCount": hotelTable.guestCount,
+        "floorId": hotelTable.floor.pk,
+        "floorName": floor_name
+    }
     
     try:
-        test=Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
+        test = Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
+
         latest_order = Order.objects.filter(id__in=test,vendorId=vendorId).order_by('-arrival_time').first()
-        data["order"]=latest_order.externalOrderId if latest_order else 0
-        data["total_amount"] = latest_order.master_order.subtotal
+
+        if latest_order:
+            data["order"] = latest_order.externalOrderId
+            data["total_amount"] = latest_order.master_order.subtotal
+
+        else:
+            data["order"] = 0
+            data["total_amount"] = 0.0
+
     except Order_tables.DoesNotExist:
         print("Table not found")
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
+
     except Order.DoesNotExist:
         print("Order not found")
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
+
     except Exception as e:
-        data["order"]=0
+        data["order"] = 0
         data["total_amount"] = 0.0
         print(f"Unexpected {e=}, {type(e)=}")
+
     return data
 
 
-def  gettable(id,vendorId):
+def gettable(id, vendorId, language="English"):
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
-        data=data.order_by('tableNumber')
-        return[ getTableData(i) for i in data ] 
-    except Exception as e :
-            print(e)
-            return []
- 
-def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
-    try:
-        if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).waiterHead:
-            data = Hotal_Tables.objects.filter(vendorId=vendorId)
-            # print(data.count())
+        waiter = Waiter.objects.get(pk=id, vendorId=vendorId)
+        
+        if waiter.is_waiter_head:
+            data = HotelTable.objects.filter(vendorId=vendorId).order_by('tableNumber')
+
         else:
-            data = Hotal_Tables.objects.filter(waiterId=waiterId, vendorId=vendorId)
+            data = HotelTable.objects.filter(waiterId=id, vendorId=vendorId).order_by('tableNumber')
+        
+        result = []
+
+        for table in data:
+            table_data = getTableData(table, language)
+            result.append(table_data)
+        
+        return result
+    
+    except Exception as e:
+        print(e)
+        return []
+ 
+def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="English"):
+    try:
+        if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
+            data = HotelTable.objects.filter(vendorId=vendorId)
+            # print(data.count())
+        
+        else:
+            data = HotelTable.objects.filter(waiterId=waiterId, vendorId=vendorId)
 
         if filter != 'All':
             data = data.filter(tableCapacity=filter)
@@ -209,12 +270,14 @@ def filterTables(waiterId, filter, search, status, waiter, floor, vendorId):
         data = data.order_by('tableNumber')
         
         table_data = []
-        for table in data:
-            table_data.append(getTableData(hotelTable=table, vendorId=vendorId))
         
-        # print(len(table_data))
+        for table in data:
+            table_info = getTableData(hotelTable=table, vendorId=vendorId, language=language)
+
+            table_data.append(table_info)
         
         return table_data
+    
     except Exception as e:
         print(e)
         return []
@@ -234,40 +297,42 @@ def websockettable(massase):
 @api_view(["post"])
 def assinTableupdate(request):
     from koms.views import webSocketPush
+
     requestJson = JSONParser().parse(request)
+
     id = requestJson.get('tableId')
-    floorId = requestJson.get('floorId')
+    # floorId = requestJson.get('floorId')
     waiterId = requestJson.get('waiterId')
-    vendorId=request.GET.get("vendorId")
+    vendorId = request.GET.get("vendorId")
+    language = request.GET.get("langauge", "English")
     # filter=requestJson.get('filter') if requestJson.get('filter') else ''
     # search=requestJson.get('search') if requestJson.get('search') else ''
     
     try:
-        updatetable=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
+        updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
         
-        if Hotal_Tables.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
-            result=  getTableData(hotelTable=updatetable,vendorId=vendorId)
-            oldWaiter=str(Hotal_Tables.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+        if HotelTable.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
+            result =  getTableData(hotelTable=updatetable,vendorId=vendorId)
+            oldWaiter = str(HotelTable.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+            
             webSocketPush(message={"result":result,"UPDATE": "REMOVE",},room_name=WOMS+str(oldWaiter)+"------"+str(vendorId),username="CORE",)#remove table from old waiter
         
-        Hotal_Tables.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
+        HotelTable.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
         
-        updatetable=Hotal_Tables.objects.get(pk=id,  vendorId=vendorId)
-        res=getTableData(hotelTable=updatetable,vendorId=vendorId)
+        updatetable = HotelTable.objects.get(pk=id, vendorId=vendorId)
+
+        res = getTableData(hotelTable=updatetable, vendorId=vendorId)
 
         webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(waiterId)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS + f"POS------{language}-{str(vendorId)}", username="CORE",) #update table for new waiter
         
-        for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
         
         return JsonResponse(res,safe=False)
     
     except Exception as e:
-        return JsonResponse({"error":str(e)},status=status.HTTP_400_BAD_REQUEST)
-        
-    
-
+        return JsonResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["GET"])
@@ -308,7 +373,7 @@ def createTables(request):
             print("status ",status )
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(i.pk)+"-----"+str(vendorId),username="CORE",)
             return JsonResponse({"data":tableData.pk})
         else:
@@ -322,14 +387,14 @@ def deleteTables(request):
     try:
         vendorId=request.GET.get("vendorId")
         data = JSONParser().parse(request)
-        tableData=Hotal_Tables.objects.get(pk=data.get('tableId'))
+        tableData=HotelTable.objects.get(pk=data.get('tableId'))
         if tableData:
             res=  getTableData(hotelTable=tableData,vendorId=vendorId)
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
-            for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(i.pk)+"-----"+str(vendorId),username="CORE",)
-            Hotal_Tables.objects.filter(pk=data.get('tableId')).delete()
+            HotelTable.objects.filter(pk=data.get('tableId')).delete()
             return JsonResponse({"data":tableData.pk})
         else:
             return JsonResponse({"error":'table not found'},status=400)
@@ -339,37 +404,46 @@ def deleteTables(request):
 @api_view(['POST']) 
 def Table_update_api(request):
     from koms.views import webSocketPush
+
     try:
         requestJson = JSONParser().parse(request)
+
         id = requestJson.get('id')
-        floorId = requestJson.get('floor')
-        vendorId=request.GET.get("vendorId")
+        # floorId = requestJson.get('floor')
+        vendorId = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
         # filter=requestJson.get('filter')
         # search=requestJson.get('search')
 
-        oldTableData=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
+        oldTableData = HotelTable.objects.get(pk=id, vendorId=vendorId)
+        
         status = oldTableData.status if requestJson.get('tableStatus')==None  else requestJson.get('tableStatus')
+        
         guestCount = oldTableData.guestCount if requestJson.get('guestCount')==None else requestJson.get('guestCount') 
-        floor = oldTableData.floor if requestJson.get('floor')==None else floorId
-        data=Hotal_Tables.objects.filter(pk =id, vendorId=vendorId).update(status=status,guestCount=guestCount)
-        updatetable=Hotal_Tables.objects.get(pk=id, vendorId=vendorId)
-        res=getTableData(hotelTable=updatetable,vendorId=vendorId)
-        print("status ",status )
+        
+        # floor = oldTableData.floor if requestJson.get('floor')==None else floorId
+        
+        data = HotelTable.objects.filter(pk=id, vendorId=vendorId).update(status=status, guestCount=guestCount)
+        
+        updatetable = HotelTable.objects.get(pk=id, vendorId=vendorId)
+        
+        res = getTableData(hotelTable=updatetable, vendorId=vendorId)
+        
+        print("status ", status)
 
         # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(updatetable.waiterId.pk)+"-"+filter+"-"+search+"--","CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(updatetable.waiterId.pk if updatetable.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS+str(updatetable.waiterId.pk if updatetable.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
+        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS + f"POS------{language}-{str(vendorId)}", username="CORE",) #update table for new waiter
         
-        for i in Waiter.objects.filter(waiterHead=True,vendorId=vendorId):
+        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
             # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
-            webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
+            webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
 
-        return JsonResponse(res,safe=False)
+        return JsonResponse(res, safe=False)
+    
     except Exception as e:
         print(e)
-        return JsonResponse(
-            {"msg": e}
-        )
+        return JsonResponse({"msg": e})
  
  
 def allCategory(request,id=0):
@@ -386,74 +460,83 @@ def allCategory(request,id=0):
             # "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
             # "image":f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image":i.categoryImageUrl if i.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     data = sorted(data, key=lambda x: x["categoryId"])
     return JsonResponse({"categories":data})
 
  
-def productByCategory(request,id=0):
-    vendorId=request.GET.get("vendorId")
+def productByCategory(request, id=0):
+    vendor_id=request.GET.get("vendorId")
+
     products={}
-    data=ProductCategory.objects.filter(pk=id,vendorId=vendorId,categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False,vendorId=vendorId)   
+
+    data=ProductCategory.objects.filter(pk=id, vendorId=vendor_id, categoryIsDeleted=False) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)   
+    
     for category in data:
         listOfProducts=[]
-        for product in Product.objects.filter(isDeleted=False,vendorId=vendorId,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+
+        for product in Product.objects.filter(isDeleted=False, vendorId=vendor_id, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
+
             if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,vendorId=vendorId,isDeleted=False):
+                for prdVariants in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
                     images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
+
+                    for k in ProductImage.objects.filter(product=prdVariants.pk, vendorId=vendor_id):
                         if k is not None:
                             images.append(str(k.image))
+
                     options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk,vendorId=vendorId):
+
+                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk, vendorId=vendor_id):
                         options.append(
                             {
                                "optionId":varinatJoint.optionId.optionId, 
                                "optionValueId":varinatJoint.optionValueId.itemOptionId 
                             }
                         )
+
                     productVariants.append({
                         "text":prdVariants.productName,
                         # "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+            
+            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
                 if k is not None:
                     images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                            # "image":mod.modifier.modifierImg,
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
                             "active": mod.modifier.active
-
                         }                    
                     )
+                    
                 if prdModGrpJnt.modifierGroup.isDeleted ==False: 
-                 modGrp.append(
+                    modGrp.append(
                     {
                         "id": prdModGrpJnt.modifierGroup.pk,
                         "modGroupId": prdModGrpJnt.modifierGroup.pk, # required for next js site
@@ -463,18 +546,16 @@ def productByCategory(request,id=0):
                         # "max":prdModGrpJnt.max,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
                     }
                 )
                 
-                
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "tags": product.tag or "",
                 "text":product.productName,
                 "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
@@ -492,11 +573,12 @@ def productByCategory(request,id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })
+
         products[category.pk]=listOfProducts
+
     return JsonResponse({"products":products})
 
 
@@ -533,7 +615,7 @@ def search_Prod_categ(request,id=0,search=''):#TODO
                 )
                 li.append(
                     {
-                    "prdouctId": j.pk,
+                    "productId": j.pk,
                     "text": j.name,
                     "imagePath":str(j.tumbnail),
                     "images":images,
@@ -572,7 +654,7 @@ def switchOrderTables(request):
 def show_tableCapacity(request, id=0):
     vendorId=request.GET.get("vendorId")
     try:
-        data=Hotal_Tables.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).waiterHead  else Hotal_Tables.objects.filter(waiterId = id,vendorId=vendorId)
+        data=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
         tableCapacity =list(set([ i.tableCapacity for i in data]))
         table = [str(i) for i in tableCapacity]
         return JsonResponse({ "tableCapacity": table}, safe=False)
@@ -581,22 +663,30 @@ def show_tableCapacity(request, id=0):
 
 
 @api_view(['GET'])
-def searchProduct(request,search):
-    vendorId=request.GET.get("vendorId")
+def searchProduct(request, search):
+    vendor_id = request.GET.get("vendorId")
+
     products={}
-    data= ProductCategory.objects.filter(vendorId=vendorId)   
+
+    data= ProductCategory.objects.filter(vendorId=vendor_id)
+
     listOfProducts=[]
+
     for category in data:
-        for product in Product.objects.filter(vendorId=vendorId,productName__icontains=search,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+        for product in Product.objects.filter(vendorId=vendor_id, productName__icontains=search, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
         # for product in Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
+
             if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(vendorId=vendorId,productParentId=product.pk):
+                for prdVariants in Product.objects.filter(vendorId=vendor_id, productParentId=product.pk):
                     images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
+
+                    for k in ProductImage.objects.filter(product=prdVariants.pk, vendorId=vendor_id):
                         if k is not None:
                             images.append(str(k.image))
+
                     options=[]
+
                     for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
                         options.append(
                             {
@@ -608,56 +698,57 @@ def searchProduct(request,search):
                         "text":prdVariants.productName,
                         "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+
+            for k in ProductImage.objects.filter(product=product.pk, vendorId=vendor_id):
                 if k is not None:
                     images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":mod.modifier.modifierName,
+                            "name": mod.modifier.modifierName,
                             "description": mod.modifier.modifierDesc,
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
-                            "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
                             "active": mod.modifier.active
                         }                    
                     )
+
                 modGrp.append(
                     {
                         "name":prdModGrpJnt.modifierGroup.name,
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
                     }
                 )
                 
-                
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "tags": product.tag if product.tag else "",
                 "text":product.productName,
                 "imagePath": HOST+product.productThumb.name if product.productThumb !="" else images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
@@ -671,15 +762,15 @@ def searchProduct(request,search):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "modifiersGroup":modGrp,
             })
-        products[category.pk]=listOfProducts
+
+        products[category.pk] = listOfProducts
+
     # return JsonResponse({"products":products})
-# 
-    return JsonResponse({"products":{"1":listOfProducts}})
+    return JsonResponse({"products":{"1": listOfProducts}})
 
 @api_view(["POST"])
 def createOrder(request):
@@ -720,7 +811,6 @@ def singleProdMod(request,prod=None,order=None):
                     "plu":prdModGrpJnt.modifierGroup.PLU,
                     "min":prdModGrpJnt.modifierGroup.min,
                     "max":prdModGrpJnt.modifierGroup.max,
-                    "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                     "type":prdModGrpJnt.modifierGroup.modGrptype,
                     "count":len(count),
                     "modifiers":mods
@@ -729,7 +819,7 @@ def singleProdMod(request,prod=None,order=None):
                     
                     
         listOfProducts={
-                    "prdouctId": product.pk,
+                    "productId": product.pk,
                     "text":product.productName,
                     "plu":product.PLU,
                     "quantity":content.quantity,

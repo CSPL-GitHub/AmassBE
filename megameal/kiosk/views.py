@@ -1,11 +1,7 @@
 import datetime
-import json
 import socket
-from django.shortcuts import render
-import requests
 from order import order_helper
-from koms.views import createOrderInKomsAndWoms
-from core.utils import API_Messages, ClassNames, DiscountCal, PaymentType
+from core.utils import API_Messages, PaymentType
 from order.models import Order_Discount
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -13,16 +9,18 @@ from django.contrib.auth import logout
 from useradmin.models import *
 from core.models import *
 from .models import *
-from django.db.models import Avg,Q
+from django.db.models import Q
 from django.http import JsonResponse
 from rest_framework.parsers import JSONParser
 from deep_translator import GoogleTranslator
 from cachetools import cached, TTLCache
 from .serializer import *
-import pytz
+
+
 
 cache = TTLCache(maxsize=1000, ttl=3000)
 l='en'
+
 # select a language in which to translate
 @api_view(["GET"])
 def selectlang(request,lang='en'):
@@ -101,32 +99,37 @@ def allCategory(request,id=0,vendorId=-1):
             # "image":str(i.categoryImage),
             # "image": f"http://{server_ip}:{port}{i.categoryImage.url}"  if i.categoryImage else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
             "image": i.categoryImageUrl if i.categoryImageUrl else img.url if img else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-            "sortOrder": i.categorySortOrder,
         })
     return JsonResponse({"categories":data})
 
 
 # @api_view(["GET"])
-def productByCategory(request,id=0,vendorId=-1):
+def productByCategory(request, id=0, vendorId=-1):
     # if request.session.get('user_id') is None:
     #     return Response({"kiosk":"session not found"})
     products={}
 
     if id != 0:
         data = ProductCategory.objects.filter(pk=id, vendorId_id=vendorId)
+
     else:
         data = ProductCategory.objects.filter(vendorId_id=vendorId, categoryIsDeleted=False)
 
     for category in data:
         listOfProducts=[]
-        for product in Product.objects.filter(isDeleted=False,pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
+
+        for product in Product.objects.filter(isDeleted=False, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
+
             if product.productType=="Variant":
                 for prdVariants in Product.objects.filter(productParentId=product.pk):
                     images=[]
+
                     for k in ProductImage.objects.filter(product=prdVariants.pk):
                         images.append(str(k.image))
+
                     options=[]
+
                     for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
                         options.append(
                             {
@@ -134,41 +137,45 @@ def productByCategory(request,id=0,vendorId=-1):
                                "optionValueId":varinatJoint.optionValueId.itemOptionId 
                             }
                         )
+
                     productVariants.append({
                         "text":trans( prdVariants.productName),
                         "imagePath": str(prdVariants.productThumb),
                         "images":images,
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description": trans(prdVariants.productDesc),
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
             images=[]
-            for k in ProductImage.objects.filter(product=product.pk):
+
+            for k in ProductImage.objects.filter(product=product.pk, vendorId_id=vendorId):
                 images.append(str(k.url))
             
             modGrp=[]
-            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
+
+            for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId_id=vendorId):
                 mods=[]
-                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False):
+
+                for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendorId):
                     mods.append(
                         {
-                            "cost":mod.modifier.modifierPrice,
+                            "cost": mod.modifier.modifierPrice,
                             "modifierId": mod.modifier.pk,
-                            "name":trans(mod.modifier.modifierName),
+                            "name": trans(mod.modifier.modifierName),
                             "description": trans(mod.modifier.modifierDesc),
-                            "quantity": mod.modifier.modifierQty,
+                            "quantity": 0,
                             "plu": mod.modifier.modifierPLU,
-                            "status":mod.modifier.modifierStatus,
+                            "status": False, # Required for Flutter model
                             "active": mod.modifier.active,
-                            "image":str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
+                            "image": str(mod.modifier.modifierImg) if mod.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128"
                         }                    
                     )
+
                 if prdModGrpJnt.modifierGroup.isDeleted == False:
                     modGrp.append(
                     {
@@ -177,22 +184,20 @@ def productByCategory(request,id=0,vendorId=-1):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.modifierGroup.min,
                         "max":prdModGrpJnt.modifierGroup.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "active":prdModGrpJnt.modifierGroup.active,
                         "modifiers":mods
                     }
                 )
                 
-                
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":trans(category.categoryName),
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                "quantity": product.productQty,
+                "quantity": 0,
                 "cost": product.productPrice,
                 "description": trans(product.productDesc),
                 "allowCustomerNotes": True,
@@ -200,13 +205,14 @@ def productByCategory(request,id=0,vendorId=-1):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "active":product.active,
                 "tag": product.tag,
                 "modifiersGroup":modGrp,
             })
+
         products[category.pk]=listOfProducts
+
     return JsonResponse({"products":products})
 
 
@@ -236,13 +242,12 @@ def productDetails(request,id=0,search=''):
                         "text":trans( prdVariants.productName),
                         "imagePath": str(prdVariants.productThumb),
                         "images":images,
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description": trans(prdVariants.productDesc),
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder
                     })
 
             images=[]
@@ -252,17 +257,17 @@ def productDetails(request,id=0,search=''):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":trans(mod.modifierName),
+                            "name": trans(mod.modifierName),
                             "description": trans(mod.modifierDesc),
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":str(mod.modifierImg)
+                            "status": False, # Required for Flutter model
+                            "image": str(mod.modifierImg)
                         }                    
                     )
                 modGrp.append(
@@ -271,7 +276,6 @@ def productDetails(request,id=0,search=''):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
@@ -281,11 +285,11 @@ def productDetails(request,id=0,search=''):
             listOfProducts.append({
                 "categoryId": category.pk,
                 # "categoryName":trans(category.categoryName),
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":trans( product.productName),
                 "imagePath": str(product.productThumb),
                 "images":images,
-                "quantity": product.productQty,
+                "quantity": 0,
                 "cost": product.productPrice,
                 "description": trans(product.productDesc),
                 "allowCustomerNotes": True,
@@ -293,7 +297,6 @@ def productDetails(request,id=0,search=''):
                 "plu":product.PLU,
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiers":modGrp,
             })
@@ -391,7 +394,6 @@ def createOrder(request,vendorId=1):
                 "orderPointId": CorePlatform.KIOSK,
                 "orderPointName": CorePlatform.KIOSK.label,
                 "className":"KIOSK",
-                # "className":ClassNames.WOOCOMMERCE_CLASS,
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('name') if request.data.get('name') else "Guest",
@@ -438,7 +440,7 @@ def createOrder(request,vendorId=1):
         for item in request.data["products"]:
                 try:
                     corePrd = Product.objects.get(
-                        pk=item['prdouctId']
+                        pk=item['productId']
                         # , vendorId=vendorId
                         )
                 except Product.DoesNotExist:
@@ -503,18 +505,20 @@ def createOrder(request,vendorId=1):
 #### Temp API's
 HOST="http://151.80.237.29:8000/"
 DEFAULTIMG="static/images/default/no-image-icon-23494.png"
-def allCategoryTemp(request,id=0):
-    info=ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
-    data=[]           
+def allCategoryTemp(request, id=0):
+    info = ProductCategory.objects.filter(pk=id) if id!=0 else ProductCategory.objects.filter(categoryIsDeleted=False)
+    
+    data = []
+
     for i in info:
         data.append({
-      "categoryId": i.pk,
-      "categoryPlu": i.categoryPLU,
-      "name":i.categoryName,
-      "description": i.categoryDescription,
-      "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
-      "sortOrder": i.categorySortOrder,
+            "categoryId": i.pk,
+            "categoryPlu": i.categoryPLU,
+            "name":i.categoryName,
+            "description": i.categoryDescription,
+            "image":HOST+str(i.categoryImage) if i.categoryImage else HOST+DEFAULTIMG,
         })
+    
     return JsonResponse({"categories":data})
 
  
@@ -543,13 +547,12 @@ def productByCategoryTemp(request,id=0):
                         "text":prdVariants.productName,
                         "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                         "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": prdVariants.productQty,
+                        "quantity": 0,
                         "cost": prdVariants.productPrice,
                         "description":prdVariants.productDesc,
                         "allowCustomerNotes": True,
                         "plu":prdVariants.PLU,
                         "type":prdVariants.productType,
-                        "sortOrder":product.sortOrder,
                         "options":options
                     })
 
@@ -561,17 +564,17 @@ def productByCategoryTemp(request,id=0):
             modGrp=[]
             for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
                 mods=[]
-                for mod in ProductModifier.objects.filter(paretId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
+                for mod in ProductModifier.objects.filter(parentId=prdModGrpJnt.modifierGroup.pk,isDeleted=False):
                     mods.append(
                         {
-                            "cost":mod.modifierPrice,
+                            "cost": mod.modifierPrice,
                             "modifierId": mod.pk,
-                            "name":mod.modifierName,
+                            "name": mod.modifierName,
                             "description": mod.modifierDesc,
-                            "quantity": mod.modifierQty,
+                            "quantity": 0, # Required for Flutter model
                             "plu": mod.modifierPLU,
-                            "status":mod.modifierStatus,
-                            "image":mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
+                            "status": False, # Required for Flutter model
+                            "image": mod.modifierImg if mod.modifierImg  else HOST+mod.modifierImg
 
                         }                    
                     )
@@ -581,7 +584,6 @@ def productByCategoryTemp(request,id=0):
                         "plu":prdModGrpJnt.modifierGroup.PLU,
                         "min":prdModGrpJnt.min,
                         "max":prdModGrpJnt.max,
-                        "sortOrder":prdModGrpJnt.modifierGroup.sortOrder,
                         "type":prdModGrpJnt.modifierGroup.modGrptype,
                         "modifiers":mods
                     }
@@ -591,7 +593,7 @@ def productByCategoryTemp(request,id=0):
             listOfProducts.append({
                 "categoryId": category.pk,
                 "categoryName":category.categoryName,
-                "prdouctId": product.pk,
+                "productId": product.pk,
                 "text":product.productName,
                 "imagePath": HOST+product.productThumb.name if product.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
                 "images":images if len(images)>0  else [HOST+DEFAULTIMG],
@@ -603,7 +605,6 @@ def productByCategoryTemp(request,id=0):
                 "note":'',
                 "isTaxable":product.taxable,
                 "type":product.productType,
-                "sortOrder":product.sortOrder,
                 "variant":productVariants,
                 "modifiersGroup":modGrp,
             })

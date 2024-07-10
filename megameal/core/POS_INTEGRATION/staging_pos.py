@@ -1,6 +1,3 @@
-from core.POS_INTEGRATION.abstract_pos_integration import AbstractPOSIntegration
-from core.PLATFORM_INTEGRATION.woms_ecom import WomsEcom
-from core.PLATFORM_INTEGRATION.woocommerce_ecom import WooCommerce
 from core.models import (
     Platform, ProductCategory, ProductImage, ProductModifier, Product, ProductCategoryJoint, ProductModifierGroup,
     Product_Option, Product_Option_Value, Product_Tax, Product_Taxt_Joint, Vendor, Transaction_History, Product_Option_Joint,
@@ -22,7 +19,7 @@ from logging import log
 
 
 
-class StagingIntegration(AbstractPOSIntegration):
+class StagingIntegration():
     def menuPushtread(vendorId, response):
         # ++++ pick all the channels of vendor
         try:
@@ -320,8 +317,8 @@ class StagingIntegration(AbstractPOSIntegration):
             # cat.categorySlug = slugify(coreCat["categoryName"]) Bug Fix for update
             cat.categoryParentId = catParentId
             cat.categoryDescription = coreCat["description"]
-            cat.categoryStatus = coreCat["status"]
-            cat.categorySortOrder = coreCat["sortOrder"]
+            # cat.categoryStatus = coreCat["status"]
+            # cat.categorySortOrder = coreCat["sortOrder"]
             cat.categoryImage = coreCat["image"]
             cat.categoryUpdatedAt = timezone.make_aware(
                 datetime.now(), timezone.utc)
@@ -332,8 +329,8 @@ class StagingIntegration(AbstractPOSIntegration):
                                        coreCat["categoryName"]),
                                    categoryParentId=catParentId,
                                    categoryDescription=coreCat["description"],
-                                   categoryStatus=coreCat["status"],
-                                   categorySortOrder=coreCat["sortOrder"],
+                                #    categoryStatus=coreCat["status"],
+                                #    categorySortOrder=coreCat["sortOrder"],
                                    categoryImage=coreCat["image"],
                                    categoryCreatedAt=timezone.make_aware(
                                        datetime.now(), timezone.utc),
@@ -362,10 +359,8 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productName = corePrd["productName"]
             cat.productDesc = corePrd["description"]
             cat.productThumb = corePrd["thumbnail"]
-            cat.productQty = corePrd["qty"]
             cat.productPrice = corePrd["price"]
-            cat.Unlimited = corePrd["unlimited"]
-            cat.productStatus = corePrd["productStatus"]
+            cat.is_unlimited = corePrd["unlimited"]
             cat.vendorId = vendor
             cat.preparationTime = corePrd["preparationTime"]
             cat.taxable = corePrd["taxable"]
@@ -379,10 +374,8 @@ class StagingIntegration(AbstractPOSIntegration):
                 productName=corePrd["productName"],
                 productDesc=corePrd["description"],
                 productThumb=corePrd["thumbnail"],
-                productQty=corePrd["qty"],
                 productPrice=corePrd["price"],
-                Unlimited=corePrd["unlimited"],
-                productStatus=corePrd["productStatus"],
+                is_unlimited=corePrd["unlimited"],
                 vendorId=vendor,
                 preparationTime=corePrd["preparationTime"],
                 taxable=corePrd["taxable"],
@@ -441,16 +434,15 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.productName = coreVrt["productName"]
             cat.productDesc = coreVrt["description"]
             cat.productThumb = coreVrt["thumbnail"]
-            cat.productQty = coreVrt["qty"]
             cat.productPrice = coreVrt["price"]
-            cat.Unlimited = coreVrt["unlimited"]
-            cat.productStatus = coreVrt["productStatus"]
+            cat.is_unlimited = coreVrt["unlimited"]
+            # cat.productStatus = coreVrt["productStatus"]
             cat.vendorId = vendor
             cat.preparationTime = coreVrt["preparationTime"]
             cat.taxable = coreVrt["taxable"]
             cat.productType = coreVrt["type"]
             cat.productParentId = baseProduct
-            cat.sortOrder = coreVrt["sortOrder"]
+            # cat.sortOrder = coreVrt["sortOrder"]
             cat.SKU = coreVrt.get("sku")
             cat.save()
         except Product.DoesNotExist:
@@ -459,17 +451,16 @@ class StagingIntegration(AbstractPOSIntegration):
                 productName=coreVrt["productName"],
                 productDesc=coreVrt["description"],
                 productThumb=coreVrt["thumbnail"],
-                productQty=coreVrt["qty"],
                 productPrice=coreVrt["price"],
-                Unlimited=coreVrt["unlimited"],
-                productStatus=coreVrt["productStatus"],
+                is_unlimited=coreVrt["unlimited"],
+                # productStatus=coreVrt["productStatus"],
                 vendorId=vendor,
                 preparationTime=coreVrt["preparationTime"],
                 taxable=coreVrt["taxable"],
                 productType=coreVrt["type"],
                 productParentId=baseProduct,
                 SKU=coreVrt.get("sku"),
-                sortOrder=coreVrt["sortOrder"]
+                # sortOrder=coreVrt["sortOrder"]
             )
             cat = cat.save()
         # +++++ delete old joints and add New
@@ -515,7 +506,7 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.min = 0
             cat.max = 0
             cat.isDeleted = False
-            cat.sortOrder = coreModGrp["sortOrder"]
+            # cat.sortOrder = coreModGrp["sortOrder"]
             cat.modGrptype = coreModGrp["type"]
             # coreModGrpUpdate.append(cat)
         except ProductModifierGroup.DoesNotExist:
@@ -526,7 +517,7 @@ class StagingIntegration(AbstractPOSIntegration):
                 min=0,
                 max=0,
                 isDeleted=False,
-                sortOrder=coreModGrp["sortOrder"],
+                # sortOrder=coreModGrp["sortOrder"],
                 modGrptype=coreModGrp["type"],
                 vendorId=vendor)
         cat.save()
@@ -555,10 +546,8 @@ class StagingIntegration(AbstractPOSIntegration):
             cat.modifierImg = coreModItm["image"]
             cat.modifierPrice = coreModItm["price"]
             cat.modifierDesc = coreModItm["description"]
-            cat.modifierQty = coreModItm["qty"]
-            cat.modifierStatus = coreModItm["modifierStatus"]
             cat.vendorId = vendor
-            cat.paretId = modGrp
+            cat.parentId = modGrp
             cat.save()
         except ProductModifier.DoesNotExist:
             cat = ProductModifier(
@@ -568,10 +557,8 @@ class StagingIntegration(AbstractPOSIntegration):
                 modifierImg=coreModItm["image"],
                 modifierPrice=coreModItm["price"],
                 modifierDesc=coreModItm["description"],
-                modifierQty=coreModItm["qty"],
-                modifierStatus=coreModItm["modifierStatus"],
                 vendorId=vendor,
-                paretId=modGrp)
+                parentId=modGrp)
             cat.save()
 
     def deleteModifierItem(self, coreModItm, vendor):
@@ -860,10 +847,11 @@ class StagingIntegration(AbstractPOSIntegration):
             
             ##++++++Order Platform
             try:
-                orderPoint=Platform.objects.get(VendorId=vendorId, className=data.get("className"))
+                platform_instance = Platform.objects.get(Name=data.get("Platform"), VendorId=vendorId)
+            
             except Exception as ex:
                 print(f"Unexpected {ex=}, {type(ex)=}")
-                orderPoint=None
+                platform_instance = None
             
             ##++++++End Order Platform
             discount=0.0
@@ -885,14 +873,14 @@ class StagingIntegration(AbstractPOSIntegration):
                 subtotal=0.0,
                 customerId=coreCustomer,
                 vendorId=vendor_instance,
-                platform=orderPoint
+                platform=platform_instance
             ).save()
             request["internalOrderId"] = order.pk
             request["master_id"] = order.pk
             # +++++++
 
             # ++++++ Discounts
-            platform = POS_Settings.objects.get(VendorId=vendorId)
+            # platform = POS_Settings.objects.get(VendorId=vendorId)
             if data.get("discount"):
                 try:
                     discount = Order_Discount.objects.get(vendorId=vendorId, discountCode=data["discount"].get("discountCode"))
@@ -951,24 +939,25 @@ class StagingIntegration(AbstractPOSIntegration):
             data["subtotal"] = subtotal  # +JSON
             order.TotalAmount=(order.subtotal - order.discount + order.tax + order.delivery_charge)
 
-            # order.subtotal = data.get("subtotal")
-            # order.tax = data.get("tax")
-            # order.TotalAmount= data.get("finalTotal")
+            if order.platform.Name == "Mobile App" or order.platform.Name == "Website":
+                order.TotalAmount = data["payment"]["payAmount"]
+                order.delivery_charge = data["payment"]["shipping_total"]
+                order.tax = data["payment"]["total_tax"]
 
-            if order.platform.className == "WooCommerce":
-                order.TotalAmount=data["payment"]["payAmount"]
-                order.delivery_charge=data["payment"]["shipping_total"]
-                order.tax=data["payment"]["total_tax"]
             # data["productLevelTax"] = order.tax  # +JSON
+
             # +++++ Add order Taxes
             try:
                 data["orderLevelTax"] = []
+
                 orderTaxes = Product_Tax.objects.filter(
                     vendorId=vendorId, isDeleted=False, taxLevel=TaxLevel.ORDER, enabled=True
                 )
+
                 if orderTaxes:
                     for orderTax in orderTaxes:
                         data["orderLevelTax"].append(orderTax.to_dict())
+
             except Product_Tax.DoesNotExist:
                 print("Tax not found for vendor")
             # +++++ Taxes
@@ -977,8 +966,10 @@ class StagingIntegration(AbstractPOSIntegration):
 
             # ++++ Payment
             print("++++ Payment")
+
             if data.get("payment"):
                 print("++++ Payment Started")
+
                 OrderPayment(
                     orderId=order,
                     paymentBy=coreCustomer.Email,
@@ -990,6 +981,7 @@ class StagingIntegration(AbstractPOSIntegration):
                     type=data["payment"].get('mode', PaymentType.CASH),
                     platform=data["payment"].get('platform', "")
                 ).save()
+
                 Transaction_History(
                     vendorId=vendor_instance,
                     transactionData=data["payment"].get("payData"),
@@ -1000,7 +992,7 @@ class StagingIntegration(AbstractPOSIntegration):
             # ++++++++++++
 
             if ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')) and \
-            order.platform.Name == 'WooCommerce':
+            ((order.platform.Name == 'Website') or (order.platform.Name == 'Mobile App')):
                 tax_details = []
                 
                 taxes = Product_Tax.objects.filter(enabled=True, vendorId=vendorId)
@@ -1264,19 +1256,4 @@ class StagingIntegration(AbstractPOSIntegration):
         return {API_Messages.STATUS:API_Messages.SUCCESSFUL,API_Messages.RESPONSE:"Order status updated"}
      except Exception as err:
         return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
-
-    def getOrder(self,request):
-        pass
-    # def updateOrderStatusFromWooCommerce(self,request):
-    #   try:
-    #     updateOrderStatus=Order.objects.get(pk=request['orderId'])
-    #     request["externalOrderId"]=updateOrderStatus.externalOrderld
-    #     if request["updatePoint"]==UpdatePoint.KOMS:
-    #         if orderStatus==OrderStatus.COMPLETED:
-    #             orderStatus=OrderStatus.PREPARED
-    #             request["status"]=OrderStatus.PREPARED.label
-    #     updateOrderStatus.Status=orderStatus
-    #     updateOrderStatus.save()
-    #     return {API_Messages.STATUS:API_Messages.SUCCESSFUL,API_Messages.RESPONSE:"Order status updated"}
-    #   except Exception as err:
-    #     return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
+    
