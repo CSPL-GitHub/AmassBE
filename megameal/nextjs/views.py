@@ -236,7 +236,7 @@ def check_order_items_status(request):
     order_details = request.data
     data = StoreTiming.objects.filter(vendor=vendor_id)
     slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
-    store_status = POS_Settings.objects.filter(VendorId=vendor_id).first()
+    store_status = POSSetting.objects.filter(vendor=vendor_id).first()
 
     store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
     print("store_status  ",store_status)
@@ -283,7 +283,7 @@ def CreateOrder(request):
 
     slot = data.filter(day=datetime.now().strftime("%A")).first()
 
-    store_status = POS_Settings.objects.filter(VendorId=vendorId).first()
+    store_status = POSSetting.objects.filter(vendor=vendorId).first()
 
     store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
     
@@ -635,7 +635,7 @@ def get_banner(request):
         product_ids = list(Product.objects.filter(vendorId=vendor_id).values_list('id', flat=True))
 
         if product_ids:
-            random_product_ids = random.sample(product_ids, 10)
+            random_product_ids = random.sample(product_ids, 10) if len(product_ids) > 10 else random.sample(product_ids,len(product_ids))
 
             products = Product.objects.filter(id__in=random_product_ids)
                     
