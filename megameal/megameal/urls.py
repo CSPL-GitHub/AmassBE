@@ -1,16 +1,16 @@
 from django.contrib import admin
 from django.urls import path, include
-from django.views.generic import TemplateView
 from django.conf.urls.static import static
-# from megameal import settings
 from django.conf import settings
+
+
 
 admin.site.site_header = "MegaMeal Admin Panel"
 
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('',include('useradmin.urls')),
+    # path('',include('useradmin.urls')),
     path('kiosk/',include('kiosk.urls')),
     path('order/',include('order.urls')), 
     path('koms/',include('koms.urls')),
@@ -20,8 +20,7 @@ urlpatterns = [
     path('nextjs/',include('nextjs.urls')),
     path('inventory/',include('inventory.urls')),
     path('sop/',include('sop.urls')),
-    path('', include('django_prometheus.urls')),
     # path('media/', static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)),
 ]
 
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+urlpatterns = urlpatterns + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
