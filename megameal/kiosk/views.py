@@ -391,7 +391,7 @@ def createOrder(request,vendorId=1):
                 "remake": False,
                 "customerName": "test",
                 "status": "pending",  # Initial status will be pending
-                "orderPointName": CorePlatform.KIOSK.label,
+                "Platform": 'Kiosk',
                 "className":"KIOSK",
                 "customer": {
                     # "internalId": "1",
