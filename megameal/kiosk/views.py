@@ -392,7 +392,6 @@ def createOrder(request,vendorId=1):
                 "customerName": "test",
                 "status": "pending",  # Initial status will be pending
                 "Platform": 'Kiosk',
-                "className":"KIOSK",
                 "customer": {
                     # "internalId": "1",
                     "fname": request.data.get('name') if request.data.get('name') else "Guest",
