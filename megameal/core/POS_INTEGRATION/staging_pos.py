@@ -847,10 +847,11 @@ class StagingIntegration():
             
             ##++++++Order Platform
             try:
-                orderPoint=Platform.objects.get(VendorId=vendorId, className=data.get("className"))
+                platform_instance = Platform.objects.get(Name=data.get("Platform"), VendorId=vendorId)
+            
             except Exception as ex:
                 print(f"Unexpected {ex=}, {type(ex)=}")
-                orderPoint=None
+                platform_instance = None
             
             ##++++++End Order Platform
             discount=0.0
@@ -872,7 +873,7 @@ class StagingIntegration():
                 subtotal=0.0,
                 customerId=coreCustomer,
                 vendorId=vendor_instance,
-                platform=orderPoint
+                platform=platform_instance
             ).save()
             request["internalOrderId"] = order.pk
             request["master_id"] = order.pk
