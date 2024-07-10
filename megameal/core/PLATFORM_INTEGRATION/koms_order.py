@@ -34,18 +34,10 @@ class KomsEcom():
                 "customerName": f"{data['customer']['fname']} {data['customer']['lname']}",
                 "status": 1,
                 "server": ', '.join(str(item['waiterName']) if item.get('waiterName') else 'none'  for item in data['tables']) if data.get('tables') else '',
-                # "orderPointId": Platform.objects.filter(Name=data['orderPointName']).first().pk,
                 "isHigh": True if "priority" in  data else False,
                 "note": data["note"] if data["note"] else "None",
                 "vendorId": vendor_id 
             }
-
-            try:
-                res['orderPointId'] = Platform.objects.filter(Name=data['orderPointName']).first().pk
-            
-            except Exception as e:
-                print(e)
-                res['orderPointId'] = 1
 
             #########
             totalPrepTime=0

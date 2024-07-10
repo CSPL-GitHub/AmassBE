@@ -299,7 +299,6 @@ def CreateOrder(request):
         
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = 2
         result["Platform"] = "Website"
         result["payment"]["mode"] = PaymentType.CASH
 
@@ -358,7 +357,6 @@ def CreateOrderApp(request):
 
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["orderPointId"] = 2
         result["Platform"] = "Mobile App"
         result["payment"]["mode"] = PaymentType.CASH
         

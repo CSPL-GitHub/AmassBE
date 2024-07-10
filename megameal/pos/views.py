@@ -1832,7 +1832,6 @@ def createOrder(request):
                 "remake": False,
                 "customerName": request.data.get('name') if request.data.get('name') else "",
                 "status": "pending",
-                "orderPointId": 6,
                 "Platform": "POS",
                 "customer": {
                     # "internalId": "1",
