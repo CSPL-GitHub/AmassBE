@@ -5484,6 +5484,7 @@ def top_selling_products_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -5611,8 +5612,16 @@ def top_selling_products_report(request):
                     if image.url:
                         image_list.append(image.url)
 
+                product_name = ""
+
+                if language == "English":
+                    product_name = products.productName
+
+                else:
+                    product_name = products.productName_locale
+                
                 item['product_id'] = products.pk
-                item['product_name'] = products.productName
+                item['product_name'] = product_name
                 item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                 item['price'] = products.productPrice
                 item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -5649,8 +5658,16 @@ def top_selling_products_report(request):
             for item in top_selling_items:
                 products = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
+                product_name = ""
+
+                if language == "English":
+                    product_name = products.productName
+
+                else:
+                    product_name = products.productName_locale
+
                 sheet.append([
-                    products.productName,
+                    product_name,
                     item['quantity_sold'],
                     products.productPrice,
                     item['quantity_sold'] * products.productPrice
@@ -5686,6 +5703,7 @@ def most_repeating_customers_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -5877,8 +5895,16 @@ def most_repeating_customers_report(request):
                         if image.url:
                             image_list.append(image.url)
 
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = products.productName
+
+                    else:
+                        product_name = products.productName_locale
+
                     item['product_id'] = products.pk
-                    item['product_name'] = products.productName
+                    item['product_name'] = product_name
                     item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                     item['price'] = products.productPrice
                     item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -6103,10 +6129,19 @@ def most_repeating_customers_report(request):
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
-                    if list_of_items:
-                        list_of_items = list_of_items + ", " + product.productName
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = product.productName
+
                     else:
-                        list_of_items = product.productName
+                        product_name = product.productName_locale
+                    
+                    if list_of_items:
+                        list_of_items = list_of_items + ", " + product_name
+                        
+                    else:
+                        list_of_items = product_name
         
             customer_orders = Order.objects.filter(
                 customerId=customer["customerId"],
@@ -6214,10 +6249,10 @@ def customers_redeemed_most_points_report(request):
     vendor_id = request.GET.get("vendorId")
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
-    # order_type = request.GET.get('type')
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -6306,8 +6341,16 @@ def customers_redeemed_most_points_report(request):
                         if image.url:
                             image_list.append(image.url)
 
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = products.productName
+
+                    else:
+                        product_name = products.productName_locale
+
                     item['product_id'] = products.pk
-                    item['product_name'] = products.productName
+                    item['product_name'] = product_name
                     item['image'] = image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
                     item['price'] = products.productPrice
                     item['total_sale'] = item['quantity_sold'] * products.productPrice
@@ -6337,11 +6380,6 @@ def customers_redeemed_most_points_report(request):
                 credit_datetime__date__range=(start_date, end_date)
             ).aggregate(total_points_credited=Sum('points_credited'))['total_points_credited'] or 0
 
-            # sum_of_points_unclaimed = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer_id=customer_id,
-            #     credit_datetime__range=(start_date, end_date)
-            # ).aggregate(total_balance_points=Sum('balance_points'))['total_balance_points'] or 0
-            
             if customer_address:    
                 customer_details.append({
                     "customer_id": customer["customer"],
@@ -6357,7 +6395,6 @@ def customers_redeemed_most_points_report(request):
                     "loyalty_points_balance": customer_info.loyalty_points_balance,
                     "total_points_redeemed": customer['total_points_redeemed'],
                     "total_points_credited": sum_of_points_credited,
-                    # "total_points_unclaimed": sum_of_points_unclaimed,
                     "total_orders_count": total_orders_count,
                     "online_orders_count": online_orders_count,
                     "offline_orders_count": offline_orders_count,
@@ -6381,8 +6418,6 @@ def customers_redeemed_most_points_report(request):
                 "pincode": "",
                 "loyalty_points_balance": customer_info.loyalty_points_balance,
                 "total_points_redeemed": customer['total_points_redeemed'],
-                # "total_points_credited": sum_of_points_credited,
-                # "total_points_unclaimed": sum_of_points_unclaimed,
                 "total_orders_count": total_orders_count,
                 "online_orders_count": online_orders_count,
                 "offline_orders_count": offline_orders_count,
@@ -6410,7 +6445,6 @@ def customers_redeemed_most_points_report(request):
         if platform:
             sheet.append(['Start Date', f'{formatted_start_date}'])
             sheet.append(['End Date', f'{formatted_end_date}'])
-            # sheet.append(['Order Type', f'{order_type}'])
             sheet.append(['Top', f'{top_number}'])
             sheet.append(['Sorted by', f'{sort_by}'])
             sheet.append(['Total records', f'{len(top_customers)}'])
@@ -6421,7 +6455,6 @@ def customers_redeemed_most_points_report(request):
                 'Phone Number',
                 'Email ID',
                 'Address',
-                # 'Total Points Credited',
                 'Total Points Redeemed',
                 'Total Orders',
                 'Total Online Orders',
@@ -6435,7 +6468,6 @@ def customers_redeemed_most_points_report(request):
         else:    
             sheet.append(['Start Date', f'{formatted_start_date}'])
             sheet.append(['End Date', f'{formatted_end_date}'])
-            # sheet.append(['Order Type', f'{order_type}'])
             sheet.append(['Top', f'{top_number}'])
             sheet.append(['Sorted by', f'{sort_by}'])
             sheet.append(['Total records', f'{len(top_customers)}'])
@@ -6446,7 +6478,6 @@ def customers_redeemed_most_points_report(request):
                 'Phone Number',
                 'Email ID',
                 'Address',
-                # 'Total Points Credited',
                 'Total Points Redeemed',
                 'Total Orders',
                 'Total Delivery Orders',
@@ -6476,10 +6507,19 @@ def customers_redeemed_most_points_report(request):
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
-                    if list_of_items:
-                        list_of_items = list_of_items + ", " + product.productName
+                    product_name = ""
+
+                    if language == "English":
+                        product_name = product.productName
+
                     else:
-                        list_of_items = product.productName
+                        product_name = product.productName_locale
+                    
+                    if list_of_items:
+                        list_of_items = list_of_items + ", " + product_name
+
+                    else:
+                        list_of_items = product_name
     
             customer_orders = orders.filter(customerId=customer["customer"])
 
@@ -6496,18 +6536,9 @@ def customers_redeemed_most_points_report(request):
 
             customer_address = Address.objects.filter(customer=customer["customer"], type='shipping_address', is_selected=True).first()
 
-            # sum_of_points_credited = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer=customer_id,
-            #     credit_datetime__date__range=(start_date, end_date)
-            # ).aggregate(total_points_credited=Sum('points_credited'))['total_points_credited'] or 0
-
-            # sum_of_points_unclaimed = LoyaltyPointsCreditHistory.objects.filter(
-            #     customer_id=customer_id,
-            #     credit_datetime__range=(start_date, end_date)
-            # ).aggregate(total_balance_points=Sum('balance_points'))['total_balance_points'] or 0
-
             if customer_info.FirstName and customer_info.LastName:
                 customer_name = customer_info.FirstName + " " + customer_info.LastName
+
             elif customer_info.FirstName and not customer_info.LastName:
                 customer_name = customer_info.FirstName
 
@@ -6531,7 +6562,6 @@ def customers_redeemed_most_points_report(request):
                 customer_info.Email if customer_info.Email else "",
                 address,
                 customer["total_points_redeemed"],
-                # sum_of_points_credited,
                 total_orders_count,
                 online_orders_count,
                 offline_orders_count,
@@ -6548,7 +6578,6 @@ def customers_redeemed_most_points_report(request):
                     customer_info.Email if customer_info.Email else "",
                     address,
                     customer["total_points_redeemed"],
-                    # sum_of_points_credited,
                     total_orders_count,
                     delivery_orders_count,
                     pickup_orders_count,
@@ -7402,12 +7431,14 @@ def cancel_order_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -7427,6 +7458,7 @@ def cancel_order_report(request):
 
     try:
         top_number = int(top_number)
+
     except ValueError:
         return Response("Invalid top parameter", status=status.HTTP_400_BAD_REQUEST)
     
@@ -7514,9 +7546,17 @@ def cancel_order_report(request):
             if image.url:
                 image_list.append(image.url)
 
+        product_name = ""
+
+        if language == "English":
+            product_name = product_info.productName
+
+        else:
+            product_name = product_info.productName_locale
+
         cancelled_product_details.append({
             'product_id': product_info.pk,
-            'product_name': product_info.productName,
+            'product_name': product_name,
             'image': image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
             'price': product_info.productPrice,
             'cancel_count': product['cancel_count'],
@@ -7599,6 +7639,7 @@ def pincode_report(request):
     is_download = request.GET.get('download')
     top_number = request.GET.get('top')
     sort_by = request.GET.get('sort')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -7711,9 +7752,17 @@ def pincode_report(request):
                 if image.url:
                     image_list.append(image.url)
 
+            product_name = ""
+
+            if language == "English":
+                product_name = product_info.productName
+
+            else:
+                product_name = product_info.productName_locale
+
             product_details.append({
                 'product_id': product_info.pk,
-                'product_name': product_info.productName,
+                'product_name': product_name,
                 'image': image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                 'price': product_info.productPrice,
                 'quantity_sold': product['item_count'],
@@ -7771,6 +7820,7 @@ def pincode_report(request):
             for product in info.get('products', []):
                 if list_of_items:
                     list_of_items = list_of_items + ", " + product["product_name"]
+
                 else:
                     list_of_items = product["product_name"]
 
