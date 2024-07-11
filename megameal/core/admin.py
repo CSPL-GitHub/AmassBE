@@ -142,3 +142,12 @@ class Product_TaxAdmin(admin.ModelAdmin):
     list_filter = ('name', 'vendorId',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(VendorSocialMedia)
+class VendorSocialMediaAdmin(admin.ModelAdmin):
+    
+    list_display = ( 'vendor','name', 'link',)
+    list_filter = ('name', 'vendor',)
+    search_fields = ('name',)
+    # show_facets = admin.ShowFacets.ALWAYS

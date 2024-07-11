@@ -38,8 +38,18 @@ class Vendor(models.Model):
     is_active = models.BooleanField(default=False)
 
     def __str__(self):
-        return self.Name
+        return f"{self.Name}({self.pk})"
 
+
+class VendorSocialMedia(models.Model):
+    name = models.CharField(max_length=20, choices=(
+        ('twitter', 'twitter'), ('instagram', 'instagram'), ('pinterest', 'pinterest'), 
+        ('linkedIn', 'linkedIn'),('facebook','facebook')
+    ))
+    link = models.URLField(max_length=500,null=True, blank=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    
 
 class ProductCategory(models.Model):
     categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE)
@@ -340,7 +350,7 @@ class Platform(models.Model):
         ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
     ))
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
-    className = models.CharField(max_length=122)
+    # className = models.CharField(max_length=122)
     orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
     baseUrl = models.CharField(max_length=122, blank=True)
     secreateKey = models.CharField(max_length=122, blank=True)

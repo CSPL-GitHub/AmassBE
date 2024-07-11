@@ -16,7 +16,8 @@ from order import order_helper
 from core.utils import API_Messages
 from core.models import  (
     Product, ProductCategoryJoint, ProductImage, ProductModifier, ProductModifierGroup,
-    ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint,POS_Settings
+    ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint, POS_Settings, Vendor,
+    VendorSocialMedia
 )
 from pos.models import POSSetting
 from django.http import JsonResponse
@@ -844,6 +845,37 @@ def get_home_page_offer_section(request, language="en"):
     except Exception as e:
         return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
     
+
+@api_view(['GET'])
+def get_header_footer_section(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        vendor = Vendor.objects.filter(pk=vendor_id)
+        if not vendor.exists():
+            return Response(f"vendor not found", status=status.HTTP_400_BAD_REQUEST)
+        vendor = Vendor.objects.filter(pk=vendor_id).first()
+        contact_details = {
+                "phone": vendor.phone_number,
+                "address": f"{vendor.address_line_1} , {vendor.city} , {vendor.country}",
+                "email": vendor.Email,
+        }
+        languageDetails = [vendor.primary_language,vendor.secondary_language]
+        social_media_icons = []
+        for social in VendorSocialMedia.objects.filter(vendor=vendor_id):
+            social_media_icons.append({
+            "link": social.link,
+            "social_media_handle_name":social.name
+        })
+        data = {
+        "contact_details":contact_details,
+        "social_media_icons":social_media_icons,
+        "languageDetails":languageDetails
+        }
+        return Response(data)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
     
 @api_view(["GET"])
 def get_homepage_content(request):
