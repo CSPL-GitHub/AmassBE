@@ -2017,6 +2017,7 @@ def order_details(request):
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
     platform_name = request.GET.get('platform')
+    language = request.GET.get('language', 'English')
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
         return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2127,16 +2128,24 @@ def order_details(request):
                 tables = Order_tables.objects.filter(orderId__externalOrderId=external_order_id)
 
                 if tables:
-                        for table in tables:
-                            table_details.append({
-                                "tableId": table.tableId.pk,
-                                "tableNumber": table.tableId.tableNumber,
-                                "waiterId": table.tableId.waiterId.pk,
-                                "waiterName": table.tableId.waiterId.name,
-                                "status": table.tableId.status,
-                                "tableCapacity": table.tableId.tableCapacity,
-                                "guestCount": table.tableId.guestCount
-                            })
+                    for table in tables:
+                        waiter_name = ""
+
+                        if language == "English":
+                            waiter_name = table.tableId.waiterId.name
+
+                        else:
+                            waiter_name = table.tableId.waiterId.name_locale
+
+                        table_details.append({
+                            "tableId": table.tableId.pk,
+                            "tableNumber": table.tableId.tableNumber,
+                            "waiterId": table.tableId.waiterId.pk,
+                            "waiterName": waiter_name,
+                            "status": table.tableId.status,
+                            "tableCapacity": table.tableId.tableCapacity,
+                            "guestCount": table.tableId.guestCount
+                        })
 
                 order_items = defaultdict(list)
 
@@ -2177,21 +2186,37 @@ def order_details(request):
                             modifier = Order_modifer.objects.get(pk=value)
                             modifier_info = ProductModifier.objects.get(modifierPLU=modifier.SKU, vendorId=vendor_id)
 
+                            modifier_name = ""
+
+                            if language == "English":
+                                modifier_name = modifier_info.modifierName
+
+                            else:
+                                modifier_name = modifier_info.modifierName_locale
+                            
                             modifier_list[key].append({
                                 'modifierId': modifier.pk,
-                                'name': modifier_info.modifierName,
+                                'name': modifier_name,
                                 'plu': modifier_info.modifierPLU,
                                 'sku': modifier_info.modifierSKU,
                                 'quantity': modifier.quantity if modifier.quantity else 0,
                                 'cost': modifier_info.modifierPrice,
-                                'status': True,
+                                'status': True, # Required for flutter model
                                 'image': modifier_info.modifierImg
                             })
 
                         modifier_group_info = ProductModifierGroup.objects.get(pk=key, vendorId=vendor_id)
 
+                        modifier_group_name = ""
+
+                        if language == "English":
+                            modifier_group_name = modifier_group_info.name
+
+                        else:
+                            modifier_group_name = modifier_group_info.name_locale
+                        
                         modifier_group_list[order_id].append({
-                            "name": modifier_group_info.name,
+                            "name": modifier_group_name,
                             "plu": modifier_group_info.PLU,
                             "min": modifier_group_info.min,
                             "max": modifier_group_info.max,
@@ -2200,16 +2225,27 @@ def order_details(request):
                             "modifiers": modifier_list[key]
                         })
 
+                    product_name = ""
+                    category_name = ""
+
+                    if language == "English":
+                        product_name = item.product.productName
+                        category_name = item.category.categoryName
+
+                    else:
+                        product_name = item.product.productName_locale
+                        category_name = item.category.categoryName_locale
+                    
                     order_items[order_id].append({
                         "order_content_id": order.pk,
                         "productId": item.product.pk,
                         "quantity": order.quantity,
                         "plu": order.SKU,
-                        "name": item.product.productName,
+                        "name": product_name,
                         "isTaxable": item.product.taxable,
                         "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                         "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                        "categoryName": item.category.categoryName,
+                        "categoryName": category_name,
                         "note": order.note if order.note else "",
                         "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
                         "status": int(order.status),
