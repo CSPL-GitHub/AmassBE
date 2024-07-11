@@ -2280,7 +2280,7 @@ def updatePaymentDetails(request):
     data = request.data
 
     vendorId = request.GET.get('vendorId', None)
-    language = request.GET.get('language', 'en')
+    language = request.GET.get('language', 'English')
 
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
