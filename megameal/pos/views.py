@@ -1806,163 +1806,169 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
 @api_view(['POST'])
 def createOrder(request):
-    vendorId = request.GET.get('vendorId', None)
-    language = request.GET.get("language", "English")
-
-    if vendorId == None:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
-    
     try:
-        print(request.data)
+        vendor_id = request.GET.get('vendorId', None)
+        language = request.GET.get("language", "English")
 
-        orderid = vendorId + str(CorePlatform.POS) + datetime.now().strftime("%H%M%S")
+        if vendor_id is None:
+            return JsonResponse({"message": "Vendor Id cannot be empty"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
+    
+        platform = Platform.objects.filter(Name=request.data.get('platform'), VendorId=vendor_id).first()
+
+        if platform.isActive == False:
+            return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
+        
+        orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S")
 
         result = {
-                "language": language,
-                "internalOrderId": orderid,
-                "vendorId": vendorId,
-                "externalOrderId":orderid,
-                "orderType": request.data.get("type"),
-                "pickupTime": '',
-                "arrivalTime": '',
-                "deliveryIsAsap": 'true',
-                "note": request.data.get('customerNote'),
-                "tables": request.data.get('tables'),
-                "items": [],
-                "remake": False,
-                "customerName": request.data.get('name') if request.data.get('name') else "",
-                "status": "pending",
-                "Platform": "POS",
-                "customer": {
-                    # "internalId": "1",
-                    "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",
-                    "lname": request.data.get('LastName') if request.data.get('LastName') else "",
-                    "email": request.data.get('Email') if request.data.get('Email') else "",
-                    "phno": request.data.get('Phone_Number') if request.data.get('Phone_Number') else "0",
-                    "address1": request.data.get('address_line_1') if request.data.get('address_line_1') else "",
-                    "address2": request.data.get('address_line_2') if request.data.get('address_line_2') else "",
-                    "city": request.data.get('city') if request.data.get('city') else "",
-                    "state": request.data.get('state') if request.data.get('state') else "",
-                    "country": request.data.get('country') if request.data.get('country') else "",
-                    "zip": request.data.get('zipcode') if request.data.get('zipcode') else "",
-                    "vendorId": vendorId
-                },
-                "discount":{
-                    "value":request.data.get('discount'),
-                    "calType":2
-                    },
-                "payment": {
-                    "tipAmount": request.data.get('tip',0.0),
-                    "payConfirmation": request.data.get("payment_details").get("paymentKey") if request.data.get("payment_details").get("paymentKey") else "",
-                    "payAmount": request.data.get("finalTotal",0.0),
-                    "payType":PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
-                    "mode":PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
-                    "default": request.data.get("payment_details").get("paymentStatus") if request.data.get("payment_details").get("paymentStatus") else  False,
-                    "platform": request.data.get("payment_details").get("platform") if request.data.get("payment_details").get("platform") else "N/A",
-                    "custProfileId":"",
-                    "custPayProfileId":"",
-                    "payData": "",
-                    "CardId":"NA",
-                    "expDate":"",
-                    "transcationId":request.data.get("payment_details").get("paymentKey"),
-                    "lastDigits":"",
-                    "billingZip":""
-                },
-                "tax": request.data.get("tax"),
-                "subtotal": request.data.get("subtotal"),
-                "finalTotal": request.data.get("finalTotal"),
-                "is_wordpress": request.data.get("is_wordpress"),
-                "points_redeemed": request.data.get("points_redeemed"),
-                "points_redeemed_by": request.data.get("points_redeemed_by"),
-            }
+            "language": language,
+            "internalOrderId": orderid,
+            "vendorId": vendor_id,
+            "externalOrderId":orderid,
+            "orderType": request.data.get("type"),
+            "pickupTime": '',
+            "arrivalTime": '',
+            "deliveryIsAsap": 'true',
+            "note": request.data.get('customerNote'),
+            "tables": request.data.get('tables'),
+            "items": [],
+            "remake": False,
+            "customerName": request.data.get('name') if request.data.get('name') else "",
+            "status": "pending",
+            "Platform": request.data.get('platform'),
+            "customer": {
+                "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",
+                "lname": request.data.get('LastName') if request.data.get('LastName') else "",
+                "email": request.data.get('Email') if request.data.get('Email') else "",
+                "phno": request.data.get('Phone_Number') if request.data.get('Phone_Number') else "0",
+                "address1": request.data.get('address_line_1') if request.data.get('address_line_1') else "",
+                "address2": request.data.get('address_line_2') if request.data.get('address_line_2') else "",
+                "city": request.data.get('city') if request.data.get('city') else "",
+                "state": request.data.get('state') if request.data.get('state') else "",
+                "country": request.data.get('country') if request.data.get('country') else "",
+                "zip": request.data.get('zipcode') if request.data.get('zipcode') else "",
+                "vendorId": vendor_id
+            },
+            "discount":{
+                "value":request.data.get('discount'),
+                "calType":2
+            },
+            "payment": {
+                "tipAmount": request.data.get('tip',0.0),
+                "payConfirmation": request.data.get("payment_details").get("paymentKey") if request.data.get("payment_details").get("paymentKey") else "",
+                "payAmount": request.data.get("finalTotal",0.0),
+                "payType": PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
+                "mode": PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
+                "default": request.data.get("payment_details").get("paymentStatus") if request.data.get("payment_details").get("paymentStatus") else  False,
+                "platform": request.data.get("payment_details").get("platform") if request.data.get("payment_details").get("platform") else "N/A",
+                "custProfileId": "",
+                "custPayProfileId": "",
+                "payData": "",
+                "CardId":"NA",
+                "expDate":"",
+                "transcationId": request.data.get("payment_details").get("paymentKey"),
+                "lastDigits": "",
+                "billingZip": ""
+            },
+            "tax": request.data.get("tax"),
+            "subtotal": request.data.get("subtotal"),
+            "finalTotal": request.data.get("finalTotal"),
+            "is_wordpress": request.data.get("is_wordpress"),
+            "points_redeemed": request.data.get("points_redeemed"),
+            "points_redeemed_by": request.data.get("points_redeemed_by"),
+        }
         
         # if request.data.get('promocodes'):
-        #     discount=Order_Discount.objects.get(pk=request.data.get('promocodes')[0]['id'])
-        #     result['discount']={
-        #                     "discountCode": discount.discountCode,
-        #                     "discountId": discount.plu,
-        #                     "status": True,
-        #                     "discountName": discount.discountName,
-        #                     "discountCost": discount.value
-        #                 }
+        #     discount = Order_Discount.objects.get(pk=request.data.get('promocodes')[0]['id'])
+
+        #     result['discount'] = {
+        #         "discountCode": discount.discountCode,
+        #         "discountId": discount.plu,
+        #         "status": True,
+        #         "discountName": discount.discountName,
+        #         "discountCost": discount.value
+        #     }
         
-        # +++++++++++ Item In order
         items = []
 
         for item in request.data["products"]:
-                try:
-                    corePrd = Product.objects.get(
-                        pk=item['productId']
-                        # , vendorId=vendorId
-                        )
-                    
-                except Product.DoesNotExist:
-                    return {API_Messages.ERROR:" Not found"}
-                
-                itemData = {
-                    "plu": corePrd.productParentId.PLU if corePrd.productParentId != None else corePrd.PLU,
-                    "sku": item.get("sku"),
-                    "productName": corePrd.productName,
-                    # Variation Id instead of name
-                    "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
-                    "quantity": item["quantity"],
-                    "subItems":  [
-                           {
-                        "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
-                        "name": subItem['name'],
-                        "status":subItem["status"],
-                        "group": subItemGrp['id']
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
-                ] ,
-                    "itemRemark": item["note"],  # Note Unavailable
-                    "unit": "qty",  # Default
-                    "modifiers": [
-                           {
-                        "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
-                        "name": subItem['name'],
-                        "status":subItem["status"],
-                        "quantity":subItem["quantity"],
-                        "group": subItemGrp['id']
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
-                ]  # TODO
-                }
-                
-                if corePrd.productParentId != None:
-                    itemData["variant"] = {"plu": corePrd.PLU}
+            product_instance = Product.objects.get(pk=item['productId'], vendorId=vendor_id)
+            
+            modifier_list_1 = []
+            modifier_list_2 = []
+            
+            for modifier_group in item['modifiersGroup']:
+                for modifier in modifier_group['modifiers']:
+                    modifier_data = {
+                        "plu": ProductModifier.objects.get(pk=modifier["modifierId"]).modifierPLU,
+                        "name": modifier['name'],
+                        "status": modifier["status"],
+                        "group": modifier_group['id']
+                    }
 
-                #####++++++++ Modifiers
-                items.append(itemData)
+                    modifier_list_1.append(modifier_data)
+
+            for modifier_group in item['modifiersGroup']:
+                for modifier in modifier_group['modifiers']:
+                    if modifier["status"]:
+                        modifier = {
+                            "plu": ProductModifier.objects.get(pk=modifier["modifierId"]).modifierPLU,
+                            "name": modifier['name'],
+                            "status": modifier["status"],
+                            "quantity": modifier["quantity"],
+                            "group": modifier_group['id']
+                        }
+
+                        modifier_list_2.append(modifier)
+            
+            itemData = {
+                "plu": product_instance.productParentId.PLU if product_instance.productParentId != None else product_instance.PLU,
+                "sku": item.get("sku"),
+                "productName": product_instance.productName,
+                # Variation Id instead of name
+                "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
+                "quantity": item["quantity"],
+                "subItems": modifier_list_1,
+                "itemRemark": item["note"],  # Note Unavailable
+                "unit": "qty",  # Default
+                "modifiers": modifier_list_2
+            }
+            
+            if product_instance.productParentId != None:
+                itemData["variant"] = {"plu": product_instance.PLU}
+
+            items.append(itemData)
 
         result["items"] = items
 
-        # +++++++++++ Item In order
         result["tip"] = request.data['tip'] 
 
-        # return JsonResponse(result)
-        tokenlist=KioskOrderData.objects.filter(date=datetime.today().date()).values_list('token')
+        tokenlist = KioskOrderData.objects.filter(date=datetime.today().date()).values_list('token')
 
-        token=1 if len(tokenlist)==0 else max(tokenlist)[0] + 1
+        token = 1 if len(tokenlist)==0 else max(tokenlist)[0] + 1
 
-        # res=KomsEcom().openOrder(result)
+        response = order_helper.OrderHelper.openOrder(result, vendor_id)
         
-        res = order_helper.OrderHelper.openOrder(result, vendorId)
-        
-        saveData = KiosK_create_order_serializer(data={'orderdata':str(result),'date':datetime.today().date(),'token':token})
+        saveData = KiosK_create_order_serializer(data={
+            'orderdata': str(result),
+            'date': datetime.today().date(),
+            'token': token
+        })
         
         if saveData.is_valid():
             saveData.save()
 
             if Order.objects.filter(externalOrderld=orderid).exists():
-                return JsonResponse({'token':token, "external_order_id":orderid})
+                return JsonResponse({'token': token, "external_order_id": orderid})
             
             else:
-                return JsonResponse({'token':token, "external_order_id":""})
+                return JsonResponse({'token': token, "external_order_id": ""})
         
-        return JsonResponse({"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Something went wrong"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     except Exception as e:
         print(e)
-        return JsonResponse({"msg": e}, status=status.HTTP_400_BAD_REQUEST)        
+        return JsonResponse({"message": "Something went wrong"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
