@@ -1974,7 +1974,7 @@ def createOrder(request):
 @api_view(['GET'])
 def platform_list(request):
     vendor_id = request.GET.get('vendorId')
-    language = request.GET.get('language', 'en')
+    language = request.GET.get('language', 'English')
 
     if vendor_id == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, safe=False, status=status.HTTP_400_BAD_REQUEST)
