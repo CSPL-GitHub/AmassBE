@@ -22,7 +22,7 @@ class VendorAdmin(admin.ModelAdmin):
         'vendor_type', 'is_active', 'Name', 'phone_number', 'Email', 'Password', 
         'address_line_1', 'address_line_2', 'city', 'state', 'country',
         'currency', 'currency_symbol', 'primary_language', 'secondary_language',
-        'gst_number', 'contact_person_name', 'contact_person_phone_number',
+        'logo', 'gst_number', 'contact_person_name', 'contact_person_phone_number',
     )
 
     list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
@@ -34,7 +34,7 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(Platform)
 class PlatformAdmin(admin.ModelAdmin):
-    fields = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'className', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
+    fields = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
     
     list_display = ('Name', 'isActive', 'expiryDate', 'VendorId',)
     list_filter = ('Name', 'isActive', 'VendorId',)

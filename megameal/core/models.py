@@ -1,5 +1,5 @@
 from django.db import models
-from core.utils import CorePlatform, TaxLevel, OrderAction
+from core.utils import TaxLevel, OrderAction
 from pos.language import platform_locale
 from django.db.models.signals import post_save
 from django.dispatch import receiver
@@ -36,6 +36,8 @@ class Vendor(models.Model):
     secondary_language = models.CharField(max_length=100, null=True, blank=True)
     selected_language = models.CharField(max_length=100, default="English") # field used for POS setting for Flutter
     is_active = models.BooleanField(default=False)
+    logo = models.ImageField(upload_to='static/images/vendor/', null=True, blank=True)
+
 
     def __str__(self):
         return f"{self.Name}({self.pk})"
@@ -350,7 +352,6 @@ class Platform(models.Model):
         ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
     ))
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
-    # className = models.CharField(max_length=122)
     orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
     baseUrl = models.CharField(max_length=122, blank=True)
     secreateKey = models.CharField(max_length=122, blank=True)
@@ -368,7 +369,6 @@ class Platform(models.Model):
             'VendorId': self.VendorId,
             'isActive':self.isActive,
             'expiryDate':self.expiryDate,
-            'className':self.className,
         }
     
     def __str__(self):
