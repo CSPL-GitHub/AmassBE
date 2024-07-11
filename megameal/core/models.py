@@ -36,7 +36,7 @@ class Vendor(models.Model):
     secondary_language = models.CharField(max_length=100, null=True, blank=True)
     selected_language = models.CharField(max_length=100, default="English") # field used for POS setting for Flutter
     is_active = models.BooleanField(default=False)
-    logo = models.ImageField(upload_to='static/images/vendor/', null=True, blank=True)
+    logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
 
 
     def __str__(self):
