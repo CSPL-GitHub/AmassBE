@@ -2016,7 +2016,7 @@ def platform_list(request):
 def order_details(request):
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
-    platform_name = request.GET.get('platform')
+    platform_id = request.GET.get('platform')
     language = request.GET.get('language', 'English')
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
@@ -2025,8 +2025,8 @@ def order_details(request):
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
         return JsonResponse({"error": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if platform_name == None or platform_name == '""' or platform_name == '' or len(platform_name) == 0:
-        return JsonResponse({"error": "Platform name cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    if (not platform_id) or (platform_id == 0):
+        return JsonResponse({"error": "Platform cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
     koms_order_status_list = []
 
@@ -2053,18 +2053,17 @@ def order_details(request):
         koms_order_id = koms_order.pk
 
         if koms_order.order_status in koms_order_status_list:
-            platforms = Platform.objects.filter(VendorId=vendor_id).values_list("Name", flat=True)
+            platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
 
-            platform_list = []
+            if platform_instance:
+                if platform_instance.isActive == False:
+                    return JsonResponse({"error": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
 
-            for platform in platforms:
-                platform_list.append(platform.lower())
-            
-            if str(platform_name).lower() in platform_list:
-                order = Order.objects.get(externalOrderld=external_order_id)
+                else:
+                    order = Order.objects.get(externalOrderld=external_order_id)
 
             else:
-                return JsonResponse({"error": "Invalid platform name"}, status=400)
+                return JsonResponse({"error": "Invalid platform"}, status=status.HTTP_400_BAD_REQUEST)
 
             if order:
                 order_id = order.pk
@@ -2288,7 +2287,13 @@ def order_details(request):
 
                 else:
                     platform_id = order_detail.orderId.platform.pk
-                    platform_name = order_detail.orderId.platform.Name
+                    platform_name = ""
+
+                    if language == "English":
+                        platform_name = order_detail.orderId.platform.Name
+
+                    else:
+                        platform_name = order_detail.orderId.platform.Name_locale
 
                 platform_details["id"] = platform_id
                 platform_details["name"] = platform_name
