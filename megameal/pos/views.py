@@ -2205,7 +2205,7 @@ def order_details(request):
                         "productId": item.product.pk,
                         "quantity": order.quantity,
                         "plu": order.SKU,
-                        "text": item.product.productName,
+                        "name": item.product.productName,
                         "isTaxable": item.product.taxable,
                         "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                         "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
