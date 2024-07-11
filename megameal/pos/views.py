@@ -2660,53 +2660,7 @@ def update_store_status(request):
     pos_store_setting.store_status = store_status
     pos_store_setting.save()
 
-    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status=status.HTTP_200_OK)
-
-
-
-@api_view(["POST"])
-def order_payment(request):
-    body_data = json.loads(request.body)
-
-    externalRefNumber = body_data.get('order_id')
-    amount = body_data.get('amount')
-    customerMobileNumber = body_data.get('customer_mobile', "")
-    customerEmail = body_data.get('customer_email', "")
-    customerName = body_data.get('customer_name', "")
-    vendor_id = body_data.get('vendor_id')
-
-    if vendor_id == 1:
-        data = {
-            "appKey": "b5655725-b020-45b5-91e1-4f95965c0496",
-            "username": "1212100119",
-            "amount": amount,
-            "externalRefNumber": externalRefNumber,
-            "description": f"payment for OrderID: {externalRefNumber}",
-            "customerMobileNumber": customerMobileNumber,
-            "customerEmail": customerEmail,
-            "customerName": customerName,
-            "pushTo": {
-                "deviceId": "1491961756|ezetap_android"
-            },
-            "mode": "ALL",
-            "orgCode": "CONSOCIATESOLUTIONS"
-        }
-
-        ezetap_url = "https://demo.ezetap.com/api/3.0/p2padapter/pay"
-
-        response = requests.post(ezetap_url, json=data)
-        # response = request('POST', ezetap_url, params=data)
-
-        if response.status_code == 200:
-            ezetap_response = response.json()
-            return JsonResponse({'data': ezetap_response}, status=200)
-        else:
-            ezetap_response = response.json()
-            return JsonResponse({'data': ezetap_response}, status=400)
-        
-    else:
-        return JsonResponse({'data': 'Not a valid vendor ID'}, status=400)
-   
+    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status=status.HTTP_200_OK) 
 
 
 def excel_upload(request):
