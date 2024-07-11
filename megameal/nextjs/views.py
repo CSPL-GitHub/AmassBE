@@ -1,4 +1,3 @@
-from django.shortcuts import render
 import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -11,20 +10,17 @@ from order.serializer import Addressserializers, Customerserializers
 from nextjs.models import *
 from django.db.models import Q
 from django.db import transaction
-from core.utils import CorePlatform, PaymentType
+from core.utils import PaymentType
 from order import order_helper
-from core.utils import API_Messages
 from core.models import  (
     Product, ProductCategoryJoint, ProductImage, ProductModifier, ProductModifierGroup,
-    ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint,POS_Settings
+    ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint, Vendor,
+    VendorSocialMedia
 )
 from pos.models import POSSetting
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
-import random
-import json
-from .forms import UserForm
 import socket
 
 
@@ -275,6 +271,7 @@ def check_order_items_status(request):
 @api_view(['POST'])
 def CreateOrder(request):
     vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get('language', 'English')
 
     if vendorId == None:
         return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
@@ -283,28 +280,40 @@ def CreateOrder(request):
 
     slot = data.filter(day=datetime.now().strftime("%A")).first()
 
-    store_status = POSSetting.objects.filter(vendor=vendorId).first()
+    store_status = False
+    
+    store_status_setting = POSSetting.objects.filter(vendor=vendorId).first()
 
-    store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
-    
-    print("store_status  ",store_status)
-    
+    if store_status_setting:
+        if store_status_setting.store_status == False:
+            store_status = False
+
+        elif slot is None:
+            store_status = True
+
+        elif slot.open_time < datetime.now().time() < slot.close_time and not slot.is_holiday:
+            store_status = True
+
+        else:
+            store_status = False
+
+    else:
+        store_status = False
+
     if store_status == False:
-        return JsonResponse({"msg": f"store is already closed"}, status=400)
+        return JsonResponse({"msg": "store is already closed"}, status=status.HTTP_400_BAD_REQUEST)
     
     try:
         orderid = '2' + datetime.now().strftime("%Y%m%d%H%M%S") + vendorId
 
         result = request.data
         
-        result['internalOrderId']  = orderid
-        result['externalOrderId']  = orderid
+        result['internalOrderId'] = orderid
+        result['externalOrderId'] = orderid
         result["Platform"] = "Website"
+        result["language"] = language
         result["payment"]["mode"] = PaymentType.CASH
 
-        # if Customer.objects.filter(Phone_Number = result['customer']['phno']).exists():
-        #     return JsonResponse({"msg": "Number already in use"}, status=400)
-        
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
             result["payment"]["mode"] = PaymentType.ONLINE
@@ -312,25 +321,31 @@ def CreateOrder(request):
             result["payment"]["default"] = True
 
         for item in result['items']:
-            prod = Product.objects.filter(pk=item['productId'])
+            product_instance = Product.objects.filter(pk=item['productId'])
             
-            if prod.exists() and prod.first().active == False:
-                return JsonResponse({"msg": f"{prod.first().productName} is no longer availabe"}, status=400)
+            if product_instance.exists() and product_instance.first().active == False:
+                return JsonResponse({"msg": f"{product_instance.first().productName} is no longer availabe"}, status=400)
             
-            item["modifiers"] = [
-                {
-                    "plu": subItem["plu"],
-                    "name": subItem['name'],
-                    "status":True,
-                    "quantity":subItem["quantity"],
-                    "group": subItemGrp['modGroupId']
-                } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
-            ]
+            modifiers_list = []
+
+            for modifier_group in item['modifiersGroup']:
+                for modifier in modifier_group['modifiers']:
+                    modifier_info = {
+                        "plu": modifier["plu"],
+                        "name": modifier['name'],
+                        "status": True,
+                        "quantity": modifier["quantity"],
+                        "group": modifier_group.get('modGroupId') or modifier_group.get('id')
+                    }
+
+                    modifiers_list.append(modifier_info)
+
+            item["modifiers"] = modifiers_list
             
             item["subItems"] = item["modifiers"]
             item['itemRemark'] = 'None'
 
-        res = order_helper.OrderHelper.openOrder(result,vendorId)
+        res = order_helper.OrderHelper.openOrder(result, vendorId)
         
         if res[1] == 201:
             return JsonResponse({'token': res, "orderId": orderid})
@@ -395,43 +410,55 @@ def CreateOrderApp(request):
 
 @api_view(['GET'])
 def get_timings(request):
-    vendorId=request.GET.get('vendorId')
+    vendorId = request.GET.get('vendorId')
+
     data = StoreTiming.objects.filter(vendor=vendorId)
+
     slot = data.filter(day=datetime.now().strftime("%A")).first()
+
     delivery = []
+
     delivery_time = datetime.now() + timedelta(minutes=30)
+
     minute = delivery_time.minute
 
     minutes_to_add = 15 - (minute % 15)
 
-    delivery_time += timedelta(minutes=minutes_to_add)
-
+    delivery_time = delivery_time + timedelta(minutes=minutes_to_add)
     # delivery_time = datetime.now()
+
     interval = 15
+
     close_time = slot.close_time if slot else  datetime.now().replace(hour=20, minute=0, second=0, microsecond=0).time()
+    
     given_datetime = datetime.combine(datetime.today(), close_time)
+    
     result_datetime = given_datetime - timedelta(minutes=interval)
+    
     result_time = result_datetime.time()
+    
     while delivery_time.time() < result_time:
-        delivery_time += timedelta(minutes=interval)
+        delivery_time = delivery_time + timedelta(minutes=interval)
         delivery.append({"time":delivery_time.strftime('%I:%M %p')})
-    # pickup = []
+
     pickup = delivery
+
+    # pickup = []
+
     # pickup_time = datetime.now()
     # while pickup_time.time() < close_time:
     #     interval = 30
     #     pickup_time += timedelta(minutes=interval)
     #     pickup.append({"time":pickup_time.strftime('%I:%M %p')})
-    delivery_settings = Setting.objects.filter(name="delivery", vendor=vendorId).first()
-
+    
     delivery_charges = 0
+
+    delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
     
     if delivery_settings:
-        delivery_charges = delivery_settings.json_object.get("delivery_charges")
+        delivery_charges = delivery_settings.delivery_charges_for_kilometer_limit
 
     return Response({"delivery": delivery, 'pickup': pickup, "flat_rate": delivery_charges})
-    # pickup = []
-    # for time in slot:
 
 
 @api_view(['POST'])
@@ -598,6 +625,7 @@ def get_banner(request):
     
     try:
         vendor_id = int(vendor_id)
+        
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -630,87 +658,87 @@ def get_banner(request):
     for type in product_type:
         product_list = []
 
-        product_ids = list(Product.objects.filter(vendorId=vendor_id).values_list('id', flat=True))
-
-        if product_ids:
-            random_product_ids = random.sample(product_ids, 10) if len(product_ids) > 10 else random.sample(product_ids,len(product_ids))
-
-            products = Product.objects.filter(id__in=random_product_ids)
+        if type == "recommendation":
+            products = Product.objects.filter(is_in_recommendations=True)
+            
+        elif type == "todays_special":
+            products = Product.objects.filter(is_todays_special=True)
                     
-            if products:
-                for product in products:
-                    product_category = ProductCategoryJoint.objects.filter(product=product.pk).first()
+        if products:
+            for product in products:
+                product_category = ProductCategoryJoint.objects.filter(product=product.pk).first()
+                
+                if product_category:
+                    product_image_list = []
+
+                    product_images = ProductImage.objects.filter(product=product.pk)
                     
-                    if product_category:
-                        product_image_list = []
+                    for image in product_images:
+                        if image is not None:
+                            product_image_list.append(str(image.url))
+                    
+                    modifier_group_list = []
 
-                        product_images = ProductImage.objects.filter(product=product.pk)
-                        
-                        for image in product_images:
-                            if image is not None:
-                                product_image_list.append(str(image.url))
-                        
-                        modifier_group_list = []
+                    modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=product.pk)
+                    
+                    for group in modifier_groups:
+                        modifier_list = []
 
-                        modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=product.pk)
+                        modifiers = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=group.modifierGroup.pk, modifierGroup__isDeleted=False)
                         
-                        for group in modifier_groups:
-                            modifier_list = []
-
-                            modifiers = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=group.modifierGroup.pk, modifierGroup__isDeleted=False)
-                            
-                            for modifier in modifiers:
-                                modifier_list.append({
-                                        "cost": modifier.modifier.modifierPrice,
-                                        "modifierId": modifier.modifier.pk,
-                                        "name": modifier.modifier.modifierName,
-                                        "description": modifier.modifier.modifierDesc,
-                                        "quantity": 0, # Required for Flutter model
-                                        "plu": modifier.modifier.modifierPLU,
-                                        "status": False, # Required for Flutter model
-                                        "image": modifier.modifier.modifierImg if modifier.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                                        "active": modifier.modifier.active
-                                    })
-                                
-                            if group.modifierGroup.isDeleted == False: 
-                                modifier_group_list.append({
-                                    "id": group.modifierGroup.pk,
-                                    "name": group.modifierGroup.name,
-                                    "plu": group.modifierGroup.PLU,
-                                    "min": group.modifierGroup.min,
-                                    "max": group.modifierGroup.max,
-                                    "type": group.modifierGroup.modGrptype,
-                                    "active": group.modifierGroup.active,
-                                    "modifiers": modifier_list
+                        for modifier in modifiers:
+                            modifier_list.append({
+                                    "cost": modifier.modifier.modifierPrice,
+                                    "modifierId": modifier.modifier.pk,
+                                    "name": modifier.modifier.modifierName,
+                                    "description": modifier.modifier.modifierDesc,
+                                    "quantity": 0, # Required for Flutter model
+                                    "plu": modifier.modifier.modifierPLU,
+                                    "status": False, # Required for Flutter model
+                                    "image": modifier.modifier.modifierImg if modifier.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
+                                    "active": modifier.modifier.active
                                 })
-                        
-                        product_list.append({
-                            "categoryId": product_category.category.pk,
-                            "categoryName":product_category.category.categoryName,
-                            "productId": product.pk,
-                            "tags": product.tag or "",
-                            "text": product.productName,
-                            "imagePath": product_image_list[0] if len(product_image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                            "images": product_image_list if len(product_image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                            "quantity": 1,
-                            "cost": product.productPrice,
-                            "active": product.active,
-                            "description": product.productDesc,
-                            "allowCustomerNotes": True,
-                            "totalSale": 0,
-                            "totalSaleCount": 0,
-                            "totalSaleQty": 0,
-                            "plu": product.PLU,
-                            "note": '',
-                            "isTaxable": product.taxable,
-                            "type": product.productType,
-                            "modifiersGroup": modifier_group_list,
-                        })
+                            
+                        if group.modifierGroup.isDeleted == False: 
+                            modifier_group_list.append({
+                                "id": group.modifierGroup.pk,
+                                "name": group.modifierGroup.name,
+                                "plu": group.modifierGroup.PLU,
+                                "min": group.modifierGroup.min,
+                                "max": group.modifierGroup.max,
+                                "type": group.modifierGroup.modGrptype,
+                                "active": group.modifierGroup.active,
+                                "modifiers": modifier_list
+                            })
+                    
+                    product_list.append({
+                        "categoryId": product_category.category.pk,
+                        "categoryName":product_category.category.categoryName,
+                        "productId": product.pk,
+                        "tags": product.tag or "",
+                        "text": product.productName,
+                        "imagePath": product_image_list[0] if len(product_image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                        "images": product_image_list if len(product_image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                        "quantity": 1,
+                        "cost": product.productPrice,
+                        "active": product.active,
+                        "description": product.productDesc,
+                        "allowCustomerNotes": True,
+                        "totalSale": 0,
+                        "totalSaleCount": 0,
+                        "totalSaleQty": 0,
+                        "plu": product.PLU,
+                        "note": '',
+                        "isTaxable": product.taxable,
+                        "type": product.productType,
+                        "modifiersGroup": modifier_group_list,
+                    })
 
-                if type == "recommendation":
-                    recommendation_list = product_list
-                elif type == "todays_special":
-                    todays_special_list = product_list
+            if type == "recommendation":
+                recommendation_list = product_list
+
+            elif type == "todays_special":
+                todays_special_list = product_list
     
     return JsonResponse({
         "banners": banner_list,
@@ -720,7 +748,7 @@ def get_banner(request):
 
 
 @api_view(['GET'])
-def get_about_us_data(request, language="en"):
+def get_about_us_data(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -742,7 +770,7 @@ def get_about_us_data(request, language="en"):
 
 
 @api_view(['GET'])
-def get_section_two_cover(request, language="en"):
+def get_section_two_cover(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -763,7 +791,7 @@ def get_section_two_cover(request, language="en"):
 
 
 @api_view(["GET"])
-def get_features_section(request, language="en"):
+def get_features_section(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -793,7 +821,7 @@ def get_features_section(request, language="en"):
 
 
 @api_view(['GET'])
-def get_testimonials_section(request, language="en"):
+def get_testimonials_section(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -822,7 +850,7 @@ def get_testimonials_section(request, language="en"):
     
 
 @api_view(['GET'])
-def get_home_page_offer_section(request, language="en"):
+def get_home_page_offer_section(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language")
@@ -844,12 +872,47 @@ def get_home_page_offer_section(request, language="en"):
     except Exception as e:
         return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
     
+
+@api_view(['GET'])
+def get_header_footer_section(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language")
+        vendor = Vendor.objects.filter(pk=vendor_id)
+        if not vendor.exists():
+            return Response(f"vendor not found", status=status.HTTP_400_BAD_REQUEST)
+        vendor = Vendor.objects.filter(pk=vendor_id).first()
+        contact_details = {
+                "phone": vendor.phone_number,
+                "address": f"{vendor.address_line_1} , {vendor.city} , {vendor.country}",
+                "email": vendor.Email,
+        }
+        languageDetails = [vendor.primary_language,vendor.secondary_language]
+        social_media_icons = []
+        for social in VendorSocialMedia.objects.filter(vendor=vendor_id):
+            social_media_icons.append({
+            "link": social.link,
+            "name":social.name,
+            "social_media_handle_name":social.name
+        })
+        data = {
+        "logo":vendor.logo.url,
+        "contact_details":contact_details,
+        "social_media_icons":social_media_icons,
+        "languageDetails":languageDetails,
+        "currency":vendor.currency,
+        "currency_symbol":vendor.currency_symbol,
+        }
+        return Response(data)
+    except Exception as e:
+        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+
     
 @api_view(["GET"])
 def get_homepage_content(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language")
+        language = request.GET.get("language","English")
         if not vendor_id:
             return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         

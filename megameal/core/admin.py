@@ -22,7 +22,7 @@ class VendorAdmin(admin.ModelAdmin):
         'vendor_type', 'is_active', 'Name', 'phone_number', 'Email', 'Password', 
         'address_line_1', 'address_line_2', 'city', 'state', 'country',
         'currency', 'currency_symbol', 'primary_language', 'secondary_language',
-        'gst_number', 'contact_person_name', 'contact_person_phone_number',
+        'logo', 'gst_number', 'contact_person_name', 'contact_person_phone_number',
     )
 
     list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
@@ -34,7 +34,7 @@ class VendorAdmin(admin.ModelAdmin):
 
 @admin.register(Platform)
 class PlatformAdmin(admin.ModelAdmin):
-    fields = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'className', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
+    fields = ('VendorId', 'isActive', 'expiryDate', 'Name', 'Name_locale', 'orderActionType', 'baseUrl', 'secreateKey', 'secreatePass')
     
     list_display = ('Name', 'isActive', 'expiryDate', 'VendorId',)
     list_filter = ('Name', 'isActive', 'VendorId',)
@@ -60,7 +60,10 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    fields = ('vendorId', 'productName', 'productName_locale', 'PLU', 'productDesc', 'productDesc_locale', 'productPrice', 'tag', 'preparationTime', 'active', 'is_displayed_online')
+    fields = (
+        'vendorId', 'active', 'productName', 'productName_locale', 'PLU', 'productDesc', 'productDesc_locale',
+        'productPrice', 'tag', 'preparationTime', 'is_displayed_online', 'is_todays_special', 'is_in_recommendations',
+    )
     
     list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)
     list_filter = ('active', 'tag', 'is_displayed_online', 'vendorId',)
@@ -140,5 +143,14 @@ class Product_TaxAdmin(admin.ModelAdmin):
     
     list_display = ( 'vendorId','name', 'percentage',)
     list_filter = ('name', 'vendorId',)
+    search_fields = ('name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(VendorSocialMedia)
+class VendorSocialMediaAdmin(admin.ModelAdmin):
+    
+    list_display = ( 'vendor','name', 'link',)
+    list_filter = ('name', 'vendor',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS

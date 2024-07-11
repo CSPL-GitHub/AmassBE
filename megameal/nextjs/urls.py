@@ -30,6 +30,7 @@ urlpatterns = [
       path('get_features_section/', views.get_features_section, name='get_features_section'),
       path('get_testimonials_section/', views.get_testimonials_section, name='get_testimonials_section'),
       path('get_home_page_offer_section/', views.get_home_page_offer_section, name='get_home_page_offer_section'),
+      path('get_header_footer_section/', views.get_header_footer_section, name='get_header_footer_section'),
       path('get_homepage_content/', views.get_homepage_content, name='get_homepage_content'),
 ]
 
