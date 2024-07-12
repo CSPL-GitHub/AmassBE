@@ -8,7 +8,6 @@ from core.models import (
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
-from pos.language import product_tag_locale
 from koms.models import Station
 from django.conf import settings
 from django.template.defaultfilters import slugify
@@ -180,34 +179,39 @@ def get_product_by_category_data(products, language, vendor_id):
                     }
                 )
             
+        category_id = 0
         category_name = ""
         product_name = ""
         product_description = ""
-        product_tag = ""
 
         product_category_joint = ProductCategoryJoint.objects.filter(product=product.pk).first()
 
+        if product_category_joint:
+            category_id = product_category_joint.category.pk
+
+            if language == "English":
+                category_name = product_category_joint.category.categoryName
+
+            else:
+                category_name = product_category_joint.category.categoryName_locale
+        
         if language == "English":
-            category_name = product_category_joint.category.categoryName
             product_name = product.productName
             product_description = product.productDesc if product.productDesc else ""
-            product_tag = product.tag if product.tag else ""
         
         else:
-            category_name = product_category_joint.category.categoryName_locale
             product_name = product.productName_locale
             product_description = product.productDesc_locale if product.productDesc_locale else ""
-            product_tag = product_tag_locale[product.tag] if product.tag else ""
         
         product_list.append({
-            "categoryId": product_category_joint.category.pk,
+            "categoryId": category_id,
             "categoryName": category_name,
             "productId": product.pk,
             "plu": product.PLU,
             "name": product_name,
             "description": product_description,
             "cost": product.productPrice,
-            "tag":  product_tag,
+            "tag":  product.tag if product.tag else "",
             "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
             "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
             "isTaxable": product.taxable,
@@ -234,7 +238,6 @@ def get_product_data(product_instance ,vendor_id):
         "price": product_instance.productPrice,
         "is_active": product_instance.active,
         "tag": product_instance.tag if product_instance.tag else "",
-        "tag_locale": product_tag_locale[product_instance.tag] if product_instance.tag else "",
         "is_displayed_online": product_instance.is_displayed_online,
         "selected_image": selected_image.url if selected_image and selected_image.url else "",
         "vendorId": product_instance.vendorId.pk,
