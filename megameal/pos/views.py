@@ -58,7 +58,7 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
 from static.order_status_const import WOMS
-from pos.utils import order_count, get_product_data, get_modifier_data, process_product_excel
+from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
@@ -446,164 +446,27 @@ def productByCategory(request, id=0):
 
         else:
             data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+
+        if search_text:
+            products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
+
+            if language == "English":
+                products = products.filter(productName__icontains=search_text)
+
+            else:
+                products = products.filter(productName_locale__icontains=search_text)
+
+            product_list = get_product_by_category_data(products, language, vendor_id)
+
+            return JsonResponse({"message": "", "products": {"1": product_list}}, status=status.HTTP_200_OK)
         
         products = {}
 
         for category in data:
-            product_list = []
-
             filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
             
-            if search_text:
-                if language == "English":
-                    filtered_products = filtered_products.filter(productName__icontains=search_text)
-
-                else:
-                    filtered_products = filtered_products.filter(productName_locale__icontains=search_text)
+            product_list = get_product_by_category_data(filtered_products, language, vendor_id)
             
-            for product in filtered_products:
-                # product_variants = []
-
-                # if product.productType == "Variant":
-                #     for variant in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
-                #         images = []
-
-                #         for instance in ProductImage.objects.filter(product=variant.pk):
-                #             if instance is not None:
-                #                 images.append(str(instance.image))
-                        
-                #         options = []
-
-                #         for varinatJoint in Product_Option_Joint.objects.filter(productId=variant.pk, vendorId=vendor_id):
-                #             options.append(
-                #                 {
-                #                     "optionId":varinatJoint.optionId.optionId, 
-                #                     "optionValueId":varinatJoint.optionValueId.itemOptionId 
-                #                 }
-                #             )
-
-                #         product_variants.append({
-                #             "text":variant.productName,
-                #             # "imagePath": HOST+variant.productThumb.name if variant.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-                #             # "images":images if len(images)  else [HOST+DEFAULTIMG],
-                #             "quantity": 0,
-                #             "cost": variant.productPrice,
-                #             "description":variant.productDesc,
-                #             "allowCustomerNotes": True,
-                #             "plu":variant.PLU,
-                #             "type":variant.productType,
-                #             "options":options
-                #         })
-
-                images = []
-
-                product_images = ProductImage.objects.filter(product=product.pk, vendorId=vendor_id)
-
-                for instance in product_images:
-                    if instance is not None:
-                        images.append(str(instance.url))
-                
-                modifier_group_list = []
-
-                product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
-                
-                if product_and_modifier_group_joint:
-                    for product_and_modifier_group_instance in product_and_modifier_group_joint:
-                        modifier_list = []
-
-                        modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_and_modifier_group_instance.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id)
-                        
-                        if modifier_and_group_joint:
-                            for modifier_and_group_instance in modifier_and_group_joint:
-                                modifier_name = ""
-                                modifier_description = ""
-
-                                if language == "English":
-                                    modifier_name = modifier_and_group_instance.modifier.modifierName
-                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc
-
-                                else:
-                                    modifier_name = modifier_and_group_instance.modifier.modifierName_locale
-                                    modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
-                                
-                                modifier_list.append(
-                                    {
-                                        "cost": modifier_and_group_instance.modifier.modifierPrice,
-                                        "modifierId": modifier_and_group_instance.modifier.pk,
-                                        "name": modifier_name,
-                                        "description": modifier_description,
-                                        "quantity": 0,
-                                        "plu": modifier_and_group_instance.modifier.modifierPLU,
-                                        "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                                        # "image":modifier_and_group_instance.modifier.modifierImg,
-                                        "active": modifier_and_group_instance.modifier.active
-                                    }                    
-                                )
-
-                        if product_and_modifier_group_instance.modifierGroup.isDeleted == False: 
-                            modifier_group_name = ""
-                            modifier_group_description = ""
-
-                            if language == "English":
-                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
-                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
-                            
-                            else:
-                                modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
-                                modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
-
-                            modifier_group_list.append(
-                            {
-                                "id": product_and_modifier_group_instance.modifierGroup.pk,
-                                "name": modifier_group_name,
-                                "plu": product_and_modifier_group_instance.modifierGroup.PLU,
-                                "description": modifier_group_description,
-                                # "min": product_and_modifier_group_instance.min,
-                                # "max": product_and_modifier_group_instance.max,
-                                "min": product_and_modifier_group_instance.modifierGroup.min,
-                                "max": product_and_modifier_group_instance.modifierGroup.max,
-                                # "type": product_and_modifier_group_instance.modifierGroup.modGrptype,
-                                "active": product_and_modifier_group_instance.modifierGroup.active,
-                                "modifiers": modifier_list
-                            }
-                        )
-                    
-                category_name = ""
-                product_name = ""
-                product_description = ""
-                product_tag = ""
-
-                if language == "English":
-                    category_name = category.categoryName
-                    product_name = product.productName
-                    product_description = product.productDesc if product.productDesc else ""
-                    product_tag = product.tag if product.tag else ""
-                
-                else:
-                    category_name = category.categoryName_locale
-                    product_name = product.productName_locale
-                    product_description = product.productDesc_locale if product.productDesc_locale else ""
-                    product_tag = product_tag_locale[product.tag] if product.tag else ""
-                
-                product_list.append({
-                    "categoryId": category.pk,
-                    "categoryName": category_name,
-                    "productId": product.pk,
-                    "plu": product.PLU,
-                    "name": product_name,
-                    "description": product_description,
-                    "cost": product.productPrice,
-                    "tag":  product_tag,
-                    "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                    "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                    "isTaxable": product.taxable,
-                    "type": product.productType,
-                    "variant": [],
-                    "quantity": 0, # Required for Flutter model
-                    "active": product.active,
-                    "modifiersGroup": modifier_group_list,
-                })
-                
             products[category.pk] = product_list
 
         return JsonResponse({"message": "", "products": products}, status=status.HTTP_200_OK)
@@ -8178,18 +8041,23 @@ def download_product_data_excel(request):
                     vendorId=vendor_id
                 ).order_by("modifierGroup__name", "-modifierGroup__active")
 
+                category_description = category.categoryDescription if category.categoryDescription else ""
+                product_description = product_info.product.productDesc if product_info.product.productDesc else ""
+                category_description_locale = category.categoryDescription_locale if category.categoryDescription_locale else ""
+                product_description_locale = product_info.product.productDesc_locale if product_info.product.productDesc_locale else ""
+                
                 if not product_modifier_group_joint.exists():
                     if not vendor_instance.secondary_language:
                         sheet.append([
-                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category_description}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_description}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
 
                     else:
                         sheet.append([
-                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
-                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category_description}", f"{category_description_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_description}", f"{product_description_locale}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
 
@@ -8201,7 +8069,7 @@ def download_product_data_excel(request):
                         ).order_by("modifier__modifierName", "-modifier__active")
 
                         if not modifier_group_modifier_joint.exists():
-                            return Response("Modifier group has no modifiers", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                            return Response(f"Modifier group {modifier_group_info.modifierGroup.name} has no modifiers", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                         
                         is_modifier_group_active = "no"
                         
@@ -8209,6 +8077,9 @@ def download_product_data_excel(request):
                             is_modifier_group_active = "yes"
                         
                         for modifier_info in modifier_group_modifier_joint:
+                            modifier_group_description = modifier_group_info.modifierGroup.modifier_group_description if modifier_group_info.modifierGroup.modifier_group_description else ""
+                            modifier_description = modifier_info.modifier.modifierDesc if modifier_info.modifier.modifierDesc else ""
+
                             is_modifier_active = "no"
                         
                             if modifier_info.modifier.active == True:
@@ -8221,23 +8092,26 @@ def download_product_data_excel(request):
 
                             if not vendor_instance.secondary_language:
                                 sheet.append([
-                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category_description}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_description}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_description}",
                                     f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_description}",
                                     f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
                                 ])
 
                             else:
+                                modifier_group_description_locale = modifier_group_info.modifierGroup.modifier_group_description_locale if modifier_group_info.modifierGroup.modifier_group_description_locale else ""
+                                modifier_description_locale = modifier_info.modifier.modifierDesc_locale if modifier_info.modifier.modifierDesc_locale else ""
+
                                 sheet.append([
-                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
-                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category_description}", f"{category_description_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_description}", f"{product_description_locale}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_description}", f"{modifier_group_description_locale}",
                                     f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}", f"{modifier_info.modifier.modifierDesc_locale}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_description}", f"{modifier_description_locale}",
                                     f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
                                 ])
         
