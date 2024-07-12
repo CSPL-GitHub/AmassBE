@@ -1,7 +1,7 @@
 from django.urls import path
 from koms import views
 from django.urls import path
-from django.contrib import admin
+
 
 
 urlpatterns = [
@@ -29,6 +29,5 @@ urlpatterns = [
     path('notify/<str:msg_type>/<str:msg>/<str:desc>/<str:stn>/',views.makeunique),
     path('notify/<str:msg_type>/<str:msg>/<str:desc>/<str:stn>/<int:vendorId>',views.makeunique),
     path('notify/<str:msg_type>/<str:msg>/<str:desc>/<str:stn>/?vendorId=<int:vendorId>',views.makeunique),
-    # path('auth/',views.getstationauthkey), # Loging api for station
     path('koms_login/',views.koms_login)
 ]
