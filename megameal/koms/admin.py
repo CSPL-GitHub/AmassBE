@@ -3,6 +3,9 @@ from .models import *
 
 
 
+admin.site.register(KOMSOrderStatus)
+
+
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
     
