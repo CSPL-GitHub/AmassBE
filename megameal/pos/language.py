@@ -64,11 +64,6 @@ payment_type_locale = {
     3: 'بطاقة'
 }
 
-product_tag_locale = {
-    "veg": "نباتي",
-    "non-veg": "غير نباتي"
-}
-
 all_platform_locale = {'All': 'الجميع'}
 
 platform_locale = (

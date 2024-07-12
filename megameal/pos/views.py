@@ -64,7 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale, product_tag_locale
+from pos.language import get_key_value, check_key_exists, all_platform_locale
 import pytz
 import re
 import openpyxl
