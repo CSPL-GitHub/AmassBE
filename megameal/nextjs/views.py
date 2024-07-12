@@ -1,4 +1,3 @@
-import requests
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from pos.views import order_data
@@ -12,15 +11,13 @@ from django.db.models import Q
 from django.db import transaction
 from core.utils import PaymentType
 from order import order_helper
-from core.models import  (
-    Product, ProductCategoryJoint, ProductImage, ProductModifier, ProductModifierGroup,
-    ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint, Vendor,
-    VendorSocialMedia
-)
+from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, VendorSocialMedia
 from pos.models import POSSetting
+from pos.utils import get_product_by_category_data
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
+import requests
 import socket
 
 
@@ -70,6 +67,7 @@ class userViewSet(viewsets.ModelViewSet):
             "customer":user.Customer.pk,
             "userInfo": userInfo
         }, status=status.HTTP_200_OK)
+
 
 @api_view(["POST"])
 def login(request):
@@ -618,133 +616,70 @@ def verify_address(request):
 
 @api_view(["GET"])
 def get_banner(request):
-    vendor_id = request.GET.get("vendorId")
-
-    if not vendor_id:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+
+        if not vendor_id:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
-    except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    banner_list = []
-    
-    platform_type = request.GET.get("platform_type")
-    
-    if platform_type:
-        if platform_type == "app" or platform_type == "website":
-            banners = Banner.objects.filter(is_active=True, vendor=vendor_id, platform_type=platform_type)
-
-        else:
-            return Response("Invalid platform type", status=status.HTTP_400_BAD_REQUEST)
-
-    if banners:
-        for banner in banners:
-            banner_list.append(f"{banner.image}")
-    
-    # Temporary sending random data in recommendations and todays_special keys
-    product_type = ["recommendation", "todays_special"]
-
-    recommendation_list = []
-    todays_special_list = []
-
-    for type in product_type:
-        product_list = []
-
-        if type == "recommendation":
-            products = Product.objects.filter(is_in_recommendations=True)
+        try:
+            vendor_id = int(vendor_id)
             
-        elif type == "todays_special":
-            products = Product.objects.filter(is_todays_special=True)
-                    
-        if products:
-            for product in products:
-                product_category = ProductCategoryJoint.objects.filter(product=product.pk).first()
-                
-                if product_category:
-                    product_image_list = []
+        except ValueError:
+            return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-                    product_images = ProductImage.objects.filter(product=product.pk)
-                    
-                    for image in product_images:
-                        if image is not None:
-                            product_image_list.append(str(image.url))
-                    
-                    modifier_group_list = []
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        
+        banner_list = []
+        
+        platform_type = request.GET.get("platform_type")
+        
+        if platform_type:
+            if platform_type == "app" or platform_type == "website":
+                banners = Banner.objects.filter(is_active=True, vendor=vendor_id, platform_type=platform_type)
 
-                    modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=product.pk)
-                    
-                    for group in modifier_groups:
-                        modifier_list = []
+            else:
+                return Response("Invalid platform type", status=status.HTTP_400_BAD_REQUEST)
 
-                        modifiers = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=group.modifierGroup.pk, modifierGroup__isDeleted=False)
-                        
-                        for modifier in modifiers:
-                            modifier_list.append({
-                                    "cost": modifier.modifier.modifierPrice,
-                                    "modifierId": modifier.modifier.pk,
-                                    "name": modifier.modifier.modifierName,
-                                    "description": modifier.modifier.modifierDesc,
-                                    "quantity": 0, # Required for Flutter model
-                                    "plu": modifier.modifier.modifierPLU,
-                                    "status": False, # Required for Flutter model
-                                    "image": modifier.modifier.modifierImg if modifier.modifier.modifierImg  else "https://beljumlah-11072023-10507069.dev.odoo.com/web/image?model=product.template&id=4649&field=image_128",
-                                    "active": modifier.modifier.active
-                                })
-                            
-                        if group.modifierGroup.isDeleted == False: 
-                            modifier_group_list.append({
-                                "id": group.modifierGroup.pk,
-                                "name": group.modifierGroup.name,
-                                "plu": group.modifierGroup.PLU,
-                                "min": group.modifierGroup.min,
-                                "max": group.modifierGroup.max,
-                                "type": group.modifierGroup.modGrptype,
-                                "active": group.modifierGroup.active,
-                                "modifiers": modifier_list
-                            })
-                    
-                    product_list.append({
-                        "categoryId": product_category.category.pk,
-                        "categoryName":product_category.category.categoryName,
-                        "productId": product.pk,
-                        "tags": product.tag or "",
-                        "text": product.productName,
-                        "imagePath": product_image_list[0] if len(product_image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "images": product_image_list if len(product_image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                        "quantity": 1,
-                        "cost": product.productPrice,
-                        "active": product.active,
-                        "description": product.productDesc,
-                        "allowCustomerNotes": True,
-                        "totalSale": 0,
-                        "totalSaleCount": 0,
-                        "totalSaleQty": 0,
-                        "plu": product.PLU,
-                        "note": '',
-                        "isTaxable": product.taxable,
-                        "type": product.productType,
-                        "modifiersGroup": modifier_group_list,
-                    })
+        if banners:
+            for banner in banners:
+                banner_list.append(f"{banner.image}")
+        
+        product_type = ["recommendation", "todays_special"]
+
+        recommendation_list = []
+        todays_special_list = []
+
+        for type in product_type:
+            product_list = []
 
             if type == "recommendation":
-                recommendation_list = product_list
-
+                products = Product.objects.filter(is_in_recommendations=True, vendorId=vendor_id)
+                
             elif type == "todays_special":
-                todays_special_list = product_list
+                products = Product.objects.filter(is_todays_special=True, vendorId=vendor_id)
+                        
+            if products:
+                product_list = get_product_by_category_data(products, language, vendor_id)
+
+                if type == "recommendation":
+                    recommendation_list = product_list
+
+                elif type == "todays_special":
+                    todays_special_list = product_list
+        
+        return JsonResponse({
+            "banners": banner_list,
+            "recommendations": recommendation_list,
+            "todays_special": todays_special_list
+        }, status=status.HTTP_200_OK)
     
-    return JsonResponse({
-        "banners": banner_list,
-        "recommendations": recommendation_list,
-        "todays_special": todays_special_list
-    }, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -923,8 +858,8 @@ def get_homepage_content(request):
             data = data.first()
             aboutSection = {
                 "sectionImage": data.sectionImage,
-                "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading,
-                "sectionSubHeading":data.sectionSubHeading,
+                "sectionHeading": data.sectionHeading if language == "English" else data.sectionHeading_locale,
+                "sectionSubHeading":data.sectionSubHeading if language == "English" else data.sectionSubHeading_locale,
                 "sectionDescription": [data.sectionDescription],
             }
         
@@ -935,8 +870,8 @@ def get_homepage_content(request):
             data = data.first()
             sectionTwoCoverImage = {
                 "sectionImage":data.sectionImage,
-                "sectionText": data.sectionText,
-                "buttonText": data.buttonText,
+                "sectionText": data.sectionText if language == "English" else data.sectionText_locale,
+                "buttonText": data.buttonText if language == "English" else data.buttonText_locale,
             }
             
         data = FeaturesSection.objects.filter(vendor=vendor_id)
@@ -999,4 +934,3 @@ def get_homepage_content(request):
         })
     except Exception as e:
         return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
-    
