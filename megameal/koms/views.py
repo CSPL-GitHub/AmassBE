@@ -60,9 +60,6 @@ def updateCoreOrder(order):
         print(f"updateCoreOrder {err=}, {type(err)=}")
         
 
-
-
-# Create your views here.
 @api_view(["GET", "POST"])
 def orderPoint(request,vendorId):
     order_points = Order_point.objects.all(vendorId=vendorId)
@@ -460,6 +457,7 @@ def saveOrder(request):
                 API_Messages.RESPONSE: f"Unexpected {e=}, {type(e)=}" }, status=status.HTTP_400_BAD_REQUEST
         )
 
+
 def createOrderInKomsAndWoms(orderJson):
     try:
         #  order section
@@ -596,7 +594,7 @@ def createOrderInKomsAndWoms(orderJson):
             notify(type=1, msg=order_save_data.id, desc=order_has_arrived_locale(order_save_data.externalOrderId), stn=['POS'], vendorId=vendorId)
             
             
-        waiteOrderUpdate(orderid=order_save_data.id,vendorId=vendorId)
+        waiteOrderUpdate(orderid=order_save_data.id, language=language, vendorId=vendorId)
         allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
         
         platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendorId).first()
@@ -820,8 +818,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
     
     except Exception as e:
         print(f"Unexpected {e=}, {type(e)=}")
- 
- 
+
 
 @api_view(["POST", "PUT"])
 def updateTicketStatus(request):
@@ -1166,9 +1163,6 @@ def assignChef(request):
     return Response(contentSeral.data, status=status.HTTP_200_OK)
 
 
-
-
-
 def statuscount(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     result = {}
@@ -1404,6 +1398,7 @@ def allStationWiseCategory(vendorId):
     webSocketPush(message=CategoryWise(vendorId=vendorId),room_name= STATIONSIDEBAR, username="CORE")
     return
 
+
 def allStationData(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     orderList = Order.objects.filter(arrival_time__contains=date,vendorId=vendorId)
@@ -1418,6 +1413,7 @@ def allStationData(vendorId):
     for i in stationWise:
         stationWise[i]= dict(sorted(stationWise[i].items(), key=lambda x: not x[1]["isHigh"])) # Station put high priority tickets at begining
     return stationWise
+
 
 # Data per station
 def stationdata(id,vendorId):
@@ -1485,7 +1481,6 @@ def stationdata(id,vendorId):
     return stationWise
 
 
-
 def waiterdata(id,filter,search,vendorId):
     stationWise={}
     tableOfWaiter=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
@@ -1537,6 +1532,7 @@ def processStation(oldStatus,currentStatus,orderId,station,vendorId):
                 if int(currentStatus) == ASSIGN:
                     notify(type=currentStatus,msg=singleOrder.id,desc=f"Order No { singleOrder.externalOrderId } is arrived",stn=[station.pk],vendorId=vendorId)
 
+
 def singleStationWiseRemove(id,old,current,stn):
     try:
         # print("singleStationWiseRemove ",Order_content.objects.filter(orderId_id=id,stationId_id=stn.pk).count())
@@ -1553,6 +1549,7 @@ def singleStationWiseRemove(id,old,current,stn):
         print("Station Remove ",{"oldStatus": old,"newStatus": current,"id": id,"orderId": Order.objects.get(pk=id).externalOrderId,"UPDATE": "REMOVE"})
     except Exception as e:
         print(e)
+
 
 def removeFromInqueueAndInsertInProcessing(id,old,current,stn):
     try:
@@ -1610,6 +1607,7 @@ def allStationWiseRemove(id,old,current,vendorId):
     for i in Station.objects.filter(vendorId=vendorId):
         webSocketPush(message={"oldStatus": old,"newStatus": current,"id": id,"orderId": Order.objects.get(pk=id).externalOrderId,"UPDATE": "REMOVE",},room_name=STATION+str(i.pk),username="CORE",)
         print("oldStatus : ", old,"newStatus : " ,current,"id : ", id,"orderId : ", Order.objects.get(pk=id).externalOrderId,)
+
 
 def percent(a, b):
     try:
@@ -2033,83 +2031,6 @@ def additem(request):
         )
 
 
-
-@api_view(["POST"])
-def additem2(request):
-    newitems=dict(request.data)
-    order=Order.objects.get(pk=newitems['ordeId'],vendorId=request.GET.get("vendorId"))
-    oldStatus=order.order_status
-    vendorId=request.GET.get("vendorId")
-    try:
-        # for value in newitems["items"]:
-        for singleProduct in newitems["product"]:
-                singleProduct["orderId"] = newitems['ordeId']
-                singleProduct["quantityStatus"] = 1  # quantityStatus
-                singleProduct["stationId"] = singleProduct["tag"]
-                singleProduct["stationName"] = Station.objects.get(pk=singleProduct["tag"],vendorId=vendorId).station_name
-                singleProduct["chefId"] = 0
-                singleProduct["note"] = singleProduct["itemRemark"]
-                singleProduct["SKU"] = singleProduct["plu"]
-                singleProduct["status"] = 8  # assign
-                singleProduct["categoryName"] = singleProduct['categoryName']
-                single_product_serializer = Order_content_serializer(data=singleProduct, partial=True)
-                if single_product_serializer.is_valid():
-                    single_product_data = single_product_serializer.save()
-                    singleProduct["id"] = single_product_data.id  # id
-                    #  modifier section
-                    for singleModifier in singleProduct["subItems"]:
-                        singleModifier["contentID"] = single_product_data.id
-                        singleModifier["quantityStatus"] = 1  # original
-                        if "itemRemark" in singleModifier.keys():
-                            singleModifier["note"] = singleModifier["itemRemark"]
-                        singleModifier["SKU"] = singleModifier["plu"]
-                        singleModifier["status"] = 1
-                        single_modifier_serializer = OrderModifierWriterSerializer(
-                            data=singleModifier, partial=True
-                        )
-
-                        if single_modifier_serializer.is_valid():
-                            single_mod_data = single_modifier_serializer.save()
-                            singleModifier["id"] = single_mod_data.id
-                        else:
-                            logging.exception("invalid modifier" + str(singleModifier))
-                else:
-                    logging.exception("invalid product" + str(singleProduct))
-        order.order_status=8
-        order.save()
-        webSocketPush(message={"id": order.pk,"orderId": order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+"-"+oldStatus,username="CORE",)  # WheelMan order remove order from old status
-        webSocketPush(message=getOrder(ticketId=order.pk,vendorId=vendorId), room_name=str(vendorId)+"-"+str(order.order_status),username= "CORE")  # WheelMan add order to new status
-        webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId),username= "CORE")  # wheel man left side
-        webSocketPush(message=statuscount(vendorId=vendorId), room_name=STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
-        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username="CORE") # Update to station sidebar
-        allStationWiseRemove(id=order.pk,old=str(oldStatus),current=str(order.order_status),vendorId=vendorId)
-        allStationWiseSingle(id=order.pk,vendorId=vendorId)
-        return JsonResponse({"id":newitems['ordeId'],"oldstatus":oldStatus,"current_status":order.order_status}, status=status.HTTP_201_CREATED)
-    except Exception as e:
-        print(e)
-        return JsonResponse(
-            {"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST
-        )
-
-
-# @api_view(["POST"])
-# def getstationauthkey(request):
-#     requestJson = JSONParser().parse(request)
-#     try:
-#         Station.objects.filter(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password')).update(key=secrets.token_hex(8))
-#         data=Station.objects.get(vendorId=requestJson.get('vendorId'),client_id=requestJson.get('username'),client_secrete=requestJson.get('password'))
-#         res={
-#             "token":data.key,
-#             "stationId":data.pk,
-#             "stationName":data.station_name,
-#             }
-#         return Response(res)
-#     except:
-#         return JsonResponse(
-#             {"msg": "not found"}, status=status.HTTP_400_BAD_REQUEST
-#         )
-
-
 @api_view(["POST"])
 def koms_login(request):
     request_json = JSONParser().parse(request)
@@ -2287,63 +2208,3 @@ def editContent(request):
     
     except Exception as e:
         return Response({"G": e})
-
-@api_view(['POST'])
-def editContent2(request):
-    item=dict(request.data)
-    order=Order.objects.get(pk=item['ordeId'],vendorId=request.GET.get("vendorId"))
-    content=Order_content.objects.get(pk=item['itemId'])
-    oldStatus=order.order_status
-    singleProduct = item["items"]
-    oldContent=content.status
-    vendorId=request.GET.get("vendorId")
-    try:
-        singleProduct["orderId"] = item['ordeId']
-        singleProduct["quantityStatus"] = singleProduct["quantityStatus"]  # quantityStatus
-        singleProduct["stationId"] = content.stationId.pk
-        singleProduct["stationName"] = content.stationId.station_name
-        try:
-            singleProduct["chefId"] = Content_assign.objects.get(contentID=content.pk).staffId.pk
-        except:
-            singleProduct["chefId"] = 0
-        singleProduct["note"] = singleProduct["itemRemark"]
-        singleProduct["SKU"] = singleProduct["plu"]
-        singleProduct["status"] = content.status  # assign
-        singleProduct["categoryName"] = content.categoryName
-        single_product_serializer = Order_content_serializer(content,data=singleProduct, partial=True)
-        if Order_modifer.objects.filter(contentID=content.pk):
-            Order_modifer.objects.filter(contentID=content.pk).delete()
-        if single_product_serializer.is_valid():
-            single_product_data = single_product_serializer.save()
-            singleProduct["id"] = single_product_data.id  # id
-
-            for singleModifier in singleProduct["subItems"]:
-                singleModifier["contentID"] = single_product_data.id
-                singleModifier["quantityStatus"] = singleModifier["quantityStatus"]
-                if "itemRemark" in singleModifier.keys():
-                    singleModifier["note"] = singleModifier["itemRemark"]
-                singleModifier["SKU"] = singleModifier["plu"]
-                singleModifier["status"] = 1
-                single_modifier_serializer = OrderModifierWriterSerializer(data=singleModifier, partial=True)
-                if single_modifier_serializer.is_valid():
-                    single_mod_data = single_modifier_serializer.save()
-                    singleModifier["id"] = single_mod_data.id
-                else:
-                    logging.exception("invalid modifier" + str(singleModifier))
-            content.isEdited=True
-            content.save()
-        else:
-            logging.exception("invalid product" + str(singleProduct))
-        order.save()
-        webSocketPush(getOrder(ticketId=order.pk,vendorId=vendorId), order.order_status, "CORE")  # WheelMan add order to new status
-        webSocketPush(stationQueueCount(), WHEELSTATS, "CORE")  # wheel man left side
-        webSocketPush(statuscount(), STATUSCOUNT, "CORE")  # wheel man status count
-        webSocketPush(CategoryWise(), STATIONSIDEBAR, "CORE") # Update to station sidebar
-        singleStationWiseRemove(content.orderId.pk,oldContent,Order_content.objects.get(pk=content.pk).status,content.stationId)
-        allStationWiseSingle(order.pk)
-        return JsonResponse({"id":item['ordeId'],"oldstatus":oldStatus,"current_status":order.order_status}, status=status.HTTP_201_CREATED)
-    except Exception as e:
-        print(e)
-        return JsonResponse(
-            {"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST
-        )
