@@ -180,34 +180,39 @@ def get_product_by_category_data(products, language, vendor_id):
                     }
                 )
             
+        category_id = 0
         category_name = ""
         product_name = ""
         product_description = ""
-        product_tag = ""
 
         product_category_joint = ProductCategoryJoint.objects.filter(product=product.pk).first()
 
+        if product_category_joint:
+            category_id = product_category_joint.category.pk
+
+            if language == "English":
+                category_name = product_category_joint.category.categoryName
+
+            else:
+                category_name = product_category_joint.category.categoryName_locale
+        
         if language == "English":
-            category_name = product_category_joint.category.categoryName
             product_name = product.productName
             product_description = product.productDesc if product.productDesc else ""
-            product_tag = product.tag if product.tag else ""
         
         else:
-            category_name = product_category_joint.category.categoryName_locale
             product_name = product.productName_locale
             product_description = product.productDesc_locale if product.productDesc_locale else ""
-            product_tag = product_tag_locale[product.tag] if product.tag else ""
         
         product_list.append({
-            "categoryId": product_category_joint.category.pk,
+            "categoryId": category_id,
             "categoryName": category_name,
             "productId": product.pk,
             "plu": product.PLU,
             "name": product_name,
             "description": product_description,
             "cost": product.productPrice,
-            "tag":  product_tag,
+            "tag":  product.tag if product.tag else "",
             "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
             "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
             "isTaxable": product.taxable,
