@@ -2279,10 +2279,10 @@ def update_order_koms(request):
     language = request.GET.get("language", "English")
 
     if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
+        return JsonResponse({"message": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
     
     if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"error": "External Order ID cannot be empty"}, status=400)
+        return JsonResponse({"message": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
     data = request.data
 
@@ -2311,7 +2311,7 @@ def update_order_koms(request):
                 else:
                     order_detail = {
                         "order_content_id": product["order_content_id"],
-                        "name": product["text"],
+                        "name": product["name"],
                         "quantity": product["quantity"],
                         "note": product["note"],
                         "SKU": product["plu"],
@@ -2335,6 +2335,7 @@ def update_order_koms(request):
                     new_data.append(order_detail)
 
             modifier_details = defaultdict(list)
+
             old_data = []
 
             koms_order = KOMSOrder.objects.get(externalOrderId=external_order_id, vendorId=vendor_id)
@@ -2414,23 +2415,32 @@ def update_order_koms(request):
                     if item1["SKU"] == item2["SKU"]:
                         if item1["quantity"] != item2["quantity"]:
                             product = Order_content.objects.get(pk=item2["order_content_id"], SKU=item2["SKU"])
+
                             product.quantity = item2["quantity"]
+
                             contdata={
                                 "contentID":product.pk,
-                                    "update_time":datetime.today().strftime("20%y-%m-%d"),
-                                    "quantity":item1["quantity"],
-                                    "unit":"qty"}
+                                "update_time":datetime.today().strftime("20%y-%m-%d"),
+                                "quantity":item1["quantity"],
+                                "unit":"qty"
+                            }
+
                             cont=Content_history_serializer(data=contdata, partial=True)
+
                             if cont.is_valid():
                                 cont.save()
                                 print("history noted")
+
                             print(cont.errors)
+
                             product.isEdited = True
                             product.save()
 
                         if item1["note"] != item2["note"]:
                             product = Order_content.objects.get(pk=item2["order_content_id"], SKU=item2["SKU"])
+
                             product.note = item2["note"]
+
                             product.isEdited = True
                             product.save()
 
@@ -2440,16 +2450,25 @@ def update_order_koms(request):
 
                     if koms_order_details.order_status == 1:
                         order_status = 1
+
                     else:
                         order_status = 8
+                    
+                    category_station = None
 
                     product_category_joint = ProductCategoryJoint.objects.filter(
                         product__PLU=product["plu"], product__vendorId=vendor_id, vendorId=vendor_id
                     ).first()
+
+                    if product_category_joint:
+                        category_station = product_category_joint.category.categoryStation
+
+                    else:
+                        category_station = Station.objects.filter(vendorId=vendor_id).first()
                     
                     item = Order_content.objects.create(
                         orderId = koms_order_details,
-                        name = product["text"],
+                        name = product["name"],
                         quantity = product["quantity"],
                         quantityStatus = 0,
                         unit = "qty",
@@ -2457,7 +2476,7 @@ def update_order_koms(request):
                         SKU = product["plu"],
                         tag = 1,
                         categoryName = product["categoryName"],
-                        stationId = product_category_joint.category.categoryStation.pk if product_category_joint else Station.objects.filter(vendorId=vendor_id).first(),
+                        stationId = category_station,
                         status = order_status,
                         isrecall = False,
                         isEdited = 0,
@@ -2505,14 +2524,14 @@ def update_order_koms(request):
             waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
             allStationWiseCategory(vendorId=vendor_id)
             
-            return JsonResponse({"message": "Success"}, status=200)
+            return JsonResponse({"message": "Success"}, status=status.HTTP_200_OK)
 
         except Exception as e:
-            print("POS-update_order_koms_api: ", e)
-            return JsonResponse({"error": e}, status=400)
+            print("POS-update_order_koms_api: ", str(e))
+            return JsonResponse({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
     else:
-        return JsonResponse({"error": "JSON data cannot be empty"}, status=400)
+        return JsonResponse({"message": "JSON data cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(["POST"])
