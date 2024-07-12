@@ -134,6 +134,8 @@ class ProductSerializer(serializers.ModelSerializer):
             "active",
             "tag",
             "is_displayed_online",
+            "is_todays_special",
+            "is_in_recommendations",
             "vendorId",
         )
 

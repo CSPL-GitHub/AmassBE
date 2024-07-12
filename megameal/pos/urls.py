@@ -41,7 +41,6 @@ urlpatterns = [
    path('updatePaymentDetails/', views.updatePaymentDetails, name="updatePaymentDetails"),
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
    path('store_status/', views.update_store_status, name="store_status"),
-   path('order_payment/', views.order_payment, name="order_payment"),
    path('order_data_socket/', views.order_data_socket, name="order_data_socket"), # for order_data socket testing purpose
    path('excel_upload/', views.excel_upload, name="excel_upload"),
    path('excel_delete/', views.delete_excel, name="excel_delete"),
