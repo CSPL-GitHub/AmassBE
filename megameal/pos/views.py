@@ -8178,18 +8178,23 @@ def download_product_data_excel(request):
                     vendorId=vendor_id
                 ).order_by("modifierGroup__name", "-modifierGroup__active")
 
+                category_description = category.categoryDescription if category.categoryDescription else ""
+                product_description = product_info.product.productDesc if product_info.product.productDesc else ""
+                category_description_locale = category.categoryDescription_locale if category.categoryDescription_locale else ""
+                product_description_locale = product_info.product.productDesc_locale if product_info.product.productDesc_locale else ""
+                
                 if not product_modifier_group_joint.exists():
                     if not vendor_instance.secondary_language:
                         sheet.append([
-                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category_description}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_description}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
 
                     else:
                         sheet.append([
-                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
-                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                            f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category_description}", f"{category_description_locale}", f"{is_category_active}", f"{category_image}",
+                            f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_description}", f"{product_description_locale}",
                             f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
                         ])
 
@@ -8201,7 +8206,7 @@ def download_product_data_excel(request):
                         ).order_by("modifier__modifierName", "-modifier__active")
 
                         if not modifier_group_modifier_joint.exists():
-                            return Response("Modifier group has no modifiers", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                            return Response(f"Modifier group {modifier_group_info.modifierGroup.name} has no modifiers", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
                         
                         is_modifier_group_active = "no"
                         
@@ -8209,6 +8214,9 @@ def download_product_data_excel(request):
                             is_modifier_group_active = "yes"
                         
                         for modifier_info in modifier_group_modifier_joint:
+                            modifier_group_description = modifier_group_info.modifierGroup.modifier_group_description if modifier_group_info.modifierGroup.modifier_group_description else ""
+                            modifier_description = modifier_info.modifier.modifierDesc if modifier_info.modifier.modifierDesc else ""
+
                             is_modifier_active = "no"
                         
                             if modifier_info.modifier.active == True:
@@ -8221,23 +8229,26 @@ def download_product_data_excel(request):
 
                             if not vendor_instance.secondary_language:
                                 sheet.append([
-                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{is_category_active}", f"{category_image}",
-                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryPLU}", f"{category_description}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.PLU}", f"{product_description}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_description}",
                                     f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_description}",
                                     f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
                                 ])
 
                             else:
+                                modifier_group_description_locale = modifier_group_info.modifierGroup.modifier_group_description_locale if modifier_group_info.modifierGroup.modifier_group_description_locale else ""
+                                modifier_description_locale = modifier_info.modifier.modifierDesc_locale if modifier_info.modifier.modifierDesc_locale else ""
+
                                 sheet.append([
-                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category.categoryDescription}", f"{category.categoryDescription_locale}", f"{is_category_active}", f"{category_image}",
-                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_info.product.productDesc}", f"{product_info.product.productDesc_locale}",
+                                    f"{category.categoryStation.station_name}", f"{category.categoryName}", f"{category.categoryName_locale}", f"{category.categoryPLU}", f"{category_description}", f"{category_description_locale}", f"{is_category_active}", f"{category_image}",
+                                    f"{product_info.product.productName}", f"{product_info.product.productName_locale}", f"{product_info.product.PLU}", f"{product_description}", f"{product_description_locale}",
                                     f"{product_info.product.tag}", f"{product_info.product.productPrice}", f"{is_product_active}", f"{product_image}",
-                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_info.modifierGroup.modifier_group_description}", f"{modifier_group_info.modifierGroup.modifier_group_description_locale}",
+                                    f"{modifier_group_info.modifierGroup.name}", f"{modifier_group_info.modifierGroup.name_locale}", f"{modifier_group_info.modifierGroup.PLU}", f"{modifier_group_description}", f"{modifier_group_description_locale}",
                                     f"{modifier_group_info.modifierGroup.min}", f"{modifier_group_info.modifierGroup.max}", f"{is_modifier_group_active}",
-                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_info.modifier.modifierDesc}", f"{modifier_info.modifier.modifierDesc_locale}",
+                                    f"{modifier_info.modifier.modifierName}", f"{modifier_info.modifier.modifierName_locale}", f"{modifier_info.modifier.modifierPLU}", f"{modifier_description}", f"{modifier_description_locale}",
                                     f"{modifier_info.modifier.modifierPrice}", f"{is_modifier_active}", f"{modifier_image}",
                                 ])
         
