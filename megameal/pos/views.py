@@ -17,11 +17,11 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
-from core.utils import OrderStatus, OrderType, CorePlatform, API_Messages, PaymentType
+from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value, FloatField
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -74,7 +74,6 @@ import json
 import threading
 from django.shortcuts import render
 from operator import itemgetter
-import requests
 import calendar
 import pgeocode
 
@@ -723,6 +722,192 @@ def modifier_update(request):
     
     else:
         return JsonResponse({"message": "Invalid request method"}, status=400, content_type="application/json")
+
+
+@api_view(["POST"])
+def top_selling_product_details(request):
+    required_fields = {"vendor_id", "start_date", "end_date", "product_id", "page_number", "page_limit"}
+    
+    missing_fields = required_fields - set(request.data.keys())
+
+    if missing_fields:
+        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_id = request.data.get('vendor_id')
+    start_date = request.data.get('start_date')
+    end_date = request.data.get('end_date')
+    product_id = request.data.get('product_id')
+    page_number = request.data.get('page_number')
+    page_limit = request.data.get('page_limit')
+
+    if not (vendor_id and product_id):
+        return Response("Invalid vendor ID or product ID", status=status.HTTP_400_BAD_REQUEST)
+    
+    if (not (start_date and end_date)) or (start_date > end_date):
+        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+    
+    if (not (page_limit and page_number)) or (page_number < 0):
+        return Response("Invalid page_limit or page_number parameter", status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+        product_id = int(product_id)
+        page_limit = int(page_limit)
+        page_number = int(page_number)
+
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+    except ValueError:
+        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    product_instance = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+
+    if not (vendor_instance and product_instance):
+        return Response("Vendor or Product does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
+    paginated_data = []
+    
+    orders = Order_content.objects.filter(
+        SKU=product_instance.PLU,
+        orderId__order_status=10,
+        orderId__master_order__Status=OrderStatus.get_order_status_value('COMPLETED'),
+        orderId__master_order__orderpayment__status=True,
+        orderId__master_order__OrderDate__date__range=(start_date, end_date),
+        orderId__master_order__vendorId=vendor_id,
+        orderId__vendorId=vendor_id
+    ).order_by("-orderId__master_order__OrderDate__date")
+    
+    if not orders.exists():
+        return JsonResponse({
+            "page_number": 1,
+            "total_pages": 1,
+            "orders": paginated_data
+        })
+    
+    order_summary = []
+
+    product_price = product_instance.productPrice
+
+    if start_date == end_date:
+        current_start_date = datetime.now().date()
+        current_end_date = datetime.now().date()
+    
+        if (start_date == current_start_date) and (end_date == current_end_date):
+            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
+
+            start_datetime = datetime.combine(start_date, store_timing.open_time)
+
+            current_datetime = datetime.now()
+            end_datetime = current_datetime + timedelta(minutes=59, seconds=59)
+
+            current_time = start_datetime
+
+        elif (start_date != current_start_date) and (end_date != current_end_date):
+            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
+
+            start_datetime = datetime.combine(start_date, store_timing.open_time)
+
+            if end_date == datetime.now().date():
+                end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
+            else:
+                end_datetime = datetime.combine(start_date, store_timing.close_time)
+
+            current_time = start_datetime
+
+        while current_time <= end_datetime:
+            next_time = current_time + timedelta(hours=1)
+
+            quantity_sold = orders.filter(
+                orderId__master_order__OrderDate__range=(current_time, next_time)
+            ).aggregate(sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0))))['sum']
+
+            total_sale = quantity_sold * product_price
+                
+            order_summary.append({
+                "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
+
+            current_time = next_time
+        
+        if len(order_summary) == 1:
+            first_item = order_summary[0]
+            date_value = first_item["order_date"]
+
+            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
+
+            date_obj = date_obj - timedelta(hours=1)
+
+            date_value = date_obj.strftime('%Y-%m-%d')
+
+            order_summary.append({
+                "order_date": date_value,
+                "quantity_sold": 0.0,
+                "total_sale": 0.0
+            })
+    
+    else:
+        unique_order_dates = set(orders.values_list('orderId__master_order__OrderDate__date', flat=True))
+
+        date_strings = []
+
+        for date in unique_order_dates:
+            date_strings.append(str(date))
+
+        date_strings.sort(reverse=True)
+
+        unique_order_dates = date_strings
+        
+        for unique_date in unique_order_dates:
+            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
+                sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0)))
+            )['sum']
+
+            total_sale = quantity_sold * product_price
+                
+            order_summary.append({
+                "order_date": unique_date,
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
+
+        if len(order_summary) == 1:
+            first_item = order_summary[0]
+            date_value = first_item["order_date"]
+
+            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
+
+            date_obj = date_obj - timedelta(days=1)
+
+            date_value = date_obj.strftime('%Y-%m-%d')
+
+            order_summary.append({
+                "order_date": date_value,
+                "quantity_sold": 0.0,
+                "total_sale": 0.0
+            })
+
+    order_summary = sorted(order_summary, key=date_sort_top_selling_products, reverse=True)
+        
+    paginator = Paginator(order_summary, page_limit)
+    page = paginator.get_page(page_number) 
+    
+    for order in page:
+        paginated_data.append({
+            "order_date": order['order_date'],
+            "quantity_sold": order['quantity_sold'],
+            "total_sale": order['total_sale']
+        })
+
+    return JsonResponse({
+        "page_number": page.number,
+        "total_pages": paginator.num_pages,
+        "orders": paginated_data
+    })
 
 
 @api_view(["POST"])

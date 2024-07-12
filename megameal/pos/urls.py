@@ -27,6 +27,7 @@ urlpatterns = [
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
    path('dashboard/', views.dashboard, name="dashboard"),
+   path('dashboard/top_selling_product_details/', views.top_selling_product_details, name="top_selling_product_details"),
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
    path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
