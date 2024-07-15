@@ -320,17 +320,6 @@ class Product_Taxt_Joint(models.Model):
     productId=models.ForeignKey(Product,on_delete=models.CASCADE)
     taxId=models.ForeignKey(Product_Tax,on_delete=models.CASCADE)
 
-    
-class Transaction_History(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    transactionData=models.JSONField()
-    createdAt=models.DateTimeField(auto_now_add=True,null=True,blank=True)
-    transactionType=models.CharField(max_length=122)
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        return self
-
 
 class POS_Settings(models.Model):
     Name=models.CharField(max_length=122)
