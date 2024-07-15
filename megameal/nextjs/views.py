@@ -812,35 +812,45 @@ def get_home_page_offer_section(request):
 def get_header_footer_section(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language")
+        # language = request.GET.get("language")
+
         vendor = Vendor.objects.filter(pk=vendor_id)
+
         if not vendor.exists():
-            return Response(f"vendor not found", status=status.HTTP_400_BAD_REQUEST)
+            return Response("vendor not found", status=status.HTTP_400_BAD_REQUEST)
+        
         vendor = Vendor.objects.filter(pk=vendor_id).first()
+
         contact_details = {
-                "phone": vendor.phone_number,
-                "address": f"{vendor.address_line_1} , {vendor.city} , {vendor.country}",
-                "email": vendor.Email,
+            "phone": vendor.phone_number,
+            "address": f"{vendor.address_line_1} , {vendor.city} , {vendor.country}",
+            "email": vendor.Email,
         }
-        languageDetails = [vendor.primary_language,vendor.secondary_language]
+
+        languageDetails = [vendor.primary_language, vendor.secondary_language]
+
         social_media_icons = []
+
         for social in VendorSocialMedia.objects.filter(vendor=vendor_id):
             social_media_icons.append({
-            "link": social.link,
-            "name":social.name,
-            "social_media_handle_name":social.name
-        })
+                "link": social.link,
+                "name": social.name,
+                "social_media_handle_name": social.name
+            })
+            
         data = {
-        "logo":vendor.logo.url,
-        "contact_details":contact_details,
-        "social_media_icons":social_media_icons,
-        "languageDetails":languageDetails,
-        "currency":vendor.currency,
-        "currency_symbol":vendor.currency_symbol,
+            "logo": vendor.logo.url if vendor.logo else "",
+            "contact_details": contact_details,
+            "social_media_icons": social_media_icons,
+            "languageDetails": languageDetails,
+            "currency": vendor.currency,
+            "currency_symbol": vendor.currency_symbol,
         }
+
         return Response(data)
+    
     except Exception as e:
-        return Response(f"{e}", status=status.HTTP_400_BAD_REQUEST)
+        return Response(f"{str(e)}", status=status.HTTP_400_BAD_REQUEST)
 
     
 @api_view(["GET"])
