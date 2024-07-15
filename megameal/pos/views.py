@@ -64,7 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale
+from pos.language import get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale
 import pytz
 import re
 import openpyxl
@@ -1823,13 +1823,25 @@ class HotelTableViewSet(viewsets.ModelViewSet):
         floor_name = serialized_data.get('floor')
         vendor_id = serialized_data.get('vendorId')
 
-        notify(
-            type=3,
-            msg='0',
-            desc=f"Table no.{table_number} created on {floor_name}",
-            stn=['POS'],
-            vendorId=instance.vendorId.pk
-        )
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type=3,
+                msg='0',
+                desc=f"Table no.{table_number} created on {floor_name}",
+                stn=['POS'],
+                vendorId=instance.vendorId.pk
+            )
+
+        else:
+            notify(
+                type=3,
+                msg='0',
+                desc=table_created_locale(table_number, floor_name),
+                stn=['POS'],
+                vendorId=instance.vendorId.pk
+            )
 
         response = getTableData(hotelTable=instance,vendorId=vendor_id)
         
@@ -1843,13 +1855,23 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
         if waiter_heads:
             for head in waiter_heads:
-                notify(
-                    type=3,
-                    msg='0',
-                    desc=f"Table no.{table_number} created on {floor_name}",
-                    stn=[f'WOMS{head.pk}'],
-                    vendorId=vendor_id
-                )
+                if language == "English":
+                    notify(
+                        type=3,
+                        msg='0',
+                        desc=f"Table no.{table_number} created on {floor_name}",
+                        stn=[f'WOMS{head.pk}'],
+                        vendorId=vendor_id
+                    )
+
+                else:
+                    notify(
+                        type=3,
+                        msg='0',
+                        desc=table_created_locale(table_number, floor_name),
+                        stn=[f'WOMS{head.pk}'],
+                        vendorId=vendor_id
+                    )
         
                 webSocketPush(
                     message={"result":response, "UPDATE": "UPDATE"},
@@ -1860,25 +1882,47 @@ class HotelTableViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.delete()
 
-        notify(
-            type=3,
-            msg='0',
-            desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-            stn=['POS'],
-            vendorId=instance.vendorId.pk
-        )
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type=3,
+                msg='0',
+                desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                stn=['POS'],
+                vendorId=instance.vendorId.pk
+            )
+
+        else:
+            notify(
+                type=3,
+                msg='0',
+                desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
+                stn=['POS'],
+                vendorId=instance.vendorId.pk
+            )
 
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
 
         if waiter_heads:
             for head in waiter_heads:
-                notify(
-                    type=3,
-                    msg='0',
-                    desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                    stn=[f'WOMS{head.pk}'],
-                    vendorId=instance.vendorId.pk
-                )
+                if language == "English":
+                    notify(
+                        type=3,
+                        msg='0',
+                        desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                        stn=[f'WOMS{head.pk}'],
+                        vendorId=instance.vendorId.pk
+                    )
+
+                else:
+                    notify(
+                        type=3,
+                        msg='0',
+                        desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
+                        stn=[f'WOMS{head.pk}'],
+                        vendorId=instance.vendorId.pk
+                    )
     
 
 @api_view(['POST'])
