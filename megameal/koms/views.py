@@ -469,7 +469,6 @@ def createOrderInKomsAndWoms(orderJson):
         order_data["master_order"] = order_data["master_id"]
         order_data["order_status"] = 1  if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive else 8 # pending order
         order_data["status"] = 1 # pending order
-        order_data["externalOrderStatus"] = 1
         order_data["order_type"] = order_data["orderType"]
         order_data["arrival_time"] = order_data["arrivalTime"]
         order_data["order_note"] = order_data["note"]
