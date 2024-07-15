@@ -1,7 +1,7 @@
 from core.models import (
     Platform, ProductModifier, Product, Product_Tax, Product_Taxt_Joint, Vendor, Transaction_History,
 )
-from order.models import Address, Customer, CustomerPaymentProfile, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
+from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email
 from koms.models import Order as KOMSorder
 from core.models import EmailLog
@@ -175,35 +175,7 @@ class StagingIntegration():
                                     customer=coreCustomer
                                 )
             
-            data["customer"]["internalId"] = coreCustomer.pk  # +JSON
-
-            # +++ Customer Payment Profile
-            if data.get("payment"):
-                try:
-                    custPayProfile = CustomerPaymentProfile.objects.get(
-                        customerId=coreCustomer,
-                        custProfileId=data["payment"]["custProfileId"],
-                        custPayProfileId=data["payment"]["custPayProfileId"]
-                    )
-                except CustomerPaymentProfile.DoesNotExist:
-                    try:
-                        CustomerPaymentProfile.objects.filter(
-                            customerId=coreCustomer).update(isDefault=False)
-                    except CustomerPaymentProfile.DoesNotExist:
-                        print("Profile Not found")
-                    custPayProfile = CustomerPaymentProfile(
-                        customerId=coreCustomer,
-                        custProfileId=data["payment"]["custProfileId"],
-                        custPayProfileId=data["payment"]["custPayProfileId"],
-                        payType=data["payment"]["payType"],
-                        isDefault=True,
-                        lastDigits=data["payment"]["lastDigits"],
-                        cardId=data["payment"].get("cardId"),
-                        zipcode=data["payment"].get("zipcode"),
-                    ).save()
-                except Exception as custPayProfileError:
-                    print(custPayProfileError)
-            # ++++++++++
+            data["customer"]["internalId"] = coreCustomer.pk
             
             ##++++++Order Platform
             try:
