@@ -709,19 +709,41 @@ def dashboard(request):
 
 @api_view(["POST"])
 def modifier_update(request):
-    if request.method == "POST":
-        modifier_id = request.data['id']
+    try:
+        vendor_id = request.GET.get("vendorId")
 
-        modifier = get_object_or_404(ProductModifier, pk=modifier_id)
-
-        modifier.active = request.data['active']
-
-        ProductModifier.objects.filter(modifierSKU=modifier.modifierSKU).update(active=request.data['active'])
-
-        return JsonResponse({"message": "Modifier status updated successfully"}, content_type="application/json")
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
-    else:
-        return JsonResponse({"message": "Invalid request method"}, status=400, content_type="application/json")
+        try:
+            vendor_id = int(vendor_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_id = request.data.get('id')
+
+        if not modifier_id:
+            return JsonResponse({"message": "Invalid modifier ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_instance = ProductModifier.objects.filter(pk=modifier_id).first()
+
+        if not modifier_instance:
+            return JsonResponse({"message": "Modifier not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_instance.active = request.data['active']
+
+        modifier_instance.save()
+
+        return JsonResponse({"message": "Modifier status updated successfully"})
+    
+    except Exception as e:
+        return JsonResponse({"message": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
@@ -2839,7 +2861,6 @@ def excel_upload(request):
         vendors = Vendor.objects.all()
         return render( request, "adminlte/upload_products.html", {"vendors":vendors})
         
-
 
 @api_view(["POST"])
 def excel_download_for_dashboard(request):
