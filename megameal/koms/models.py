@@ -61,15 +61,6 @@ class Order(models.Model):
     master_order = models.ForeignKey(MasterOrder, on_delete= models.CASCADE, related_name="master_order_id")
 
 
-class Original_order(models.Model):
-    orderId = models.ForeignKey(Order, on_delete=models.CASCADE)
-    OrderJSON = models.CharField(max_length=1000)
-    update_time = models.CharField(max_length=20)
-    externalOrderId = models.CharField(max_length=30)
-    parent = models.CharField(max_length=30)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-
 class Order_content(models.Model):
     orderId = models.ForeignKey(Order, on_delete=models.CASCADE)
     name = models.CharField(max_length=50)
