@@ -1,6 +1,4 @@
-from core.models import (
-    Platform, ProductModifier, Product, Product_Tax, Product_Taxt_Joint, Vendor, Transaction_History,
-)
+from core.models import Platform, ProductModifier, Product, Product_Tax, Product_Taxt_Joint, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email
 from koms.models import Order as KOMSorder
@@ -305,14 +303,6 @@ class StagingIntegration():
                     type=data["payment"].get('mode', PaymentType.CASH),
                     platform=data["payment"].get('platform', "")
                 ).save()
-
-                Transaction_History(
-                    vendorId=vendor_instance,
-                    transactionData=data["payment"].get("payData"),
-                    createdAt=datetime.now(),
-                    transactionType= API_Messages.PAYMENT
-                ).save()
-
             # ++++++++++++
 
             if ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')) and \
