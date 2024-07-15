@@ -83,6 +83,14 @@ class HotelTableSerializer(serializers.ModelSerializer):
         model = HotelTable
         fields = "__all__"
 
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        if representation.get('waiterId') is None:
+            representation['waiterId'] = 0
+
+        return representation
+
 
 class ProductCategorySerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):

@@ -1794,37 +1794,43 @@ class HotelTableViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         instance = serializer.save()
 
+        serialized_data = self.get_serializer(instance).data
+
+        table_number = serialized_data.get('tableNumber')
+        floor_name = serialized_data.get('floor')
+        vendor_id = serialized_data.get('vendorId')
+
         notify(
             type=3,
             msg='0',
-            desc=f"Table no.{instance.tableNumber} created on {instance.floor.name}",
+            desc=f"Table no.{table_number} created on {floor_name}",
             stn=['POS'],
             vendorId=instance.vendorId.pk
         )
 
-        response = getTableData(hotelTable=instance,vendorId=instance.vendorId.pk)
+        response = getTableData(hotelTable=instance,vendorId=vendor_id)
         
         webSocketPush(
             message={"result":response, "UPDATE": "UPDATE"},
-            room_name=WOMS + "POS------" + str(instance.vendorId.pk),
+            room_name=WOMS + "POS------" + str(vendor_id),
             username="CORE",
         )
 
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
             for head in waiter_heads:
                 notify(
                     type=3,
                     msg='0',
-                    desc=f"Table no.{instance.tableNumber} created on {instance.floor.name}",
+                    desc=f"Table no.{table_number} created on {floor_name}",
                     stn=[f'WOMS{head.pk}'],
-                    vendorId=instance.vendorId.pk
+                    vendorId=vendor_id
                 )
         
                 webSocketPush(
                     message={"result":response, "UPDATE": "UPDATE"},
-                    room_name=WOMS + str(head.pk) + "------" + str(instance.vendorId.pk),
+                    room_name=WOMS + str(head.pk) + "------" + str(vendor_id),
                     username="CORE",
                 )
 
