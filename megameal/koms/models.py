@@ -51,7 +51,6 @@ class Order(models.Model):
     pickupTime = models.DateTimeField(auto_now=False)
     deliveryIsAsap = models.BooleanField(default=False)
     arrival_time = models.DateTimeField(auto_now=False)
-    estimated_time = models.DateTimeField(auto_now=False, null=True)
     order_status = models.IntegerField()
     order_note = models.CharField(max_length=100,null=True,blank=True)
     order_type = models.IntegerField()
