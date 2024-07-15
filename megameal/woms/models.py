@@ -53,7 +53,7 @@ class HotelTable(models.Model):
     tableNumber = models.IntegerField(null=True, blank=True)
     tableCapacity = models.IntegerField(null=True, blank=True)
     guestCount = models.IntegerField(null=True, blank=True, default=0)
-    status = models.IntegerField(max_length=30, default='Empty', choices=(
+    status = models.IntegerField(max_length=30, default=1, choices=(
         (1, 'Empty'), (2, 'Booked'), (3, 'Occupied'),
         (4, 'Cleaning'), (5, 'Out of service')
     ))
