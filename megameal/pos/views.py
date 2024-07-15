@@ -816,24 +816,25 @@ def top_selling_product_details(request):
     if start_date == end_date:
         current_start_date = datetime.now().date()
         current_end_date = datetime.now().date()
+
+        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
     
+        if not store_timing:
+            return Response("Store timing not set", status=status.HTTP_400_BAD_REQUEST)
+        
+        start_datetime = datetime.combine(start_date, store_timing.open_time)
+        
         if (start_date == current_start_date) and (end_date == current_end_date):
-            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-            start_datetime = datetime.combine(start_date, store_timing.open_time)
-
             current_datetime = datetime.now()
+
             end_datetime = current_datetime + timedelta(minutes=59, seconds=59)
 
             current_time = start_datetime
 
         elif (start_date != current_start_date) and (end_date != current_end_date):
-            store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-            start_datetime = datetime.combine(start_date, store_timing.open_time)
-
             if end_date == datetime.now().date():
                 end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
+            
             else:
                 end_datetime = datetime.combine(start_date, store_timing.close_time)
 

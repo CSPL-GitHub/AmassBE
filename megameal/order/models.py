@@ -42,22 +42,6 @@ class Address(models.Model):
         return self
 
 
-class CustomerPaymentProfile(models.Model):
-    customerId=models.ForeignKey(Customer,on_delete=models.CASCADE)
-    custProfileId=models.CharField(max_length=255)
-    custPayProfileId=models.CharField(max_length=255)
-    payType=models.CharField(max_length=122)
-    isDefault=models.BooleanField(default=False)
-    lastDigits=models.CharField(max_length=10)
-    cardId=models.CharField(max_length=255,null=True,blank=True)
-    zipcode = models.CharField(max_length=122,null=True,blank=True)
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        return self
-
-
-
 class Order(models.Model):
     Status = models.IntegerField(
         choices=OrderStatus.choices, default=OrderStatus.OPEN)
