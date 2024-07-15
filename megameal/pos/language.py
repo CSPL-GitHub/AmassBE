@@ -75,6 +75,12 @@ platform_locale = (
 def order_has_arrived_locale(external_order_id):
     return f"انه وصل .. او انها وصلت {external_order_id} رقم الأمر"
 
+def table_created_locale(table_number, floor_name):
+    return f"{floor_name} تم إنشاؤها على {table_number} الجدول رقم."
+
+def table_deleted_locale(table_number, floor_name):
+    return f"{floor_name} حذف على {table_number} الجدول رقم."
+
 def get_key_value(language, dictionary, key):
     if language == "English":
         if dictionary == "order_type":
