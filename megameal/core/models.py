@@ -63,7 +63,7 @@ class ProductCategory(models.Model):
     categoryPLU = models.CharField(max_length=122)
     categorySlug = models.SlugField(null=True, blank=True)
     categoryImage = models.ImageField(upload_to='static/images/Category/', height_field=None, width_field=None, max_length=None, null=True, blank=True)
-    categoryImageUrl = models.URLField(null=True, blank=True)
+    categoryImageUrl = models.URLField(max_length=500, null=True, blank=True)
     image_selection = models.CharField(max_length=20, null=True, blank=True, choices = (("image", "image"), ("url", "url")))
     categoryIsDeleted = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
