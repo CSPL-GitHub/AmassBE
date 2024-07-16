@@ -33,7 +33,7 @@ class Waiter(models.Model):
     email = models.CharField(max_length=100, null=True, blank=True)
     image = models.ImageField(max_length=100, null=True, blank=True, upload_to="waiter")
     is_waiter_head = models.BooleanField(default=False) 
-    is_active = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
     def save(self, *args, **kwargs):
