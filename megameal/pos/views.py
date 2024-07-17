@@ -4146,32 +4146,34 @@ def create_modifier(request):
 
 @api_view(["PUT", "PATCH"])
 def update_modifier(request, modifier_id):
-    vendor_id = request.POST.get('vendorId', None)
+    request_data = request.data
+    
+    vendor_id = request_data.get('vendorId')
 
     if vendor_id is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-    if not vendor:
+    if not vendor_instance:
         return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
     
     if not modifier_id:
         return Response("Modifier ID empty", status=status.HTTP_400_BAD_REQUEST)
     
-    modifier = ProductModifier.objects.filter(pk=modifier_id, vendorId=vendor_id).first()
+    modifier_instance = ProductModifier.objects.filter(pk=modifier_id, vendorId=vendor_id).first()
 
-    if not modifier:
+    if not modifier_instance:
         return Response("Modifier does not exist", status=status.HTTP_404_NOT_FOUND)
     
-    modifier_serializer = ModifierSerializer(modifier, data=request.data)
+    modifier_serializer = ModifierSerializer(modifier_instance, data=request.data)
 
-    # Check if a modifier with the new PLU already exists while editing
     new_plu = request.data.get('modifierPLU')
 
     existing_modifier_with_new_plu = ProductModifier.objects.filter(modifierPLU=new_plu, vendorId=vendor_id).exclude(pk=modifier_id).first()
@@ -4180,34 +4182,57 @@ def update_modifier(request, modifier_id):
         return JsonResponse({'error': 'Modifier with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
     
     if modifier_serializer.is_valid():
-        modifier_groups_ids = []
+        received_modifier_group_ids = []
+        modifier_groups_data = []
         
         with transaction.atomic():
             updated_modifier = modifier_serializer.save()
 
-            vendor_id = int(request.data.get('vendorId'))
-
             for key, value in request.data.items():
                 if key.startswith('modifier_groups-'):
-                    if key.endswith('-group-old'):
-                        ProductModifierAndModifierGroupJoint.objects.filter(modifier=updated_modifier.pk, modifierGroup=int(value), vendor=vendor_id).delete()
-                    else:
-                        if ProductModifierAndModifierGroupJoint.objects.filter(modifier=updated_modifier.pk, modifierGroup=int(value), vendor=vendor_id).exists():
-                            pass
-                        else:
-                            modifier_groups_ids.append(int(value))
+                    received_modifier_group_ids.append(int(value))
+
+            received_modifier_group_ids = set(received_modifier_group_ids)
+
+            existing_modifier_group_ids = set(
+                ProductModifierAndModifierGroupJoint.objects.filter(modifier=updated_modifier.pk, vendor=vendor_id).values_list("modifierGroup", flat=True)
+            )
+
+            new_modifier_group_ids = received_modifier_group_ids - existing_modifier_group_ids
+
+            deleted_modifier_group_ids = existing_modifier_group_ids - received_modifier_group_ids
+
+            if new_modifier_group_ids:
+                for new_group_id in new_modifier_group_ids:
+                    modifier_group_instance = ProductModifierGroup.objects.filter(pk=new_group_id, vendorId=vendor_id).first()
+
+                    ProductModifierAndModifierGroupJoint.objects.create(modifier=updated_modifier, modifierGroup=modifier_group_instance, vendor=vendor_instance)
             
-            for group_id in modifier_groups_ids:
-                modifier_instance = modifier
-                modifier_group_instance = ProductModifierGroup.objects.filter(pk=group_id, vendorId=vendor_id).first()
-                vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            if deleted_modifier_group_ids:
+                for deleted_group_id in deleted_modifier_group_ids:
+                    ProductModifierAndModifierGroupJoint.objects.filter(
+                        modifier=updated_modifier.pk,
+                        modifierGroup=deleted_group_id,
+                        vendor=vendor_instance
+                    ).delete()
 
-                ProductModifierAndModifierGroupJoint.objects.create(modifier=modifier_instance, modifierGroup=modifier_group_instance, vendor=vendor_instance)
+            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=updated_modifier.pk, vendor=vendor_id)
 
+            for joint in modifier_modgroup_joint:
+                modifier_groups_data.append({
+                    "id": joint.modifierGroup.pk,
+                    "plu": joint.modifierGroup.PLU,
+                    "name": joint.modifierGroup.name,
+                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
+                    "min": joint.modifierGroup.min,
+                    "max": joint.modifierGroup.max,
+                    "is_active": joint.modifierGroup.active,
+                })
+            
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
             if inventory_platform:
-                sync_status = single_modifier_sync_with_odoo(modifier)
+                sync_status = single_modifier_sync_with_odoo(updated_modifier)
                     
                 if sync_status == 0:
                     notify(type=3, msg='0', desc='Modifier did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
@@ -4215,9 +4240,16 @@ def update_modifier(request, modifier_id):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            modifier_info = get_modifier_data(updated_modifier, vendor_id)
-            
-            return JsonResponse(modifier_info, status=status.HTTP_201_CREATED)
+            return JsonResponse({
+                "id": updated_modifier.pk,
+                "plu": updated_modifier.modifierPLU,
+                "name": updated_modifier.modifierName,
+                "description": updated_modifier.modifierDesc if updated_modifier.modifierDesc else "",
+                "image": updated_modifier.modifierImg if updated_modifier.modifierImg else "",
+                "price": updated_modifier.modifierPrice,
+                "is_active": updated_modifier.active,
+                "modifier_groups": modifier_groups_data
+            }, status=status.HTTP_201_CREATED)
         
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
