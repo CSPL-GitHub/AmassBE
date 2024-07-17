@@ -847,31 +847,16 @@ def top_selling_product_details(request):
                 orderId__master_order__OrderDate__range=(current_time, next_time)
             ).aggregate(sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0))))['sum']
 
-            total_sale = quantity_sold * product_price
-                
-            order_summary.append({
-                "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
+            if quantity_sold != 0:
+                total_sale = quantity_sold * product_price
+                    
+                order_summary.append({
+                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
+                    "quantity_sold": quantity_sold,
+                    "total_sale": total_sale
+                })
 
             current_time = next_time
-        
-        if len(order_summary) == 1:
-            first_item = order_summary[0]
-            date_value = first_item["order_date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(hours=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_summary.append({
-                "order_date": date_value,
-                "quantity_sold": 0.0,
-                "total_sale": 0.0
-            })
     
     else:
         unique_order_dates = set(orders.values_list('orderId__master_order__OrderDate__date', flat=True))
@@ -890,29 +875,14 @@ def top_selling_product_details(request):
                 sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0)))
             )['sum']
 
-            total_sale = quantity_sold * product_price
-                
-            order_summary.append({
-                "order_date": unique_date,
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
-
-        if len(order_summary) == 1:
-            first_item = order_summary[0]
-            date_value = first_item["order_date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(days=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_summary.append({
-                "order_date": date_value,
-                "quantity_sold": 0.0,
-                "total_sale": 0.0
-            })
+            if quantity_sold != 0:
+                total_sale = quantity_sold * product_price
+                    
+                order_summary.append({
+                    "order_date": unique_date,
+                    "quantity_sold": quantity_sold,
+                    "total_sale": total_sale
+                })
 
     order_summary = sorted(order_summary, key=date_sort_top_selling_products, reverse=True)
         
@@ -1015,29 +985,15 @@ def order_status_type_summary(request):
         while current_time <= end_datetime:
             next_time = current_time + timedelta(hours=1)
             
-            filtered_orders =  orders.filter(arrival_time__range=(current_time, next_time))
+            filtered_orders = orders.filter(arrival_time__range=(current_time, next_time))
 
-            order_list.append({
-                "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                "total_order": filtered_orders.count(),
-            })
+            if filtered_orders.count() != 0:
+                order_list.append({
+                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
+                    "total_order": filtered_orders.count(),
+                })
 
             current_time = next_time
-    
-        if len(order_list) == 1:
-            first_item = order_list[0]
-            date_value = first_item["order_date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(hours=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_list.append({
-                "order_date": date_value,
-                "total_order": 0
-            })
     
     else:
         unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)), reverse=True)
@@ -1045,27 +1001,11 @@ def order_status_type_summary(request):
         for unique_date in unique_order_dates:
             filtered_orders = orders.filter(arrival_time__icontains=unique_date)
             
-            total_order = filtered_orders.count()
-
-            order_list.append({
+            if filtered_orders.count() != 0:
+                order_list.append({
                     "order_date": unique_date,
-                    "total_order": total_order,
+                    "total_order": filtered_orders.count(),
                 })
-                
-        if len(order_list) == 1:
-            first_item = order_list[0]
-            date_value = first_item["order_date"].strftime('%Y-%m-%d')
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(days=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            order_list.append({
-                "order_date": date_value,
-                "total_order": 0
-            })
 
     paginated_data = []
     
