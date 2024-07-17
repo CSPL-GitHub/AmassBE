@@ -795,7 +795,7 @@ def get_homepage_content(request):
                         "testimonialsName": item.testimonialsName if language == "English" else item.testimonialsName_locale,
                         "testimonialsReview": item.testimonialsReview if language == "English" else item.testimonialsReview_locale,
                     })
-            testimonialsSection['testimonialsSection'] = testimonialsSection
+            testimonialsSection['testimonialsSection'] = testimonials
                 
         all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
         if not all_data.exists():
