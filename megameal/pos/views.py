@@ -1689,10 +1689,15 @@ class WaiterViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
 
         # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name', None)
-        
+        name_query = request.GET.get('name')
+        language = request.GET.get('language', 'English')
+
         if name_query:
-            queryset = queryset.filter(name__icontains=name_query)
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
 
         serializer = self.get_serializer(queryset, many=True)
         data = {"waiters": serializer.data}
