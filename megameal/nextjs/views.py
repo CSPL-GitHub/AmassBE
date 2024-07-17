@@ -483,12 +483,12 @@ def set_customer_address(request):
     
     distance = getDIstance(vendor_addr,addr)/1000
 
-    delivery_settings = Setting.objects.filter(name="delivery", vendor=vendorId).first()
+    delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
 
     kilometer_limit = 5
     
     if delivery_settings:
-        kilometer_limit = delivery_settings.json_object.get("kilometer_limit")
+        kilometer_limit = delivery_settings.delivery_kilometer_limit
     
         if distance > kilometer_limit:
             return Response(
@@ -601,12 +601,12 @@ def verify_address(request):
     
     distance = getDIstance(vendor_addr,addr)/1000
 
-    delivery_settings = Setting.objects.filter(name="delivery", vendor=vendorId).first()
+    delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
     
     kilometer_limit = 5
     
     if delivery_settings:
-        kilometer_limit = delivery_settings.json_object.get("kilometer_limit")
+        kilometer_limit = delivery_settings.delivery_kilometer_limit
     
     if distance > kilometer_limit:
         return Response({"error":f"Delivery address is located more than {kilometer_limit} kilometers away"})
