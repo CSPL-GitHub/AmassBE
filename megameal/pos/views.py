@@ -20,7 +20,7 @@ from django.contrib import messages
 from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
-from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
+from django.db.models.functions import Coalesce, Cast, ExtractWeekDay, ExtractHour, ExtractMonth
 from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value, FloatField
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
@@ -843,9 +843,9 @@ def top_selling_product_details(request):
         while current_time <= end_datetime:
             next_time = current_time + timedelta(hours=1)
 
-            quantity_sold = orders.filter(
-                orderId__master_order__OrderDate__range=(current_time, next_time)
-            ).aggregate(sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0))))['sum']
+            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
+                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
+            )['sum']
 
             if quantity_sold != 0:
                 total_sale = quantity_sold * product_price
@@ -872,7 +872,7 @@ def top_selling_product_details(request):
         
         for unique_date in unique_order_dates:
             quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
-                sum=Coalesce(Sum('quantity', output_field=FloatField()), Value(float(0)))
+                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
             )['sum']
 
             if quantity_sold != 0:
