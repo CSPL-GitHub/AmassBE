@@ -745,7 +745,7 @@ def get_homepage_content(request):
                 "sectionImage": data.sectionImage,
                 "sectionHeading": data.sectionHeading if language == "English" else data.sectionHeading_locale,
                 "sectionSubHeading":data.sectionSubHeading if language == "English" else data.sectionSubHeading_locale,
-                "sectionDescription": [data.sectionDescription],
+                "sectionDescription": [data.sectionDescription if language == "English" else data.sectionDescription_locale],
             }
         
         data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
