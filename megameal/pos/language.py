@@ -71,6 +71,16 @@ platform_locale = (
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
+weekdays_locale = {
+    "Monday": "الاثنين",
+    "Tuesday": "يوم الثلاثاء",
+    "Wednesday": "الأربعاء",
+    "Thursday": "يوم الخميس",
+    "Friday": "جمعة",
+    "Saturday": "السبت",
+    "Sunday": "الأحد"
+}
+
 
 def order_has_arrived_locale(external_order_id):
     return f"انه وصل .. او انها وصلت {external_order_id} رقم الأمر"
