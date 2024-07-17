@@ -4152,7 +4152,6 @@ def update_modifier(request, modifier_id):
     
     if modifier_serializer.is_valid():
         received_modifier_group_ids = []
-        modifier_groups_data = []
         
         with transaction.atomic():
             updated_modifier = modifier_serializer.save()
@@ -4184,19 +4183,6 @@ def update_modifier(request, modifier_id):
                         modifierGroup=deleted_group_id,
                         vendor=vendor_instance
                     ).delete()
-
-            modifier_modgroup_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=updated_modifier.pk, vendor=vendor_id)
-
-            for joint in modifier_modgroup_joint:
-                modifier_groups_data.append({
-                    "id": joint.modifierGroup.pk,
-                    "plu": joint.modifierGroup.PLU,
-                    "name": joint.modifierGroup.name,
-                    "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-                    "min": joint.modifierGroup.min,
-                    "max": joint.modifierGroup.max,
-                    "is_active": joint.modifierGroup.active,
-                })
             
             inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
                 
@@ -4209,16 +4195,9 @@ def update_modifier(request, modifier_id):
                 else:
                     notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
             
-            return JsonResponse({
-                "id": updated_modifier.pk,
-                "plu": updated_modifier.modifierPLU,
-                "name": updated_modifier.modifierName,
-                "description": updated_modifier.modifierDesc if updated_modifier.modifierDesc else "",
-                "image": updated_modifier.modifierImg if updated_modifier.modifierImg else "",
-                "price": updated_modifier.modifierPrice,
-                "is_active": updated_modifier.active,
-                "modifier_groups": modifier_groups_data
-            }, status=status.HTTP_201_CREATED)
+            modifier_info = get_modifier_data(updated_modifier, vendor_id)
+            
+            return JsonResponse(modifier_info, status=status.HTTP_200_OK)
         
     else:
         return Response(modifier_serializer.errors, status=status.HTTP_400_BAD_REQUEST)
