@@ -1,5 +1,4 @@
 import json
-from django.shortcuts import render
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
@@ -16,8 +15,7 @@ from django.http import JsonResponse
 from django.utils import timezone
 from datetime import datetime, timedelta
 from rest_framework import status
-import pytz
-import requests
+
 
 
 @api_view(['post'])
@@ -80,60 +78,6 @@ def addLineItem(request):
         return Response(coreResponse, status=500)
 
 
-@api_view(['post'])
-def addModifier(request):
-    stagingPos = StagingIntegration()
-    return stagingPos.addModifier(request)
-
-
-def applyDiscount(request):
-    pass
-
-
-@api_view(['post'])
-def payBill(request):
-    # +++++ response template
-    coreResponse = {
-        API_Messages.STATUS: API_Messages.ERROR,
-        "msg": "Something went wrong"
-    }
-
-    try:
-        # ++++++++++ request data
-        data = dict(JSONParser().parse(request))
-        vendorId = data["vendorId"]
-
-        # ++++ pick all the channels of vendor
-        try:
-            platform = POS_Settings.objects.get(VendorId=vendorId)
-        except POS_Settings.DoesNotExist:
-            coreResponse["msg"] = "POS settings not found"
-            return Response(coreResponse, status=404)
-
-        # ++++++---- Stage The Order
-        stagingPos = StagingIntegration()
-        stageOrder = stagingPos.payBill(data)
-        if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-            posService = globals()[platform.className]
-            posResponse = posService.payBill(data)
-            if posResponse[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-                posResponse["response"]["core"] = stageOrder["response"]
-                return Response(posResponse, status=201)
-            else:
-                return Response(posResponse, status=500)
-        else:
-            coreResponse["msg"] = stageOrder["msg"]
-            return Response(coreResponse, status=500)
-
-    except Exception as err:
-        coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
-        return Response(coreResponse, status=500)
-
-
-def createTicket(request):
-    pass
-
-
 @api_view(["POST"])
 def updateOrderStatusFromKOMS(request):
      # +++++ response template
@@ -152,78 +96,6 @@ def updateOrderStatusFromKOMS(request):
     except Exception as err:
         coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
         return Response(coreResponse, status=500)
-    
-
-@api_view(['post'])
-def womsCreateOrder2(request):
-    vendorId=request.GET.get("vendorId")
-    data = JSONParser().parse(request)
-    print(json.dumps(data))
-    res = {
-        "orderId": "1234" + datetime.now(pytz.timezone('Asia/Kolkata')).strftime("%H%M%S"),
-        "orderType": 1,
-        "arrivalTime": f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
-        "pickupTime": f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
-        "deliveryIsAsap": True,
-        "note": "",
-        "tableNo": data['tables'],
-        "items": {},
-        "remake": False,
-        "customerName": "MD1",
-        "status": 1,
-        "server": ', '.join(str(item['waiterName']) for item in data['tables']),
-        "isHigh": True if data["priority"] else False,
-        "note":  data["productNote"] if data["productNote"] else "note" 
-    }
-
-    #########
-    totalPrepTime=0
-    for index,itemData in enumerate(data['products']):
-        timeData=getPrepTime(plu=itemData["plu"],vendorId=vendorId)
-        data['products'][index]["prepTime"]=timeData["prepTime"]
-        data['products'][index]["tag"]=timeData["tag"]
-        totalPrepTime= totalPrepTime+data['products'][index]["prepTime"]
-    res["totalPrepTime"]=totalPrepTime
-    
-    if totalPrepTime>0:
-        current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
-        new_time = current_time + timedelta(minutes=totalPrepTime)
-        res["pickupTime"]=f"{str(datetime.today().date())}T{new_time.strftime('%H:%M:%S')}"
-    ##############
-
-    itemCategories = list(set(i['categoryName'] for i in data['products']))
-    for item in itemCategories:
-        res['items'][item] = [
-            {
-                "plu": i['plu'],
-                "name": i['text'],
-                "quantity": i['quantity'],
-                "tag": i['tag'],
-                "subItems": [
-                    {
-                        "plu": subItem['plu'],
-                        "name": subItem['name'],
-                        "status":subItem["status"]
-                    } for subItemGrp in i['modifiersGroup'] for subItem in subItemGrp['modifiers']
-                ],
-                "itemRemark": i["note"],
-                "unit": 'qty',
-                "prepTime": i['prepTime']
-            } for i in data['products'] if i['categoryName'] == item
-        ]
-
-    try:
-        res["vendorId"]=vendorId
-        response=createOrderInKomsAndWoms(res)
-        return JsonResponse(response,status= status.HTTP_200_OK if response[API_Messages.STATUS]==API_Messages.SUCCESSFUL else status.HTTP_400_BAD_REQUEST)
-    except Exception as e:
-        print(e)
-        return JsonResponse(
-            {   API_Messages.STATUS:API_Messages.ERROR,
-                API_Messages.RESPONSE: f"Unexpected {e=}, {type(e)=}" }, 
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
 
 
 def getPrepTime(plu,vendorId):
@@ -236,7 +108,8 @@ def getPrepTime(plu,vendorId):
         # return {"prepTime":0,"tag":}[]
         stn=Station.objects.filter(station_name=prd.category.categoryStation.station_name,vendorId=vendorId).first()
         return {"prepTime":prd.product.preparationTime,"tag":stn.pk}
-    
+
+
 @api_view(['post'])
 def womsCreateOrder(request):
     vendorId = request.GET.get('vendorId', None)
