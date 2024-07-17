@@ -3338,9 +3338,14 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 
         # name_query = request.query_params.get('name', None)
         name_query = request.GET.get('categoryName', None)
+        language = request.GET.get('language', 'English')
         
         if name_query:
-            queryset = queryset.filter(categoryName__icontains=name_query)
+            if language == "English":
+                queryset = queryset.filter(categoryName__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(categoryName_locale__icontains=name_query)
 
         page = self.paginate_queryset(queryset)
 
