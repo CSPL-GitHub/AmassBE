@@ -64,7 +64,7 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale
+from pos.language import get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale
 import pytz
 import re
 import openpyxl
@@ -3223,6 +3223,7 @@ def delete_pos_user(request, pos_user_id):
 @api_view(['GET'])
 def get_store_timings(request):
     vendor_id = request.GET.get("vendorId")
+    language = request.GET.get("language", "English")
 
     if not vendor_id:
         return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3238,11 +3239,9 @@ def get_store_timings(request):
     if not vendor_instance:
         return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-    data = StoreTiming.objects.filter(vendor=vendor_id)
+    store_timings = StoreTiming.objects.filter(vendor=vendor_id)
 
-    slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
-
-    serialized = StoreTImingSerializer(data, many=True)
+    slot = store_timings.filter(is_active=True , day=datetime.now().strftime("%A")).first()
 
     pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
 
@@ -3256,7 +3255,7 @@ def get_store_timings(request):
     if store_status_value == False:
         store_status_final = False
 
-    if not serialized.data:
+    if not store_timings:
         return Response({"store_status": store_status_value, "store_timing": []})
     
     else:
@@ -3272,7 +3271,27 @@ def get_store_timings(request):
         else:
             store_status_final =  False
 
-    return JsonResponse({"store_status": store_status_final, "store_timing": serialized.data})
+    store_timing_list = []
+    
+    for instance in store_timings:
+        if language == "English":
+            day = instance.day
+
+        else:
+            day = weekdays_locale[instance.day]
+
+        store_timing_list.append({
+            "id": instance.pk,
+            "slot_identity": instance.slot_identity,
+            "day": day,
+            "is_holiday": instance.is_holiday,
+            "is_active": instance.is_active,
+            "open_time": instance.open_time.strftime("%H:%M:%S"),
+            "close_time": instance.close_time.strftime("%H:%M:%S"),
+            "vendor": instance.vendor.pk,
+        })
+
+    return JsonResponse({"store_status": store_status_final, "store_timing": store_timing_list})
 
 @api_view(['POST'])
 def set_store_timings(request):
