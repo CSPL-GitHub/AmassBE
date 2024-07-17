@@ -745,7 +745,7 @@ def get_homepage_content(request):
                 "sectionImage": data.sectionImage,
                 "sectionHeading": data.sectionHeading if language == "English" else data.sectionHeading_locale,
                 "sectionSubHeading":data.sectionSubHeading if language == "English" else data.sectionSubHeading_locale,
-                "sectionDescription": [data.sectionDescription],
+                "sectionDescription": [data.sectionDescription if language == "English" else data.sectionDescription_locale],
             }
         
         data = SectionTwoCoverImage.objects.filter(vendor = vendor_id)
@@ -765,16 +765,16 @@ def get_homepage_content(request):
         else:
             data = data.first()
             featuresSection = {
-                "headingText": data.headingText,
-                "subHeadingText": data.subHeadingText,
+                "headingText": data.headingText if language == "English" else data.headingText_locale,
+                "subHeadingText": data.subHeadingText if language == "English" else data.subHeadingText_locale,
             }
             featuresArray = []
             for item in FeaturesSectionItems.objects.filter(featuresSection=data.pk):
                 featuresArray.append({
                         "featureId": item.pk,
                         "featureIcon": item.featureIcon,
-                        "featureHeading": item.featureHeading,
-                        "featurePara": item.featurePara,
+                        "featureHeading": item.featureHeading if language == "English" else item.featureHeading_locale,
+                        "featurePara": item.featurePara if language == "English" else item.featurePara_locale,
                     })
             featuresSection['featuresArray'] = featuresArray
             
@@ -784,7 +784,7 @@ def get_homepage_content(request):
         else:
             data = data.first()
             testimonialsSection = {
-                "sectionHeading": data.sectionHeading,
+                "sectionHeading": data.sectionHeading if language == "en" else data.sectionHeading_locale,
                 "sectionSubHeading": data.sectionSubHeading if language == "en" else data.sectionSubHeading,
             }
             testimonials = []
@@ -792,9 +792,10 @@ def get_homepage_content(request):
                 testimonials.append({
                         "testimonialId": item.pk,
                         "testimonialsImageUrl": item.testimonialsImageUrl,
-                        "testimonialsName": item.testimonialsName,
-                        "testimonialsReview": item.testimonialsReview,
+                        "testimonialsName": item.testimonialsName if language == "English" else item.testimonialsName_locale,
+                        "testimonialsReview": item.testimonialsReview if language == "English" else item.testimonialsReview_locale,
                     })
+            testimonialsSection['testimonialsSection'] = testimonials
                 
         all_data = HomePageOfferSection.objects.filter(vendor = vendor_id)
         if not all_data.exists():
@@ -803,10 +804,10 @@ def get_homepage_content(request):
             homePageOffersSection =[{
                 "offerId": data.pk,
                 "discountTextColor": data.discountTextColor,
-                "offerDiscountText":data.offerDiscountText,
+                "offerDiscountText":data.offerDiscountText if language == "English" else data.offerDiscountText_locale,
                 "offerImage": data.offerImage,
-                "offerTitle": data.offerTitle,
-                "offerDescription": data.offerDescription,
+                "offerTitle": data.offerTitle if language == "English" else data.offerTitle_locale,
+                "offerDescription": data.offerDescription if language == "English" else data.offerDescription_locale,
                 "buttonLocation": data.buttonLocation,
             } for data in all_data]
         
