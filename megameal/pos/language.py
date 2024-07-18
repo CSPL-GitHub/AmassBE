@@ -71,6 +71,57 @@ platform_locale = (
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
+sort_by_locale_for_report_excel = {
+    "ascending": "تصاعدي",
+    "descending": "تنازلي"
+}
+
+order_type_locale_for_excel = {
+    "All": "الجميع",
+    "all": "الجميع",
+    "delivery": "توصيل",
+    "pickup": "يلتقط",
+    "dinein": "تناول الطعام في",
+    "online": "متصل",
+    "offline": "غير متصل على الانترنت"
+}
+
+excel_headers_locale = {
+    "Order ID": "رقم الطلب",
+    "Platform": "منصة",
+    "Start Date": "تاريخ البدء",
+    "End Date": "تاريخ الانتهاء",
+    "Order Type": "نوع الطلب",
+    "Order Status": "حالة الطلب",
+    "Order Time": "وقت الطلب",
+    "Top": "قمة",
+    "Sorted by": "مرتبة حسب",
+    "Total records": "إجمالي السجلات",
+    "Total orders": "إجمالي الطلبات",
+    "Total Orders": "إجمالي الطلبات",
+    "Total revenue": "إجمالي الإيرادات",
+    "Total Points Credited": "إجمالي النقاط المعتمدة",
+    "Total Points Redeemed": "إجمالي النقاط المستردة",
+    "Total Online Orders": "إجمالي الطلبات عبر الإنترنت",
+    "Total Offline Orders": "إجمالي الطلبات غير المتصلة بالإنترنت",
+    "Total Delivery Orders": "إجمالي طلبات التسليم",
+    "Total Pickup Orders": "إجمالي طلبات الاستلام",
+    "Total DineIn Orders": "إجمالي طلبات تناول الطعام",
+    "Product Name": "اسم المنتج",
+    "Quantity Sold": "الكمية المباعة",
+    "Unit Price": "سعر الوحدة",
+    "Total Sale": "إجمالي البيع",
+    "Amount": "كمية",
+    "Payment Type": "نوع الدفع",
+    "Payment Status": "حالة السداد",
+    "Transaction ID": "رقم المعاملة",
+    "Customer Name": "اسم الزبون",
+    "Phone Number": "رقم التليفون",
+    "Email ID": "عنوان الايميل",
+    "Address": "عنوان",
+    "Most Ordered Items": "العناصر الأكثر طلبًا"
+}
+
 weekdays_locale = {
     "Monday": "الاثنين",
     "Tuesday": "يوم الثلاثاء",
