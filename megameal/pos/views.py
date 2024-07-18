@@ -64,7 +64,10 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale
+from pos.language import(
+    get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
+    platform_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale
+)
 import pytz
 import re
 import openpyxl
@@ -5650,6 +5653,7 @@ def top_selling_products_report(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -5666,6 +5670,7 @@ def top_selling_products_report(request):
 
     try:
         top_number = int(top_number)
+
     except ValueError:
         return Response("Invalid top parameter", status=status.HTTP_400_BAD_REQUEST)
     
@@ -5787,9 +5792,7 @@ def top_selling_products_report(request):
 
                 list_of_items.append(item)
 
-        return JsonResponse({
-            "top_selling_products": list_of_items
-        })
+        return JsonResponse({"top_selling_products": list_of_items})
     
     elif is_download.lower() == "true":
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
@@ -5802,16 +5805,36 @@ def top_selling_products_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append(['Order Type', f'{order_type}'])
-        sheet.append(['Top', f'{top_number}'])
-        sheet.append(['Sorted by', f'{sort_by}'])
-        sheet.append(['Total records', f'{len(top_selling_items)}'])
-        sheet.append([''])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Order Type', f'{order_type}'])
+            sheet.append(['Top', f'{top_number}'])
+            sheet.append(['Sorted by', f'{sort_by}'])
+            sheet.append(['Total records', f'{len(top_selling_items)}'])
+            sheet.append([''])
 
-        # Write headers
-        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
+            sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
+
+        else:
+            sort_by = sort_by_locale_for_report_excel[sort_by]
+
+            order_type = platform_locale_for_excel[order_type]
+
+            sheet.append([excel_headers_locale["Start Date"], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale["End Date"], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale["Order Type"], f'{order_type}'])
+            sheet.append([excel_headers_locale["Top"], f'{top_number}'])
+            sheet.append([excel_headers_locale["Sorted by"], f'{sort_by}'])
+            sheet.append([excel_headers_locale["Total records"], f'{len(top_selling_items)}'])
+            sheet.append([''])
+
+            sheet.append([
+                excel_headers_locale['Product Name'],
+                excel_headers_locale['Quantity Sold'],
+                excel_headers_locale['Unit Price'],
+                excel_headers_locale['Total Sale']
+            ])
 
         if order_items.exists():    
             for item in top_selling_items:
