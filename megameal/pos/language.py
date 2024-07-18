@@ -76,7 +76,7 @@ sort_by_locale_for_report_excel = {
     "descending": "تنازلي"
 }
 
-platform_locale_for_excel = {
+order_type_locale_for_excel = {
     "All": "الجميع",
     "all": "الجميع",
     "delivery": "توصيل",
@@ -98,7 +98,15 @@ excel_headers_locale = {
     "Sorted by": "مرتبة حسب",
     "Total records": "إجمالي السجلات",
     "Total orders": "إجمالي الطلبات",
+    "Total Orders": "إجمالي الطلبات",
     "Total revenue": "إجمالي الإيرادات",
+    "Total Points Credited": "إجمالي النقاط المعتمدة",
+    "Total Points Redeemed": "إجمالي النقاط المستردة",
+    "Total Online Orders": "إجمالي الطلبات عبر الإنترنت",
+    "Total Offline Orders": "إجمالي الطلبات غير المتصلة بالإنترنت",
+    "Total Delivery Orders": "إجمالي طلبات التسليم",
+    "Total Pickup Orders": "إجمالي طلبات الاستلام",
+    "Total DineIn Orders": "إجمالي طلبات تناول الطعام",
     "Product Name": "اسم المنتج",
     "Quantity Sold": "الكمية المباعة",
     "Unit Price": "سعر الوحدة",
@@ -106,7 +114,12 @@ excel_headers_locale = {
     "Amount": "كمية",
     "Payment Type": "نوع الدفع",
     "Payment Status": "حالة السداد",
-    "Transaction ID": "رقم المعاملة"
+    "Transaction ID": "رقم المعاملة",
+    "Customer Name": "اسم الزبون",
+    "Phone Number": "رقم التليفون",
+    "Email ID": "عنوان الايميل",
+    "Address": "عنوان",
+    "Most Ordered Items": "العناصر الأكثر طلبًا"
 }
 
 weekdays_locale = {
