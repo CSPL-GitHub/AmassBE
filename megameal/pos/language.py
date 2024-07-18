@@ -87,16 +87,26 @@ platform_locale_for_excel = {
 }
 
 excel_headers_locale = {
+    "Order ID": "رقم الطلب",
+    "Platform": "منصة",
     "Start Date": "تاريخ البدء",
     "End Date": "تاريخ الانتهاء",
     "Order Type": "نوع الطلب",
+    "Order Status": "حالة الطلب",
+    "Order Time": "وقت الطلب",
     "Top": "قمة",
     "Sorted by": "مرتبة حسب",
     "Total records": "إجمالي السجلات",
+    "Total orders": "إجمالي الطلبات",
+    "Total revenue": "إجمالي الإيرادات",
     "Product Name": "اسم المنتج",
     "Quantity Sold": "الكمية المباعة",
     "Unit Price": "سعر الوحدة",
-    "Total Sale": "إجمالي البيع"
+    "Total Sale": "إجمالي البيع",
+    "Amount": "كمية",
+    "Payment Type": "نوع الدفع",
+    "Payment Status": "حالة السداد",
+    "Transaction ID": "رقم المعاملة"
 }
 
 weekdays_locale = {

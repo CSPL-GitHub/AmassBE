@@ -3083,14 +3083,24 @@ def excel_download_for_dashboard(request):
         sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     else:
-        sheet.append(['تاريخ البدء', f'{start_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append(['تاريخ الانتهاء', f'{end_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append(['منصة', f'{platform_parameter}', '', '', '', '', '', '', ''])
-        sheet.append(['نوع الطلب', f'{order_type_parameter}', '', '', '', '', '', '', ''])
-        sheet.append(['حالة الطلب', f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
         sheet.append(['', '', '', '', '', '', '', '', ''])
 
-        sheet.append(['رقم الطلب', 'منصة', 'كمية', 'نوع الطلب', 'حالة الطلب', 'وقت الطلب', 'نوع الدفع', 'حالة السداد', 'رقم المعاملة'])
+        sheet.append([
+            excel_headers_locale['Order ID'],
+            excel_headers_locale['Platform'],
+            excel_headers_locale['Amount'],
+            excel_headers_locale['Order Type'],
+            excel_headers_locale['Order Status'],
+            excel_headers_locale['Order Time'],
+            excel_headers_locale['Payment Type'],
+            excel_headers_locale['Payment Status'],
+            excel_headers_locale['Transaction ID']
+        ])
 
     for order_id, details in order_details.items():
         sheet.append([
@@ -3105,7 +3115,11 @@ def excel_download_for_dashboard(request):
             details["transaction_id"],
         ])
     
-    sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
+    if language == "English":
+        sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
+
+    else:
+        sheet.append([f'{excel_headers_locale["Total orders"]} = {order_count}', '', f'{excel_headers_locale["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
     
     directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
     os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
