@@ -66,7 +66,7 @@ from inventory.utils import (
 )
 from pos.language import(
     get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
-    platform_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale
+    platform_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale, payment_type_locale
 )
 import pytz
 import re
@@ -4765,12 +4765,14 @@ def get_orders_of_customer(request):
     customer_id = request.GET.get("customerId", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
+    language = request.GET.get("language", "English")
 
     if not all((vendor_id, customer_id)):
         return Response("Vendor ID or Customer ID is empty", status=status.HTTP_400_BAD_REQUEST)
 
     try:
         vendor_id, customer_id = map(int, (vendor_id, customer_id))
+
     except ValueError:
         return Response("Invalid Vendor ID or Customer ID", status=status.HTTP_400_BAD_REQUEST)
 
@@ -4787,8 +4789,10 @@ def get_orders_of_customer(request):
 
         try:
             paginated_orders = paginator.page(page_number)
+
         except PageNotAnInteger:
             paginated_orders = paginator.page(1)
+            
         except EmptyPage:
             paginated_orders = paginator.page(paginator.num_pages)
 
@@ -4858,19 +4862,30 @@ def get_orders_of_customer(request):
                     payment_data['platform'] = ''
                     payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
 
+                    if language != "English":
+                        payment_data["mode"] = payment_type_locale[1]
+
                 else:
                     payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
                     payment_data["platform"] = payment_details.platform if payment_details.platform else ''
                     payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
+
+                    if language != "English":
+                        payment_data["mode"] = payment_type_locale[payment_details.type]
                 
                 payment_data["status"] = payment_details.status
 
             else:
+                payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+
+                if language != "English":
+                    payment_mode = payment_type_locale[1]
+
                 payment_data = {
                     "paymentKey": "",
                     "platform": "",
                     "status": False,
-                    "mode": PaymentType.get_payment_str(PaymentType.CASH)
+                    "mode": payment_mode
                 }
 
             # table_ids = []
@@ -4896,6 +4911,11 @@ def get_orders_of_customer(request):
             else:
                 total_points_redeemed = 0
             
+            platform_name = order.platform.Name
+
+            if language != "English":
+                platform_name = order.platform.Name_locale
+            
             order_data = {
                 "orderId": order.pk,
                 "staging_order_id": koms_order.pk,
@@ -4911,7 +4931,7 @@ def get_orders_of_customer(request):
                 "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
                 "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
                 "order_type": order.orderType,
-                "platform_name": order.platform.Name,
+                "platform_name": platform_name,
                 "table_numbers": table_numbers_list,
                 "items": order_items,
                 "payment": payment_data,
