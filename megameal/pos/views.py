@@ -2895,13 +2895,21 @@ def excel_download_for_dashboard(request):
     order_status_parameter = get_key_value(language, "koms_order_status", order_status)
 
     if platform_id == "All":
-        platform_parameter = "All"
+        if language == "English":
+            platform_parameter = "All"
+
+        else:
+            platform_parameter = "الجميع"
         
     else:
         platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            platform_parameter = platform_parameter.Name
+            if language == "English":
+                platform_parameter = platform_parameter.Name
+
+            else:
+                platform_parameter = platform_parameter.Name_locale
 
         else:
             return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2996,7 +3004,13 @@ def excel_download_for_dashboard(request):
                             payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
                             
-                        platform_name = order_detail.platform.Name
+                        platform_name = ""
+
+                        if language == "English":
+                            platform_name = order_detail.platform.Name
+
+                        else:
+                            platform_name = order_detail.platform.Name_locale
 
                         order_details[order_id] = {
                             "order_id": order_id,
@@ -3054,15 +3068,26 @@ def excel_download_for_dashboard(request):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     
-    sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['', '', '', '', '', '', '', '', ''])
+    if language == "English":
+        sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['', '', '', '', '', '', '', '', ''])
 
-    # Write headers
-    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
+        # Write headers
+        sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
+
+    else:
+        sheet.append(['تاريخ البدء', f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['تاريخ الانتهاء', f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['منصة', f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['نوع الطلب', f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['حالة الطلب', f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['', '', '', '', '', '', '', '', ''])
+
+        sheet.append(['رقم الطلب', 'منصة', 'كمية', 'نوع الطلب', 'حالة الطلب', 'وقت الطلب', 'نوع الدفع', 'حالة السداد', 'رقم المعاملة'])
 
     for order_id, details in order_details.items():
         sheet.append([
