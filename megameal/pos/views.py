@@ -7590,12 +7590,14 @@ def order_report(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     is_download = request.GET.get('download')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -7646,11 +7648,27 @@ def order_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+
+        else:
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+
         sheet.append([''])
 
-        sheet.append(["Category", "Total Orders", "Complete Orders", "Cancelled Orders", "Processing Orders"])
+        if language == "English":
+            sheet.append(["Category", "Total Orders", "Complete Orders", "Cancelled Orders", "Processing Orders"])
+        
+        else:
+            sheet.append([
+                excel_headers_locale["Category"],
+                excel_headers_locale["Total Orders"],
+                excel_headers_locale["Complete Orders"],
+                excel_headers_locale["Cancelled Orders"],
+                excel_headers_locale["Processing Orders"]
+            ])
 
         for category, orders_info in order_count_details.items():
             if category == "Online" and not platform:
@@ -7757,13 +7775,13 @@ def cancel_order_report(request):
         pass
     
     elif order_type == "online":
-            if platform:
-                cancelled_orders = cancelled_orders.filter(master_order__platform=platform.pk)
+        if platform:
+            cancelled_orders = cancelled_orders.filter(master_order__platform=platform.pk)
 
-                most_cancelled_products = most_cancelled_products.filter(orderId__master_order__platform=platform.pk)
-            
-            else:
-                return Response("Contact you administrator to activate the platform", status=status.HTTP_400_BAD_REQUEST)
+            most_cancelled_products = most_cancelled_products.filter(orderId__master_order__platform=platform.pk)
+        
+        else:
+            return Response("Contact you administrator to activate the platform", status=status.HTTP_400_BAD_REQUEST)
             
     elif order_type == "offline":
         if platform:
@@ -7847,23 +7865,48 @@ def cancel_order_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append(['Order Type', f'{order_type}'])
-        sheet.append([''])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Order Type', f'{order_type}'])
+            sheet.append([''])
 
-        sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made"])
-        sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
+            sheet.append(["Cancelled Orders", "Cancelled Products", "Loss Made"])
+            sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
-        sheet.append([''])
+            sheet.append([''])
 
-        sheet.append(['Cancelled Product Details'])
-        sheet.append(['Top', top_number])
-        sheet.append(['Sorted by', sort_by])
+            sheet.append(['Cancelled Product Details'])
+            sheet.append(['Top', top_number])
+            sheet.append(['Sorted by', sort_by])
 
-        sheet.append([''])
+            sheet.append([''])
 
-        sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
+            sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
+
+        else:
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([''])
+
+            sheet.append([excel_headers_locale["Cancelled Orders"], excel_headers_locale["Cancelled Products"], excel_headers_locale["Loss Made"]])
+            sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
+
+            sheet.append([''])
+
+            sheet.append([excel_headers_locale['Cancelled Product Details']])
+            sheet.append([excel_headers_locale['Top'], top_number])
+            sheet.append([excel_headers_locale['Sorted by'], sort_by])
+
+            sheet.append([''])
+
+            sheet.append([
+                excel_headers_locale['Product Name'],
+                excel_headers_locale['Quantity Cancelled'],
+                excel_headers_locale['Unit Price'],
+                excel_headers_locale['Estimated Revenue']
+            ])
 
         for product_detail in cancelled_product_details:
             sheet.append([
@@ -8068,12 +8111,27 @@ def pincode_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append(['Order Type', f'{order_type}'])
-        sheet.append([''])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Order Type', f'{order_type}'])
+            sheet.append([''])
 
-        sheet.append(["Pincode", "Locality", "Orders", "Revenue", "Most Ordered Products"])
+            sheet.append(["Pincode", "Locality", "Orders", "Revenue", "Most Ordered Products"])
+
+        else:
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([''])
+
+            sheet.append([
+                excel_headers_locale["Pincode"],
+                excel_headers_locale["Locality"],
+                excel_headers_locale["Orders"],
+                excel_headers_locale["Revenue"],
+                excel_headers_locale["Most Ordered Products"]
+            ])
         
         for info in pincode_list:
             list_of_items = ''

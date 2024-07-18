@@ -107,8 +107,8 @@ excel_headers_locale = {
     "Total Delivery Orders": "إجمالي طلبات التسليم",
     "Total Pickup Orders": "إجمالي طلبات الاستلام",
     "Total DineIn Orders": "إجمالي طلبات تناول الطعام",
-    "Product Name": "اسم المنتج",
     "Quantity Sold": "الكمية المباعة",
+    "Quantity Cancelled": "تم إلغاء الكمية",
     "Unit Price": "سعر الوحدة",
     "Total Sale": "إجمالي البيع",
     "Amount": "كمية",
@@ -119,7 +119,21 @@ excel_headers_locale = {
     "Phone Number": "رقم التليفون",
     "Email ID": "عنوان الايميل",
     "Address": "عنوان",
-    "Most Ordered Items": "العناصر الأكثر طلبًا"
+    "Most Ordered Items": "العناصر الأكثر طلبًا",
+    "Complete Orders": "أوامر كاملة",
+    "Cancelled Orders": "الطلبات الملغاة",
+    "Processing Orders": "تجهيز الطلبات",
+    "Cancelled Products": "المنتجات الملغاة",
+    "Loss Made": "الخسارة التي تم تحقيقها",
+    "Revenue": "ربح",
+    "Estimated Revenue": "الإيرادات المقدرة",
+    "Cancelled Product Details": "تفاصيل المنتج الملغاة",
+    "Most Ordered Products": "المنتجات الأكثر طلبا",
+    "Category": "فئة",
+    "Product Name": "اسم المنتج",
+    "Orders": "طلبات",
+    "Pincode": "الرمز السري",
+    "Locality": "محلية"
 }
 
 weekdays_locale = {
