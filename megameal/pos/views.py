@@ -846,7 +846,7 @@ def top_selling_product_details(request):
         while current_time <= end_datetime:
             next_time = current_time + timedelta(hours=1)
 
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
+            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=start_date).aggregate(
                 sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
             )['sum']
 
