@@ -71,6 +71,44 @@ platform_locale = (
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
+sort_by_locale_for_report_excel = {
+    "ascending": "تصاعدي",
+    "descending": "تنازلي"
+}
+
+platform_locale_for_excel = {
+    "All": "الجميع",
+    "all": "الجميع",
+    "delivery": "توصيل",
+    "pickup": "يلتقط",
+    "dinein": "تناول الطعام في",
+    "online": "متصل",
+    "offline": "غير متصل على الانترنت"
+}
+
+excel_headers_locale = {
+    "Order ID": "رقم الطلب",
+    "Platform": "منصة",
+    "Start Date": "تاريخ البدء",
+    "End Date": "تاريخ الانتهاء",
+    "Order Type": "نوع الطلب",
+    "Order Status": "حالة الطلب",
+    "Order Time": "وقت الطلب",
+    "Top": "قمة",
+    "Sorted by": "مرتبة حسب",
+    "Total records": "إجمالي السجلات",
+    "Total orders": "إجمالي الطلبات",
+    "Total revenue": "إجمالي الإيرادات",
+    "Product Name": "اسم المنتج",
+    "Quantity Sold": "الكمية المباعة",
+    "Unit Price": "سعر الوحدة",
+    "Total Sale": "إجمالي البيع",
+    "Amount": "كمية",
+    "Payment Type": "نوع الدفع",
+    "Payment Status": "حالة السداد",
+    "Transaction ID": "رقم المعاملة"
+}
+
 weekdays_locale = {
     "Monday": "الاثنين",
     "Tuesday": "يوم الثلاثاء",

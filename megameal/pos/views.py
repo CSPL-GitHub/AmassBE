@@ -64,7 +64,10 @@ from inventory.utils import (
     single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
     delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale
+from pos.language import(
+    get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
+    platform_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale
+)
 import pytz
 import re
 import openpyxl
@@ -2895,13 +2898,21 @@ def excel_download_for_dashboard(request):
     order_status_parameter = get_key_value(language, "koms_order_status", order_status)
 
     if platform_id == "All":
-        platform_parameter = "All"
+        if language == "English":
+            platform_parameter = "All"
+
+        else:
+            platform_parameter = "الجميع"
         
     else:
         platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            platform_parameter = platform_parameter.Name
+            if language == "English":
+                platform_parameter = platform_parameter.Name
+
+            else:
+                platform_parameter = platform_parameter.Name_locale
 
         else:
             return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2996,7 +3007,13 @@ def excel_download_for_dashboard(request):
                             payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
                             
-                        platform_name = order_detail.platform.Name
+                        platform_name = ""
+
+                        if language == "English":
+                            platform_name = order_detail.platform.Name
+
+                        else:
+                            platform_name = order_detail.platform.Name_locale
 
                         order_details[order_id] = {
                             "order_id": order_id,
@@ -3054,15 +3071,36 @@ def excel_download_for_dashboard(request):
     workbook = openpyxl.Workbook()
     sheet = workbook.active
     
-    sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
-    sheet.append(['', '', '', '', '', '', '', '', ''])
+    if language == "English":
+        sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['', '', '', '', '', '', '', '', ''])
 
-    # Write headers
-    sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
+        # Write headers
+        sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
+
+    else:
+        sheet.append([excel_headers_locale['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([excel_headers_locale['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append(['', '', '', '', '', '', '', '', ''])
+
+        sheet.append([
+            excel_headers_locale['Order ID'],
+            excel_headers_locale['Platform'],
+            excel_headers_locale['Amount'],
+            excel_headers_locale['Order Type'],
+            excel_headers_locale['Order Status'],
+            excel_headers_locale['Order Time'],
+            excel_headers_locale['Payment Type'],
+            excel_headers_locale['Payment Status'],
+            excel_headers_locale['Transaction ID']
+        ])
 
     for order_id, details in order_details.items():
         sheet.append([
@@ -3077,7 +3115,11 @@ def excel_download_for_dashboard(request):
             details["transaction_id"],
         ])
     
-    sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
+    if language == "English":
+        sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
+
+    else:
+        sheet.append([f'{excel_headers_locale["Total orders"]} = {order_count}', '', f'{excel_headers_locale["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
     
     directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
     os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -5625,6 +5667,7 @@ def top_selling_products_report(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -5641,6 +5684,7 @@ def top_selling_products_report(request):
 
     try:
         top_number = int(top_number)
+
     except ValueError:
         return Response("Invalid top parameter", status=status.HTTP_400_BAD_REQUEST)
     
@@ -5762,9 +5806,7 @@ def top_selling_products_report(request):
 
                 list_of_items.append(item)
 
-        return JsonResponse({
-            "top_selling_products": list_of_items
-        })
+        return JsonResponse({"top_selling_products": list_of_items})
     
     elif is_download.lower() == "true":
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
@@ -5777,16 +5819,36 @@ def top_selling_products_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append(['Order Type', f'{order_type}'])
-        sheet.append(['Top', f'{top_number}'])
-        sheet.append(['Sorted by', f'{sort_by}'])
-        sheet.append(['Total records', f'{len(top_selling_items)}'])
-        sheet.append([''])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Order Type', f'{order_type}'])
+            sheet.append(['Top', f'{top_number}'])
+            sheet.append(['Sorted by', f'{sort_by}'])
+            sheet.append(['Total records', f'{len(top_selling_items)}'])
+            sheet.append([''])
 
-        # Write headers
-        sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
+            sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
+
+        else:
+            sort_by = sort_by_locale_for_report_excel[sort_by]
+
+            order_type = platform_locale_for_excel[order_type]
+
+            sheet.append([excel_headers_locale["Start Date"], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale["End Date"], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale["Order Type"], f'{order_type}'])
+            sheet.append([excel_headers_locale["Top"], f'{top_number}'])
+            sheet.append([excel_headers_locale["Sorted by"], f'{sort_by}'])
+            sheet.append([excel_headers_locale["Total records"], f'{len(top_selling_items)}'])
+            sheet.append([''])
+
+            sheet.append([
+                excel_headers_locale['Product Name'],
+                excel_headers_locale['Quantity Sold'],
+                excel_headers_locale['Unit Price'],
+                excel_headers_locale['Total Sale']
+            ])
 
         if order_items.exists():    
             for item in top_selling_items:
