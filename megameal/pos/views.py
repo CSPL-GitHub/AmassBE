@@ -836,7 +836,7 @@ def top_selling_product_details(request):
 
         elif (start_date != current_start_date) and (end_date != current_end_date):
             if end_date == datetime.now().date():
-                end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
+                end_datetime = datetime.combine(start_date, store_timing.open_time)
             
             else:
                 end_datetime = datetime.combine(start_date, store_timing.close_time)
