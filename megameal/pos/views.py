@@ -66,7 +66,7 @@ from inventory.utils import (
 )
 from pos.language import(
     get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
-    platform_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale, payment_type_locale
+    order_type_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale, payment_type_locale
 )
 import pytz
 import re
@@ -5853,7 +5853,7 @@ def top_selling_products_report(request):
         else:
             sort_by = sort_by_locale_for_report_excel[sort_by]
 
-            order_type = platform_locale_for_excel[order_type]
+            order_type = order_type_locale_for_excel[order_type]
 
             sheet.append([excel_headers_locale["Start Date"], f'{formatted_start_date}'])
             sheet.append([excel_headers_locale["End Date"], f'{formatted_end_date}'])
@@ -5926,6 +5926,7 @@ def most_repeating_customers_report(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -5945,6 +5946,7 @@ def most_repeating_customers_report(request):
 
     try:
         top_number = int(top_number)
+        
     except ValueError:
         return Response("Invalid top parameter", status=status.HTTP_400_BAD_REQUEST)
     
@@ -6221,53 +6223,93 @@ def most_repeating_customers_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
+        
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Order Type', f'{order_type}'])
+            sheet.append(['Top', f'{top_number}'])
+            sheet.append(['Sorted by', f'{sort_by}'])
+            sheet.append(['Total records', f'{len(top_customers)}'])
+            sheet.append([''])
+
+        else:
+            order_type = order_type_locale_for_excel[order_type]
+            sort_by = sort_by_locale_for_report_excel[sort_by]
+
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([excel_headers_locale['Top'], f'{top_number}'])
+            sheet.append([excel_headers_locale['Sorted by'], f'{sort_by}'])
+            sheet.append([excel_headers_locale['Total records'], f'{len(top_customers)}'])
+            sheet.append([''])
+        
         if platform:
-            sheet.append(['Start Date', f'{formatted_start_date}'])
-            sheet.append(['End Date', f'{formatted_end_date}'])
-            sheet.append(['Order Type', f'{order_type}'])
-            sheet.append(['Top', f'{top_number}'])
-            sheet.append(['Sorted by', f'{sort_by}'])
-            sheet.append(['Total records', f'{len(top_customers)}'])
-            sheet.append([''])
+            if language == "English":
+                sheet.append([
+                    'Customer Name',
+                    'Phone Number',
+                    'Email ID',
+                    'Address',
+                    'Total Points Credited',
+                    'Total Points Redeemed',
+                    'Total Orders',
+                    'Total Online Orders',
+                    'Total Offline Orders',
+                    'Total Delivery Orders',
+                    'Total Pickup Orders',
+                    'Total DineIn Orders',
+                    'Most Ordered Items'
+                ])
 
-            sheet.append([
-                'Customer Name',
-                'Phone Number',
-                'Email ID',
-                'Address',
-                'Total Points Credited',
-                'Total Points Redeemed',
-                'Total Orders',
-                'Total Online Orders',
-                'Total Offline Orders',
-                'Total Delivery Orders',
-                'Total Pickup Orders',
-                'Total DineIn Orders',
-                'Most Ordered Items'
-            ])
+            else:
+                sheet.append([
+                    excel_headers_locale['Customer Name'],
+                    excel_headers_locale['Phone Number'],
+                    excel_headers_locale['Email ID'],
+                    excel_headers_locale['Address'],
+                    excel_headers_locale['Total Points Credited'],
+                    excel_headers_locale['Total Points Redeemed'],
+                    excel_headers_locale['Total Orders'],
+                    excel_headers_locale['Total Online Orders'],
+                    excel_headers_locale['Total Offline Orders'],
+                    excel_headers_locale['Total Delivery Orders'],
+                    excel_headers_locale['Total Pickup Orders'],
+                    excel_headers_locale['Total DineIn Orders'],
+                    excel_headers_locale['Most Ordered Items']
+                ])
 
-        else:    
-            sheet.append(['Start Date', f'{formatted_start_date}'])
-            sheet.append(['End Date', f'{formatted_end_date}'])
-            sheet.append(['Order Type', f'{order_type}'])
-            sheet.append(['Top', f'{top_number}'])
-            sheet.append(['Sorted by', f'{sort_by}'])
-            sheet.append(['Total records', f'{len(top_customers)}'])
-            sheet.append([''])
+        else:
+            if language == "English":
+                sheet.append([
+                    'Customer Name',
+                    'Phone Number',
+                    'Email ID',
+                    'Address',
+                    'Total Points Credited',
+                    'Total Points Redeemed',
+                    'Total Orders',
+                    'Total Delivery Orders',
+                    'Total Pickup Orders',
+                    'Total DineIn Orders',
+                    'Most Ordered Items'
+                ])
 
-            sheet.append([
-                'Customer Name',
-                'Phone Number',
-                'Email ID',
-                'Address',
-                'Total Points Credited',
-                'Total Points Redeemed',
-                'Total Orders',
-                'Total Delivery Orders',
-                'Total Pickup Orders',
-                'Total DineIn Orders',
-                'Most Ordered Items'
-            ])
+            else:
+                sheet.append([
+                    excel_headers_locale['Customer Name'],
+                    excel_headers_locale['Phone Number'],
+                    excel_headers_locale['Email ID'],
+                    excel_headers_locale['Address'],
+                    excel_headers_locale['Total Points Credited'],
+                    excel_headers_locale['Total Points Redeemed'],
+                    excel_headers_locale['Total Orders'],
+                    excel_headers_locale['Total Delivery Orders'],
+                    excel_headers_locale['Total Pickup Orders'],
+                    excel_headers_locale['Total DineIn Orders'],
+                    excel_headers_locale['Most Ordered Items']
+                ])
 
         for customer in top_customers:
             if order_type == "all":
@@ -6365,7 +6407,9 @@ def most_repeating_customers_report(request):
                 OrderDate__date__range=(start_date, end_date),
                 vendorId=vendor_id
             )
+
             total_orders_count = customer_orders.count()
+
             delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
             pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
             dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
@@ -6440,6 +6484,7 @@ def most_repeating_customers_report(request):
                 ])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+        
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
         file_name = f"Most_repeating_customers_{vendor_id}.xlsx"
