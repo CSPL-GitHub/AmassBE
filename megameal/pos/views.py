@@ -6873,6 +6873,7 @@ def finance_report(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
     is_download = request.GET.get('download')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
@@ -7057,14 +7058,32 @@ def finance_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append([''])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append([''])
 
-        sheet.append(['Category', 'Total Orders', 'Tax Collected', 'Revenue Generated'])
+            sheet.append(['Category', 'Total Orders', 'Tax Collected', 'Revenue Generated'])
 
-        for key, value in report_data.items():
-            sheet.append([key, value["orders"], value["tax"], value["revenue"]])
+        else:
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([''])
+        
+            sheet.append([
+                excel_headers_locale['Category'],
+                excel_headers_locale['Total Orders'],
+                excel_headers_locale['Tax Collected'],
+                excel_headers_locale['Revenue Generated']
+            ])
+
+        if language == "English":
+            for key, value in report_data.items():
+                sheet.append([key, value["orders"], value["tax"], value["revenue"]])
+
+        else:
+            for key, value in report_data.items():
+                sheet.append([excel_headers_locale[key], value["orders"], value["tax"], value["revenue"]])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
