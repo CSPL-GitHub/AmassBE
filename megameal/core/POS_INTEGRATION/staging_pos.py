@@ -191,7 +191,7 @@ class StagingIntegration():
                 TotalAmount=0.0,
                 OrderDate=timezone.now(),
                 Notes=data.get("note"),
-                externalOrderld=data.get("externalOrderId"),
+                externalOrderId=data.get("externalOrderId"),
                 orderType=OrderType.get_order_type_value(data.get("orderType")),
                 arrivalTime=timezone.now(),
                 tax=0.0,
@@ -540,8 +540,8 @@ class StagingIntegration():
         try:
             updateOrderStatus=Order.objects.get(pk=request['orderId'])
         except Exception as err:
-            updateOrderStatus=Order.objects.get(externalOrderld=request['orderId'])
-        request["externalOrderId"]=updateOrderStatus.externalOrderld
+            updateOrderStatus=Order.objects.get(externalOrderId=request['orderId'])
+        request["externalOrderId"]=updateOrderStatus.externalOrderId
         # if request["updatePoint"]==UpdatePoint.KOMS:
         #     if orderStatus==OrderStatus.COMPLETED:
         #         orderStatus=OrderStatus.PREPARED

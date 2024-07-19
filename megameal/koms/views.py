@@ -625,7 +625,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
         waiters = []
 
-        master_order = coreOrder.objects.filter(Q(externalOrderld=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
+        master_order = coreOrder.objects.filter(Q(externalOrderId=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
         try:
             payment_type = OrderPayment.objects.filter(orderId=master_order.pk)

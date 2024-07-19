@@ -48,7 +48,7 @@ class Order(models.Model):
     TotalAmount = models.FloatField()
     OrderDate = models.DateTimeField(auto_now=False)
     Notes = models.CharField(max_length=122, default='', null=True)
-    externalOrderld = models.CharField(max_length=122, null=True)
+    externalOrderId = models.CharField(max_length=122, null=True)
     orderType = models.IntegerField(choices=OrderType.choices)
     arrivalTime = models.DateTimeField(auto_now=False)
     tax = models.FloatField()
@@ -69,7 +69,7 @@ class Order(models.Model):
         return {
             'orderId': self.pk,
             'status': OrderStatus(self.Status).label,
-            "externalOrderld": self.externalOrderld
+            "externalOrderId": self.externalOrderId
         }
     
     def __str__(self):
