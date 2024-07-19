@@ -168,14 +168,17 @@ def getTableData(hotelTable, vendorId, language="English"):
     floor_name = ""
 
     if hotelTable:
-        if hotelTable.waiterId:
-            if language == "English":
+        if language == "English":
+            if hotelTable.waiterId:
                 waiter_name = hotelTable.waiterId.name
-                floor_name = hotelTable.floor.name
 
-            else:
+            floor_name = hotelTable.floor.name
+
+        else:
+            if hotelTable.waiterId:
                 waiter_name = hotelTable.waiterId.name_locale
-                floor_name = hotelTable.floor.name_locale
+                
+            floor_name = hotelTable.floor.name_locale
     
     data = { 
         "tableId": hotelTable.pk, 
