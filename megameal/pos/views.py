@@ -2887,6 +2887,15 @@ def excel_download_for_dashboard(request):
 
     if language == "":
         language = "English"
+
+    if platform_id != "All":
+        platform_id = int(platform_id)
+
+    if order_type != "All":
+        order_type = int(order_type)
+
+    if order_status != "All":
+        order_status = int(order_status)
     
     if check_key_exists(language, "order_type", order_type) == False:
         return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2936,8 +2945,6 @@ def excel_download_for_dashboard(request):
         pass
 
     else:
-        platform_id = int(platform_id)
-
         platform_info = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
 
         if platform_info:
@@ -2956,14 +2963,12 @@ def excel_download_for_dashboard(request):
         pass
     
     else:
-        order_type = int(order_type)
         koms_order_data = koms_order_data.filter(order_type=order_type)
 
     if (order_status == "All") or (order_status == ""):
         pass
     
     else:
-        order_status = int(order_status)
         koms_order_data = koms_order_data.filter(order_status=order_status)
 
     external_order_ids = list(koms_order_data.values_list('externalOrderId', flat=True))
