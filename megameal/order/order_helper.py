@@ -85,7 +85,7 @@ class OrderHelper():
             order = Order.objects.filter(vendorId_id=vendorId,id=data.get("orderId")).first()
             
             if not order:
-                order = Order.objects.filter(vendorId_id=vendorId,externalOrderld=data.get("orderId")).first()
+                order = Order.objects.filter(vendorId_id=vendorId,externalOrderId=data.get("orderId")).first()
             
             # ++++++---- Stage The Order
             

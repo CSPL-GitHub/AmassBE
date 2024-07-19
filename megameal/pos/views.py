@@ -1140,9 +1140,9 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         
-        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
         order_data = order_data.filter(platform=platform)
-        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1165,11 +1165,11 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 if platform != "All":
                     external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
-                    order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+                    order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
 
                     order_data = order_data.filter(platform=platform)
 
-                    external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
                     order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
             
@@ -1210,11 +1210,11 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     if platform != "All":
                         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
-                        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+                        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
 
                         order_data = order_data.filter(platform=platform)
 
-                        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
                         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1240,7 +1240,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
         
         try:
-            payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
             
@@ -1280,7 +1280,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         single_order['payment'] = payment_details
 
         try:
-            platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
             platform_name = ""
             
@@ -1305,7 +1305,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         single_order["platform_details"] = platform_details
 
         try:
-            customer = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
+            customer = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
             
             if customer:
                 first_name = customer.customerId.FirstName
@@ -1431,9 +1431,9 @@ def order_data_socket(request):
     if platform != "All":
         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
         
-        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
         order_data = order_data.filter(platform=platform)
-        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1456,11 +1456,11 @@ def order_data_socket(request):
                 if platform != "All":
                     external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
-                    order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+                    order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
 
                     order_data = order_data.filter(platform=platform)
 
-                    external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
                     order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
             
@@ -1501,11 +1501,11 @@ def order_data_socket(request):
                     if platform != "All":
                         external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
-                        order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+                        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
 
                         order_data = order_data.filter(platform=platform)
 
-                        external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
 
                         order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
 
@@ -1533,7 +1533,7 @@ def order_data_socket(request):
         payment_mode = ""
         
         try:
-            payment_details_order = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
 
@@ -1573,7 +1573,7 @@ def order_data_socket(request):
         single_order['payment']=payment_details
 
         try:
-            platform = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
 
             platform_name = ""
             
@@ -1598,7 +1598,7 @@ def order_data_socket(request):
         single_order["platform_details"] = platform_details
 
         try:
-            customer = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
+            customer = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
             
             if customer:
                 first_name = customer.customerId.FirstName
@@ -2037,7 +2037,7 @@ def createOrder(request):
         if saveData.is_valid():
             saveData.save()
 
-            if Order.objects.filter(externalOrderld=orderid).exists():
+            if Order.objects.filter(externalOrderId=orderid).exists():
                 return JsonResponse({'token': token, "external_order_id": orderid})
             
             else:
@@ -2139,7 +2139,7 @@ def order_details(request):
                     return JsonResponse({"error": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
 
                 else:
-                    order = Order.objects.get(externalOrderld=external_order_id)
+                    order = Order.objects.get(externalOrderId=external_order_id)
 
             else:
                 return JsonResponse({"error": "Invalid platform"}, status=status.HTTP_400_BAD_REQUEST)
@@ -2419,7 +2419,7 @@ def updatePaymentDetails(request):
 
     oldStatus = order.order_status
     
-    coreOrder = Order.objects.filter(externalOrderld=order.externalOrderId, vendorId=vendorId).last()
+    coreOrder = Order.objects.filter(externalOrderId=order.externalOrderId, vendorId=vendorId).last()
         
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
     
@@ -2960,9 +2960,9 @@ def excel_download_for_dashboard(request):
         if platform_info:
             external_order_ids = list(koms_order_data.values_list('externalOrderId', flat=True))
 
-            order_data = Order.objects.filter(externalOrderld__in=external_order_ids)
+            order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
             order_data = order_data.filter(platform=platform_id)
-            external_order_ids = list(order_data.values_list('externalOrderld', flat=True))
+            external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
             
             koms_order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
         
@@ -2995,7 +2995,7 @@ def excel_download_for_dashboard(request):
                 for order in koms_orders:
                     order_id = order.externalOrderId
                     
-                    order_detail = Order.objects.filter(Q(externalOrderld=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+                    order_detail = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
                     
                     payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
 
@@ -4417,7 +4417,7 @@ def get_customers(request):
                                 #     redeem_history = {}
 
                                 #     redeem_history["id"] = redeem_point.pk
-                                #     redeem_history["order_id"] = redeem_point.order.externalOrderld
+                                #     redeem_history["order_id"] = redeem_point.order.externalOrderId
                                 #     redeem_history["points_redeemed"] = redeem_point.points_redeemed
                                 #     redeem_history["redeem_datetime"] = redeem_point.redeem_datetime
                                 #     redeem_history["redeemed_by"] = redeem_point.redeemed_by
@@ -4425,7 +4425,7 @@ def get_customers(request):
                                 #     redeem_transactions.append(redeem_history)
 
                                 credit_transactions["id"] = credit_point.pk
-                                credit_transactions["order_id"] = credit_point.order.externalOrderld
+                                credit_transactions["order_id"] = credit_point.order.externalOrderId
                                 credit_transactions["points_credited"] = credit_point.points_credited
                                 credit_transactions["credit_datetime"] = credit_point.credit_datetime
                                 credit_transactions["expiry_date"] = credit_point.expiry_date
@@ -4709,7 +4709,7 @@ def update_customer(request):
                                     #     redeem_history = {}
 
                                     #     redeem_history["id"] = redeem_point.pk
-                                    #     redeem_history["order_id"] = redeem_point.order.externalOrderld
+                                    #     redeem_history["order_id"] = redeem_point.order.externalOrderId
                                     #     redeem_history["points_redeemed"] = redeem_point.points_redeemed
                                     #     redeem_history["redeem_datetime"] = redeem_point.redeem_datetime
                                     #     redeem_history["redeemed_by"] = redeem_point.redeemed_by
@@ -4717,7 +4717,7 @@ def update_customer(request):
                                     #     redeem_transactions.append(redeem_history)
 
                                     credit_transactions["id"] = credit_point.pk
-                                    credit_transactions["order_id"] = credit_point.order.externalOrderld
+                                    credit_transactions["order_id"] = credit_point.order.externalOrderId
                                     credit_transactions["points_credited"] = credit_point.points_credited
                                     credit_transactions["credit_datetime"] = credit_point.credit_datetime
                                     credit_transactions["expiry_date"] = credit_point.expiry_date
@@ -4933,7 +4933,7 @@ def get_orders_of_customer(request):
             order_data = {
                 "orderId": order.pk,
                 "staging_order_id": koms_order.pk,
-                "external_order_id": order.externalOrderld,
+                "external_order_id": order.externalOrderId,
                 "status": koms_order.order_status,
                 "order_note": order.Notes if order.Notes else "",
                 "total_tax": order.tax,
@@ -5065,7 +5065,7 @@ def get_loyalty_point_transactions_of_customer(request):
             
             order_data = {
                 "order_id": order.pk,
-                "external_order_id": order.externalOrderld,
+                "external_order_id": order.externalOrderId,
                 "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
                 "credit_history": credit_transaction,
                 "redeemed_points": redeemed_points,
@@ -5284,7 +5284,7 @@ def redeem_loyalty_points(request):
 
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
     customer_instance = Customer.objects.filter(pk=customer_id, VendorId=vendor_id).first()
-    master_order_instance = Order.objects.filter(externalOrderld=external_order_id, vendorId=vendor_id).first()
+    master_order_instance = Order.objects.filter(externalOrderId=external_order_id, vendorId=vendor_id).first()
 
     if not all((vendor_instance, customer_instance, master_order_instance)):
         return Response("Vendor, Customer, or Order does not exist", status=status.HTTP_400_BAD_REQUEST)
