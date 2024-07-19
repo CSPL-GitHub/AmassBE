@@ -7114,12 +7114,14 @@ def footfall_revenue_report(request):
     is_download = request.GET.get('download')
     filter_by = request.GET.get('filter')
     filter_type = request.GET.get('type')
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -7415,25 +7417,50 @@ def footfall_revenue_report(request):
         workbook = openpyxl.Workbook()
         sheet = workbook.active
 
-        sheet.append(['Start Date', f'{formatted_start_date}'])
-        sheet.append(['End Date', f'{formatted_end_date}'])
-        sheet.append(['Filtered by', f'{filter_by}'])
+        if language == "English":
+            sheet.append(['Start Date', f'{formatted_start_date}'])
+            sheet.append(['End Date', f'{formatted_end_date}'])
+            sheet.append(['Filtered by', f'{filter_by}'])
+
+        else:
+            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
+            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([excel_headers_locale['Filtered by'], f'{filter_by}'])
+
         sheet.append([''])
 
         if platform:
-            sheet.append(['Order Count Data'])
-            sheet.append([
-                'Instance',
-                'Total Orders',
-                'Total Delivery Orders',
-                'Total Pickup Orders',
-                'Total DineIn Orders',
-                'Total Offline Orders',
-                'Total Online Orders',
-                'Cash Payment Orders',
-                'Online Payment Orders',
-                'Card Payment Orders',
-            ])
+            if language == "English":
+                sheet.append(['Order Count Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Orders',
+                    'Total Delivery Orders',
+                    'Total Pickup Orders',
+                    'Total DineIn Orders',
+                    'Total Offline Orders',
+                    'Total Online Orders',
+                    'Cash Payment Orders',
+                    'Online Payment Orders',
+                    'Card Payment Orders',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Order Count Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Orders'],
+                    excel_headers_locale['Total Delivery Orders'],
+                    excel_headers_locale['Total Pickup Orders'],
+                    excel_headers_locale['Total DineIn Orders'],
+                    excel_headers_locale['Total Offline Orders'],
+                    excel_headers_locale['Total Online Orders'],
+                    excel_headers_locale['Cash Payment Orders'],
+                    excel_headers_locale['Online Payment Orders'],
+                    excel_headers_locale['Card Payment Orders'],
+                ])
 
             for data in filtered_data:
                 sheet.append([
@@ -7450,19 +7477,39 @@ def footfall_revenue_report(request):
                 ])
 
             sheet.append([''])
-            sheet.append(['Tax Collection Data'])
-            sheet.append([
-                'Instance',
-                'Total Tax Collected',
-                'Tax Colllection from Delivery',
-                'Tax Colllection from Pickup',
-                'Tax Colllection from DineIn',
-                'Tax Colllection from Offline Orders',
-                'Tax Colllection from Online Orders',
-                'Tax Colllection from Cash Payment',
-                'Tax Colllection from Online Payment',
-                'Tax Colllection from Card Payment',
-            ])
+
+            if language == "English":
+                sheet.append(['Tax Collection Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Tax Collected',
+                    'Tax Collection from Delivery',
+                    'Tax Collection from Pickup',
+                    'Tax Collection from DineIn',
+                    'Tax Collection from Offline Orders',
+                    'Tax Collection from Online Orders',
+                    'Tax Collection from Cash Payment',
+                    'Tax Collection from Online Payment',
+                    'Tax Collection from Card Payment',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Tax Collection Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Tax Collected'],
+                    excel_headers_locale['Tax Collection from Delivery'],
+                    excel_headers_locale['Tax Collection from Pickup'],
+                    excel_headers_locale['Tax Collection from DineIn'],
+                    excel_headers_locale['Tax Collection from Offline Orders'],
+                    excel_headers_locale['Tax Collection from Online Orders'],
+                    excel_headers_locale['Tax Collection from Cash Payment'],
+                    excel_headers_locale['Tax Collection from Online Payment'],
+                    excel_headers_locale['Tax Collection from Card Payment'],
+                ])
+
 
             for data in filtered_data:
                 sheet.append([
@@ -7479,19 +7526,38 @@ def footfall_revenue_report(request):
                 ])
             
             sheet.append([''])
-            sheet.append(['Revenue Generation Data'])
-            sheet.append([
-                'Instance',
-                'Total Revenue Generated',
-                'Revenue from Delivery',
-                'Revenue from Pickup',
-                'Revenue from DineIn',
-                'Revenue from Offline Orders',
-                'Revenue from Online Orders',
-                'Revenue from Cash Payment',
-                'Revenue from Online Payment',
-                'Revenue from Card Payment',
-            ])
+
+            if language == "English":
+                sheet.append(['Revenue Generation Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Revenue Generated',
+                    'Revenue from Delivery',
+                    'Revenue from Pickup',
+                    'Revenue from DineIn',
+                    'Revenue from Offline Orders',
+                    'Revenue from Online Orders',
+                    'Revenue from Cash Payment',
+                    'Revenue from Online Payment',
+                    'Revenue from Card Payment',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Revenue Generation Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Revenue Generated'],
+                    excel_headers_locale['Revenue from Delivery'],
+                    excel_headers_locale['Revenue from Pickup'],
+                    excel_headers_locale['Revenue from DineIn'],
+                    excel_headers_locale['Revenue from Offline Orders'],
+                    excel_headers_locale['Revenue from Online Orders'],
+                    excel_headers_locale['Revenue from Cash Payment'],
+                    excel_headers_locale['Revenue from Online Payment'],
+                    excel_headers_locale['Revenue from Card Payment'],
+                ])
 
             for data in filtered_data:
                 sheet.append([
@@ -7508,17 +7574,33 @@ def footfall_revenue_report(request):
                 ])
 
         else:
-            sheet.append(['Order Count Data'])
-            sheet.append([
-                'Instance',
-                'Total Orders',
-                'Total Delivery Orders',
-                'Total Pickup Orders',
-                'Total DineIn Orders',
-                'Cash Payment Orders',
-                'Online Payment Orders',
-                'Card Payment Orders',
-            ])
+            if language == "English":
+                sheet.append(['Order Count Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Orders',
+                    'Total Delivery Orders',
+                    'Total Pickup Orders',
+                    'Total DineIn Orders',
+                    'Cash Payment Orders',
+                    'Online Payment Orders',
+                    'Card Payment Orders',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Order Count Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Orders'],
+                    excel_headers_locale['Total Delivery Orders'],
+                    excel_headers_locale['Total Pickup Orders'],
+                    excel_headers_locale['Total DineIn Orders'],
+                    excel_headers_locale['Cash Payment Orders'],
+                    excel_headers_locale['Online Payment Orders'],
+                    excel_headers_locale['Card Payment Orders'],
+                ])
 
             for data in filtered_data:
                 sheet.append([
@@ -7533,17 +7615,34 @@ def footfall_revenue_report(request):
                 ])
 
             sheet.append([''])
-            sheet.append(['Tax Collection Data'])
-            sheet.append([
-                'Instance',
-                'Total Tax Collected',
-                'Tax Colllection from Delivery',
-                'Tax Colllection from Pickup',
-                'Tax Colllection from DineIn',
-                'Tax Colllection from Cash Payment',
-                'Tax Colllection from Online Payment',
-                'Tax Colllection from Card Payment',
-            ])
+
+            if language == "English":
+                sheet.append(['Tax Collection Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Tax Collected',
+                    'Tax Collection from Delivery',
+                    'Tax Collection from Pickup',
+                    'Tax Collection from DineIn',
+                    'Tax Collection from Cash Payment',
+                    'Tax Collection from Online Payment',
+                    'Tax Collection from Card Payment',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Tax Collection Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Tax Collected'],
+                    excel_headers_locale['Tax Collection from Delivery'],
+                    excel_headers_locale['Tax Collection from Pickup'],
+                    excel_headers_locale['Tax Collection from DineIn'],
+                    excel_headers_locale['Tax Collection from Cash Payment'],
+                    excel_headers_locale['Tax Collection from Online Payment'],
+                    excel_headers_locale['Tax Collection from Card Payment'],
+                ])
 
             for data in filtered_data:
                 sheet.append([
@@ -7558,17 +7657,34 @@ def footfall_revenue_report(request):
                 ])
             
             sheet.append([''])
-            sheet.append(['Revenue Generation Data'])
-            sheet.append([
-                'Instance',
-                'Total Revenue Generated',
-                'Revenue from Delivery',
-                'Revenue from Pickup',
-                'Revenue from DineIn',
-                'Revenue from Cash Payment',
-                'Revenue from Online Payment',
-                'Revenue from Card Payment',
-            ])
+
+            if language == "English":
+                sheet.append(['Revenue Generation Data'])
+
+                sheet.append([
+                    'Instance',
+                    'Total Revenue Generated',
+                    'Revenue from Delivery',
+                    'Revenue from Pickup',
+                    'Revenue from DineIn',
+                    'Revenue from Cash Payment',
+                    'Revenue from Online Payment',
+                    'Revenue from Card Payment',
+                ])
+
+            else:
+                sheet.append([excel_headers_locale['Revenue Generation Data']])
+
+                sheet.append([
+                    excel_headers_locale['Instance'],
+                    excel_headers_locale['Total Revenue Generated'],
+                    excel_headers_locale['Revenue from Delivery'],
+                    excel_headers_locale['Revenue from Pickup'],
+                    excel_headers_locale['Revenue from DineIn'],
+                    excel_headers_locale['Revenue from Cash Payment'],
+                    excel_headers_locale['Revenue from Online Payment'],
+                    excel_headers_locale['Revenue from Card Payment'],
+                ])
 
             for data in filtered_data:
                 sheet.append([
@@ -7583,6 +7699,7 @@ def footfall_revenue_report(request):
                 ])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
         file_name = f"Footfall_Report_{vendor_id}.xlsx"
