@@ -10,7 +10,7 @@ from core.models import (
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
-from woms.views import getTableData
+from woms.views import getTableData, filterTables
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
@@ -1791,11 +1791,11 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 vendorId=instance.vendorId.pk
             )
 
-        response = getTableData(hotelTable=instance,vendorId=vendor_id)
+        response = getTableData(hotelTable=instance, vendorId=vendor_id)
         
         webSocketPush(
-            message={"result":response, "UPDATE": "UPDATE"},
-            room_name=WOMS + "POS------" + str(vendor_id),
+            message={"result": response, "UPDATE": "UPDATE"},
+            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
             username="CORE",
         )
 
@@ -1830,6 +1830,8 @@ class HotelTableViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         instance.delete()
 
+        vendor_id = instance.vendorId.pk
+
         language = self.request.GET.get('language', 'English')
 
         if language == "English":
@@ -1838,7 +1840,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 msg='0',
                 desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
                 stn=['POS'],
-                vendorId=instance.vendorId.pk
+                vendorId=vendor_id
             )
 
         else:
@@ -1847,10 +1849,18 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 msg='0',
                 desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
                 stn=['POS'],
-                vendorId=instance.vendorId.pk
+                vendorId=vendor_id
             )
 
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=instance.vendorId.pk)
+        response = filterTables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        
+        webSocketPush(
+            message={"result": response, "UPDATE": "UPDATE"},
+            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
+            username="CORE",
+        )
+        
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
             for head in waiter_heads:
@@ -1860,7 +1870,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                         msg='0',
                         desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
                         stn=[f'WOMS{head.pk}'],
-                        vendorId=instance.vendorId.pk
+                        vendorId=vendor_id
                     )
 
                 else:
@@ -1869,7 +1879,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                         msg='0',
                         desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
                         stn=[f'WOMS{head.pk}'],
-                        vendorId=instance.vendorId.pk
+                        vendorId=vendor_id
                     )
     
 
