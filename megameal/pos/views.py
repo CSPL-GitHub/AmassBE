@@ -4324,6 +4324,8 @@ def get_customers(request):
     if not vendor:
         return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
 
+    customers = None
+    
     if search_parameter:
         expression = r'\d+'
         mobile_number = re.search(expression, search_parameter)
@@ -4335,16 +4337,10 @@ def get_customers(request):
             customers = Customer.objects.filter(Phone_Number__icontains=mobile_number, VendorId=vendor_id).order_by("pk")
 
         else:
-            expression = r'[A-Za-z ]+'
-            customer_name = re.search(expression, search_parameter)
-
-            if customer_name:
-                customer_name = customer_name.group()
-
-                customers = Customer.objects.filter(
-                    Q(FirstName__icontains=customer_name) | Q(LastName__icontains=customer_name),
-                    VendorId=vendor_id
-                ).order_by('FirstName')
+            customers = Customer.objects.filter(
+                Q(FirstName__icontains=search_parameter) | Q(LastName__icontains=search_parameter),
+                VendorId=vendor_id
+            ).order_by('FirstName')
 
     else:
         customers = Customer.objects.filter(VendorId=vendor_id).order_by('-pk')
@@ -4354,12 +4350,15 @@ def get_customers(request):
 
         try:
             paginated_customers = paginator.page(page_number)
+
         except PageNotAnInteger:
             paginated_customers = paginator.page(1)
+
         except EmptyPage:
             paginated_customers = paginator.page(paginator.num_pages)
 
         response_data = []
+        
         current_page = paginated_customers.number
         total_pages = paginator.num_pages
 
