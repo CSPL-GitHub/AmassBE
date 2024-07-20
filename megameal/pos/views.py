@@ -366,7 +366,7 @@ def login(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET'])
 def pos_lanuage_setting(request):
     vendor_id = request.GET.get("vendor")
 
@@ -378,19 +378,15 @@ def pos_lanuage_setting(request):
     if not vendor_instance:
         return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
     
-    if request.method == "GET":
-        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    primary_language = vendor_instance.primary_language
+
+    secondary_language = vendor_instance.secondary_language if vendor_instance.secondary_language else ""
     
-    else:
-        language = request.GET.get("language")
-
-        if not language:
-            return JsonResponse({"message": "Language not specified", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
-
-        vendor_instance.selected_language = language
-        vendor_instance.save()
-
-        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    return JsonResponse({
+        "message": "",
+        "primary_language": primary_language,
+        "secondary_language": secondary_language
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
