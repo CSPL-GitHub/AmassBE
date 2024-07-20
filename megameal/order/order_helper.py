@@ -41,6 +41,8 @@ class OrderHelper():
                         if order.get('points_redeemed') and  order.get('points_redeemed') != 0:
                             from pos.views import loyalty_points_redeem # placed here due to circular import error
 
+                            order["points_redeemed"] = int(order["points_redeemed"])
+                            
                             is_redeemed = loyalty_points_redeem(
                                 vendorId,
                                 order["customer"]["internalId"],
