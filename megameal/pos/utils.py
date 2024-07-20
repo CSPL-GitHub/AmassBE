@@ -147,6 +147,7 @@ def get_product_by_category_data(products, language, vendor_id):
                                 "plu": modifier_and_group_instance.modifier.modifierPLU,
                                 "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
                                 # "image":modifier_and_group_instance.modifier.modifierImg,
+                                "status": True, # Required for order helper function
                                 "active": modifier_and_group_instance.modifier.active
                             }                    
                         )
