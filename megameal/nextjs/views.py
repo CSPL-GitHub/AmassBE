@@ -263,7 +263,7 @@ def check_order_items_status(request):
                             status=status.HTTP_400_BAD_REQUEST
                         )
     
-    return Response(status=status.HTTP_200_OK)
+    return Response({"success":True},status=status.HTTP_200_OK)
 
 
 @api_view(['POST'])
