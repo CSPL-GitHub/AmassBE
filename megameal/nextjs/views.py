@@ -349,7 +349,7 @@ def CreateOrder(request):
             return JsonResponse({'token': res, "orderId": orderid})
         
         else:
-            return JsonResponse({"msg": "something went wrong"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"msg": "something went wrong","res":res}, status=status.HTTP_400_BAD_REQUEST)
         
     except Exception as e:
         print(e)

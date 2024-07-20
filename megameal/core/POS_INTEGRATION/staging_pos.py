@@ -172,7 +172,8 @@ class StagingIntegration():
                                     is_selected=True,
                                     customer=coreCustomer
                                 )
-            
+            data["customer"]["internalId"] = coreCustomer.pk  # +JSON
+
             ##++++++Order Platform
             try:
                 platform_instance = Platform.objects.get(Name=data.get("Platform"), VendorId=vendorId)
