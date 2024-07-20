@@ -366,7 +366,7 @@ def login(request):
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET'])
 def pos_lanuage_setting(request):
     vendor_id = request.GET.get("vendor")
 
@@ -378,19 +378,15 @@ def pos_lanuage_setting(request):
     if not vendor_instance:
         return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
     
-    if request.method == "GET":
-        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    primary_language = vendor_instance.primary_language
+
+    secondary_language = vendor_instance.secondary_language if vendor_instance.secondary_language else ""
     
-    else:
-        language = request.GET.get("language")
-
-        if not language:
-            return JsonResponse({"message": "Language not specified", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
-
-        vendor_instance.selected_language = language
-        vendor_instance.save()
-
-        return JsonResponse({"message": "", "language": vendor_instance.selected_language}, status=status.HTTP_200_OK)
+    return JsonResponse({
+        "message": "",
+        "primary_language": primary_language,
+        "secondary_language": secondary_language
+    }, status=status.HTTP_200_OK)
 
 
 @api_view(['GET'])
@@ -2407,6 +2403,7 @@ def updatePaymentDetails(request):
     
     try:
         vendorId = int(vendorId)
+
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
 
@@ -2425,6 +2422,7 @@ def updatePaymentDetails(request):
     
     if payment:    
         print(payment.platform)
+
         payment.paymentBy=data['payment']['paymentBy']
         payment.paymentKey=data['payment']['paymentKey']
         payment.type=data['payment']['type']
@@ -2460,11 +2458,20 @@ def updatePaymentDetails(request):
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            res=getTableData(hotelTable=table.tableId,vendorId=vendorId)
+            res = getTableData(hotelTable=table.tableId, vendorId=vendorId)
 
-            webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-            webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+"POS------"+str(vendorId),username="CORE",)#update table for new waiter
+            webSocketPush(
+                message={"result":res, "UPDATE": "UPDATE"},
+                room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),
+                username="CORE"
+            )#update table for new waiter
             
+            webSocketPush(
+                message={"result": res, "UPDATE": "UPDATE"},
+                room_name=f"WOMSPOS------{language}-{str(vendorId)}",
+                username="CORE",
+            )
+
             for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
                 # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
                 webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(i.pk)+"------"+str(vendorId),username="CORE",)

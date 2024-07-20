@@ -34,7 +34,6 @@ class Vendor(models.Model):
     currency_symbol = models.CharField(max_length=20)
     primary_language = models.CharField(max_length=100, default="English")
     secondary_language = models.CharField(max_length=100, null=True, blank=True)
-    selected_language = models.CharField(max_length=100, default="English") # field used for POS setting for Flutter
     is_active = models.BooleanField(default=False)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
 
