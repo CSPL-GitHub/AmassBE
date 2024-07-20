@@ -295,7 +295,6 @@ def login(request):
                 "email": "",
                 "primary_language": "",
                 "secondary_language": "",
-                "selected_language": "",
                 "currency": "",
                 "currency_symbol": "",
                 "vendor_id": 0
@@ -314,7 +313,6 @@ def login(request):
                 "email": "",
                 "primary_language": "",
                 "secondary_language": "",
-                "selected_language": "",
                 "currency": "",
                 "currency_symbol": "",
                 "vendor_id": 0
@@ -331,7 +329,6 @@ def login(request):
                 "email": "",
                 "primary_language": "",
                 "secondary_language": "",
-                "selected_language": "",
                 "currency": "",
                 "currency_symbol": "",
                 "vendor_id": 0
@@ -345,7 +342,6 @@ def login(request):
             "email": user.email,
             "primary_language": vendor_instance.primary_language,
             "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
-            "selected_language": vendor_instance.selected_language,
             "currency": vendor_instance.currency,
             "currency_symbol": vendor_instance.currency_symbol,
             "vendor_id": vendor_id,
