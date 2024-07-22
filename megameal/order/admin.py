@@ -28,10 +28,17 @@ class Order_DiscountAdmin(admin.ModelAdmin):
 
 @admin.register(Address)
 class AddressAdmin(admin.ModelAdmin):
+    fields = (
+        'customer', 'type', 'is_selected', 'address_line1', 'address_line2',
+        'city', 'state', 'country', 'zipcode',
+    )
     
-    list_display = ('customer', 'is_selected',)
-    list_filter = ('customer', 'is_selected',)
-    search_fields = ('customer__FirstName',)
+    list_display = ('customer', 'address_line1', 'is_selected',)
+    list_filter = ('city', 'zipcode')
+    search_fields = (
+        'customer__FirstName', 'customer__LastName', 'customer__Phone_Number',
+        'address_line1', 'address_line2', 'city', 'state', 'country', 'zipcode',
+    )
     # show_facets = admin.ShowFacets.ALWAYS
     
     
