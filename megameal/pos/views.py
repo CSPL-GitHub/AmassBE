@@ -394,31 +394,34 @@ def allCategory(request):
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
 
-        categories = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+        category_ids = ProductCategoryJoint.objects.filter(
+            category__categoryIsDeleted=False,
+            category__vendorId=vendor_id,
+            vendorId=vendor_id
+        ).values_list('category', flat=True)
+
+        category_ids = set(category_ids)
         
         category_list = []
 
-        if language == "English":
-            for single_category in categories:
-                category_list.append({
-                    "categoryId": single_category.pk,
-                    "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName,
-                    "description": single_category.categoryDescription,
-                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                    "is_active": single_category.is_active
-                })
+        for category_id in category_ids:
+            single_category = ProductCategory.objects.filter(pk=category_id, vendorId=vendor_id).first()
 
-        else:
-            for single_category in categories:
-                category_list.append({
-                    "categoryId": single_category.pk,
-                    "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName_locale,
-                    "description": single_category.categoryDescription_locale,
-                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                    "is_active": single_category.is_active
-                })
+            category_name = single_category.categoryName
+            category_description = single_category.categoryDescription if single_category.categoryDescription else ""
+            
+            if language != "English":
+                category_name = single_category.categoryName_locale
+                category_description = single_category.categoryDescription_locale if single_category.categoryDescription_locale else ""
+            
+            category_list.append({
+                "categoryId": single_category.pk,
+                "categoryPlu": single_category.categoryPLU,
+                "name": category_name,
+                "description": category_description,
+                "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                "is_active": single_category.is_active
+            })
 
         return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
     
@@ -428,7 +431,7 @@ def allCategory(request):
 
 def productByCategory(request, id=0):
     try:
-        vendor_id=request.GET.get("vendorId")
+        vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
 
@@ -444,11 +447,7 @@ def productByCategory(request, id=0):
         if search_text:
             products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
 
-            if language == "English":
-                products = products.filter(productName__icontains=search_text)
-
-            else:
-                products = products.filter(productName_locale__icontains=search_text)
+            products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
 
             product_list = get_product_by_category_data(products, language, vendor_id)
 
