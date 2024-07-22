@@ -300,42 +300,72 @@ def websockettable(massase):
 @api_view(["post"])
 def assinTableupdate(request):
     from koms.views import webSocketPush
-
     requestJson = JSONParser().parse(request)
 
-    id = requestJson.get('tableId')
-    # floorId = requestJson.get('floorId')
-    waiterId = requestJson.get('waiterId')
-    vendorId = request.GET.get("vendorId")
-    language = request.GET.get("langauge", "English")
-    # filter=requestJson.get('filter') if requestJson.get('filter') else ''
-    # search=requestJson.get('search') if requestJson.get('search') else ''
+    table_id = requestJson.get('tableId')
+    waiter_id = requestJson.get('waiterId')
+    vendor_id = request.GET.get("vendorId")
+    language = request.GET.get("language", "English")
+
+    if not all((table_id, waiter_id, vendor_id)):
+        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     try:
-        updatetable=HotelTable.objects.get(pk=id, vendorId=vendorId)
+        table_id = int(table_id)
+        waiter_id = int(waiter_id)
+        vendor_id = int(vendor_id)
         
-        if HotelTable.objects.get(pk=id,  vendorId=vendorId).waiterId!=None:
-            result =  getTableData(hotelTable=updatetable,vendorId=vendorId)
-            oldWaiter = str(HotelTable.objects.get(pk=id, vendorId=vendorId).waiterId.pk)
+    except ValueError:
+        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+    
+    table_instance = HotelTable.objects.filter(pk=table_id, vendorId=vendor_id).first()
+    waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not all((vendor_instance, table_instance, waiter_instance)):
+        return Response("Table, Waiter or Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+    try:
+        if table_instance.waiterId != None:
+            result = getTableData(hotelTable=table_instance, language=language, vendorId=vendor_id)
+
+            old_waiter_id = str(table_instance.waiterId.pk)
             
-            webSocketPush(message={"result":result,"UPDATE": "REMOVE",},room_name=WOMS+str(oldWaiter)+"------"+str(vendorId),username="CORE",)#remove table from old waiter
+            webSocketPush(
+                message = {"result": result, "UPDATE": "REMOVE",},
+                room_name = f"WOMS{old_waiter_id}------{str(vendor_id)}",
+                username="CORE",
+            )#remove table from old waiter
         
-        HotelTable.objects.filter(pk=id, vendorId=vendorId).update(waiterId = waiterId)
-        
-        updatetable = HotelTable.objects.get(pk=id, vendorId=vendorId)
+        table_instance.waiterId = waiter_instance
+        table_instance.save()
 
-        res = getTableData(hotelTable=updatetable, vendorId=vendorId)
+        table_data = getTableData(hotelTable=table_instance, language=language, vendorId=vendor_id)
 
-        webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(waiterId)+"------"+str(vendorId),username="CORE",)#update table for new waiter
-        webSocketPush(message={"result": res, "UPDATE": "UPDATE"}, room_name=WOMS + f"POS------{language}-{str(vendorId)}", username="CORE",) #update table for new waiter
+        webSocketPush(
+            message={"result": table_data, "UPDATE": "UPDATE"},
+            room_name=f"WOMS{str(waiter_id)}------{str(vendor_id)}",
+            username="CORE",
+        )#update table for new waiter
         
-        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
-            webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name=WOMS+str(i.pk)+"------"+str(vendorId),username="CORE",)
+        webSocketPush(
+            message={"result": table_data, "UPDATE": "UPDATE"},
+            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
+            username="CORE",
+        ) #update table for POS
         
-        return JsonResponse(res,safe=False)
+        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendor_id):
+            webSocketPush(
+                message={"result": table_data, "UPDATE": "UPDATE"},
+                room_name=f"WOMS{str(i.pk)}------{str(vendor_id)}",
+                username="CORE",
+            )
+        
+        return JsonResponse(table_data, safe=False)
     
     except Exception as e:
-        return JsonResponse({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        print(str(e))
+        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
