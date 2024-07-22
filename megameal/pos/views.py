@@ -394,19 +394,15 @@ def allCategory(request):
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
 
-        category_ids = ProductCategoryJoint.objects.filter(
-            category__categoryIsDeleted=False,
-            category__vendorId=vendor_id,
-            vendorId=vendor_id
-        ).values_list('category', flat=True)
-
-        category_ids = set(category_ids)
-        
         category_list = []
 
-        for category_id in category_ids:
-            single_category = ProductCategory.objects.filter(pk=category_id, vendorId=vendor_id).first()
+        categories = ProductCategory.objects.filter(
+            categoryIsDeleted=False,
+            vendorId=vendor_id,
+            productcategoryjoint__vendorId=vendor_id
+        ).select_related('vendorId').distinct()
 
+        for single_category in categories:
             category_name = single_category.categoryName
             category_description = single_category.categoryDescription if single_category.categoryDescription else ""
             
