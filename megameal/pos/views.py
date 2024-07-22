@@ -428,7 +428,7 @@ def allCategory(request):
 
 def productByCategory(request, id=0):
     try:
-        vendor_id=request.GET.get("vendorId")
+        vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
 
@@ -444,11 +444,7 @@ def productByCategory(request, id=0):
         if search_text:
             products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
 
-            if language == "English":
-                products = products.filter(productName__icontains=search_text)
-
-            else:
-                products = products.filter(productName_locale__icontains=search_text)
+            products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
 
             product_list = get_product_by_category_data(products, language, vendor_id)
 
