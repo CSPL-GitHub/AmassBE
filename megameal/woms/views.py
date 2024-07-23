@@ -229,11 +229,10 @@ def gettable(id, vendorId, language="English"):
         print(e)
         return []
  
-def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, language="English"):
+def filter_tables(waiterId, filter, search, status, waiter, floor, vendorId, language="English"):
     try:
         if waiterId == "POS" or Waiter.objects.get(pk=waiterId, vendorId=vendorId).is_waiter_head:
             data = HotelTable.objects.filter(vendorId=vendorId)
-            # print(data.count())
         
         else:
             data = HotelTable.objects.filter(waiterId=waiterId, vendorId=vendorId)

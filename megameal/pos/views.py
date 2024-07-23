@@ -10,7 +10,7 @@ from core.models import (
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
-from woms.views import get_table_data, filterTables
+from woms.views import get_table_data, filter_tables
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
@@ -1839,7 +1839,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 vendorId=vendor_id
             )
 
-        response = filterTables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        response = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
         
         webSocketPush(
             message={"result": response, "UPDATE": "UPDATE"},

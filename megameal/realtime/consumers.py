@@ -1,6 +1,6 @@
 from koms.views import stationCategoryWise,CategoryWise,statuscount, waiterdata,webSocketPush,allStationData,stationdata,notify
 from static.order_status_const import WHEELSTATS, STATION, STATIONSIDEBAR, STATUSCOUNT,MESSAGE, WOMS
-from woms.views import gettable,filterTables
+from woms.views import gettable, filter_tables
 from koms.views import getOrder, stationQueueCount
 from pos.views import order_data, order_data_start_thread
 from asgiref.sync import async_to_sync
@@ -168,7 +168,7 @@ class ChatConsumer(WebsocketConsumer):
                 
                 result = {
                     "type": "waiter in the room",
-                    "tables": filterTables(
+                    "tables": filter_tables(
                         waiterId=waiterId, filter=filter, search=search, status=str(status), waiter=waiter,
                         floor=floor, language=language, vendorId=vendorId
                     )
