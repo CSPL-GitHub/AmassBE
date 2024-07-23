@@ -10,7 +10,7 @@ from core.models import (
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
-from woms.views import getTableData, filterTables
+from woms.views import get_table_data, filterTables
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
@@ -1020,7 +1020,7 @@ def showtabledetails(request):
     try:
         data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
         data=data.order_by('tableNumber')
-        return Response([ getTableData(i,request.GET.get('vendorId')) for i in data ]) 
+        return Response([ get_table_data(i,request.GET.get('vendorId')) for i in data ]) 
     except Exception as e :
             print(e)
             return []
@@ -1778,7 +1778,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 vendorId=instance.vendorId.pk
             )
 
-        response = getTableData(hotelTable=instance, vendorId=vendor_id)
+        response = get_table_data(hotelTable=instance, vendorId=vendor_id)
         
         webSocketPush(
             message={"result": response, "UPDATE": "UPDATE"},
@@ -2449,7 +2449,7 @@ def updatePaymentDetails(request):
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            res = getTableData(hotelTable=table.tableId, vendorId=vendorId)
+            res = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
 
             webSocketPush(
                 message={"result":res, "UPDATE": "UPDATE"},
