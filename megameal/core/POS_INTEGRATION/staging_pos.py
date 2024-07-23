@@ -78,7 +78,7 @@ class StagingIntegration():
 
             ##++++++Order Platform
             try:
-                platform_instance = Platform.objects.get(Name=data.get("Platform"), VendorId=vendorId)
+                platform_instance = Platform.objects.get(Name=data.get("platform"), VendorId=vendorId)
             
             except Exception as ex:
                 print(f"Unexpected {ex=}, {type(ex)=}")

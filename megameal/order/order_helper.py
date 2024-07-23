@@ -32,7 +32,7 @@ class OrderHelper():
                 
                 if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
                     for reciver in Platform.objects.filter(isActive=True, orderActionType=OrderAction.get_order_action_value("RECIEVE")):
-                        if (data.get('Platform') == 'Website') or data.get('Platform') == 'Mobile App':
+                        if (data.get('platform') == 'Website') or data.get('platform') == 'Mobile App':
                             data = KomsEcom().startOrderThread(order)
                         
                         else:
