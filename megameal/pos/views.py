@@ -2126,15 +2126,15 @@ def order_details(request):
                     return JsonResponse({"error": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
 
                 else:
-                    order = Order.objects.get(externalOrderId=external_order_id)
+                    core_order = Order.objects.get(externalOrderId=external_order_id)
 
             else:
                 return JsonResponse({"error": "Invalid platform"}, status=status.HTTP_400_BAD_REQUEST)
 
-            if order:
-                order_id = order.pk
+            if core_order:
+                order_id = core_order.pk
 
-                if order.customerId == None:
+                if core_order.customerId == None:
                     customer_first_name = ""
                     customer_last_name = ""
                     customer_phone = ""
@@ -2142,13 +2142,13 @@ def order_details(request):
                     customer_loyalty_points_balance = 0
                     
                 else:
-                    customer_first_name = order.customerId.FirstName if order.customerId.FirstName else ""
-                    customer_last_name = order.customerId.LastName if order.customerId.LastName else ""
-                    customer_phone = order.customerId.Phone_Number if order.customerId.Phone_Number else ""
-                    customer_email = order.customerId.Email if order.customerId.Email else ""
-                    customer_loyalty_points_balance = order.customerId.loyalty_points_balance
+                    customer_first_name = core_order.customerId.FirstName if core_order.customerId.FirstName else ""
+                    customer_last_name = core_order.customerId.LastName if core_order.customerId.LastName else ""
+                    customer_phone = core_order.customerId.Phone_Number if core_order.customerId.Phone_Number else ""
+                    customer_email = core_order.customerId.Email if core_order.customerId.Email else ""
+                    customer_loyalty_points_balance = core_order.customerId.loyalty_points_balance
 
-                    customer_address = Address.objects.filter(customer=order.customerId.pk, type="shipping_address", is_selected=True).first()    
+                    customer_address = Address.objects.filter(customer=core_order.customerId.pk, type="shipping_address", is_selected=True).first()    
                     
                     if customer_address == None:
                         shipping_address = {
@@ -2317,14 +2317,12 @@ def order_details(request):
                         "modifiersGroup": modifier_group_list[order_id],
                     })
                     
-                order_detail = OrderItem.objects.filter(orderId=order_id).first()
-
                 total_points_redeemed = 0
                 
                 loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
 
                 if loyalty_program:
-                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=order_detail.orderId.customerId.pk, order=order_detail.orderId.pk)
+                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=core_order.customerId.pk, order=order.pk)
 
                     if loyalty_points_redeem_history.exists():
                         total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
@@ -2336,30 +2334,30 @@ def order_details(request):
                 order_info["core_orderId"] = order_id
                 order_info["orderId"] = external_order_id
                 order_info["customerNote"] = koms_order.order_note if koms_order.order_note else ""
-                order_info["tax"] = order_detail.orderId.tax if order_detail.orderId.tax else 0.0
-                order_info["discount"] = order_detail.orderId.discount if order_detail.orderId.discount else 0.0
-                order_info["delivery_charge"] = order_detail.orderId.delivery_charge
-                order_info["subtotal"] = order_detail.orderId.subtotal
+                order_info["tax"] = core_order.tax if core_order.tax else 0.0
+                order_info["discount"] = core_order.discount if core_order.discount else 0.0
+                order_info["delivery_charge"] = core_order.delivery_charge
+                order_info["subtotal"] = core_order.subtotal
                 order_info["total_points_redeemed"] = total_points_redeemed
-                order_info["finalTotal"] = order_detail.orderId.TotalAmount
-                order_info["order_datetime"] = order_detail.orderId.OrderDate
-                order_info["arrival_time"] = order_detail.orderId.arrivalTime
+                order_info["finalTotal"] = core_order.TotalAmount
+                order_info["order_datetime"] = core_order.OrderDate
+                order_info["arrival_time"] = core_order.arrivalTime
                 order_info["type"] = koms_order.order_type
                 order_info["products"] = order_items[order_id]
 
-                if order_detail.orderId.platform == None:
+                if core_order.platform == None:
                     platform_id = 0
                     platform_name = ""
 
                 else:
-                    platform_id = order_detail.orderId.platform.pk
+                    platform_id = core_order.platform.pk
                     platform_name = ""
 
                     if language == "English":
-                        platform_name = order_detail.orderId.platform.Name
+                        platform_name = core_order.platform.Name
 
                     else:
-                        platform_name = order_detail.orderId.platform.Name_locale
+                        platform_name = core_order.platform.Name_locale
 
                 platform_details["id"] = platform_id
                 platform_details["name"] = platform_name
