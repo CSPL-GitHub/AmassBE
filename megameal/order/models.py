@@ -20,6 +20,9 @@ class Customer(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         return self
+    
+    def __str__(self):
+        return self.FirstName
 
 
 class Address(models.Model):
@@ -40,6 +43,9 @@ class Address(models.Model):
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
         return self
+    
+    def __str__(self):
+        return self.address_line1
 
 
 class Order(models.Model):

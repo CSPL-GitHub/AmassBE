@@ -308,7 +308,7 @@ def CreateOrder(request):
         
         result['internalOrderId'] = orderid
         result['externalOrderId'] = orderid
-        result["Platform"] = "Website"
+        result["platform"] = "Website"
         result["language"] = language
         result["payment"]["mode"] = PaymentType.CASH
 
@@ -370,7 +370,7 @@ def CreateOrderApp(request):
 
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
-        result["Platform"] = "Mobile App"
+        result["platform"] = "Mobile App"
         result["payment"]["mode"] = PaymentType.CASH
         
         if result["payment"]['transcationId'] != "":

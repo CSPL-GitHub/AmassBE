@@ -10,7 +10,7 @@ from core.models import (
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
-from woms.views import getTableData, filterTables
+from woms.views import get_table_data, filter_tables
 from order.models import (
     Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
@@ -394,31 +394,30 @@ def allCategory(request):
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
 
-        categories = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
-        
         category_list = []
 
-        if language == "English":
-            for single_category in categories:
-                category_list.append({
-                    "categoryId": single_category.pk,
-                    "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName,
-                    "description": single_category.categoryDescription,
-                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                    "is_active": single_category.is_active
-                })
+        categories = ProductCategory.objects.filter(
+            categoryIsDeleted=False,
+            vendorId=vendor_id,
+            productcategoryjoint__vendorId=vendor_id
+        ).select_related('vendorId').distinct()
 
-        else:
-            for single_category in categories:
-                category_list.append({
-                    "categoryId": single_category.pk,
-                    "categoryPlu": single_category.categoryPLU,
-                    "name": single_category.categoryName_locale,
-                    "description": single_category.categoryDescription_locale,
-                    "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                    "is_active": single_category.is_active
-                })
+        for single_category in categories:
+            category_name = single_category.categoryName
+            category_description = single_category.categoryDescription if single_category.categoryDescription else ""
+            
+            if language != "English":
+                category_name = single_category.categoryName_locale
+                category_description = single_category.categoryDescription_locale if single_category.categoryDescription_locale else ""
+            
+            category_list.append({
+                "categoryId": single_category.pk,
+                "categoryPlu": single_category.categoryPLU,
+                "name": category_name,
+                "description": category_description,
+                "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                "is_active": single_category.is_active
+            })
 
         return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
     
@@ -428,7 +427,7 @@ def allCategory(request):
 
 def productByCategory(request, id=0):
     try:
-        vendor_id=request.GET.get("vendorId")
+        vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
 
@@ -444,11 +443,7 @@ def productByCategory(request, id=0):
         if search_text:
             products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
 
-            if language == "English":
-                products = products.filter(productName__icontains=search_text)
-
-            else:
-                products = products.filter(productName_locale__icontains=search_text)
+            products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
 
             product_list = get_product_by_category_data(products, language, vendor_id)
 
@@ -1025,7 +1020,7 @@ def showtabledetails(request):
     try:
         data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
         data=data.order_by('tableNumber')
-        return Response([ getTableData(i,request.GET.get('vendorId')) for i in data ]) 
+        return Response([ get_table_data(i,request.GET.get('vendorId')) for i in data ]) 
     except Exception as e :
             print(e)
             return []
@@ -1783,7 +1778,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 vendorId=instance.vendorId.pk
             )
 
-        response = getTableData(hotelTable=instance, vendorId=vendor_id)
+        response = get_table_data(hotelTable=instance, vendorId=vendor_id)
         
         webSocketPush(
             message={"result": response, "UPDATE": "UPDATE"},
@@ -1844,7 +1839,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                 vendorId=vendor_id
             )
 
-        response = filterTables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        response = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
         
         webSocketPush(
             message={"result": response, "UPDATE": "UPDATE"},
@@ -1906,7 +1901,7 @@ def createOrder(request):
             "remake": False,
             "customerName": request.data.get('name') if request.data.get('name') else "",
             "status": "pending",
-            "Platform": request.data.get('platform'),
+            "platform": request.data.get('platform'),
             "customer": {
                 "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",
                 "lname": request.data.get('LastName') if request.data.get('LastName') else "",
@@ -2454,7 +2449,7 @@ def updatePaymentDetails(request):
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            res = getTableData(hotelTable=table.tableId, vendorId=vendorId)
+            res = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
 
             webSocketPush(
                 message={"result":res, "UPDATE": "UPDATE"},
