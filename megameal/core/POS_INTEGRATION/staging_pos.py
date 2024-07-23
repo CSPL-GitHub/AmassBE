@@ -30,8 +30,6 @@ class StagingIntegration():
         try:
             try:
                 coreCustomer = Customer.objects.filter(Phone_Number=data["customer"]["phno"], VendorId=vendorId).first()
-
-                addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first()
                 
                 customer_address = data["customer"]
 
@@ -58,6 +56,8 @@ class StagingIntegration():
                         )
 
                     else:
+                        addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first()
+
                         if not addrs:
                             addrs = Address.objects.create(
                             address_line1 = customer_address["address1"],
@@ -73,6 +73,8 @@ class StagingIntegration():
                 
                 else:
                     if coreCustomer and ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')):
+                        addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first()
+                        
                         if not addrs:
                             addrs = Address.objects.create(
                                 address_line1 = customer_address["address1"],
