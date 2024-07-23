@@ -183,6 +183,8 @@ weekdays_locale = {
     "Sunday": "الأحد"
 }
 
+store_close_message_locale = "المتجر مغلق"
+
 
 def order_has_arrived_locale(external_order_id):
     return f"انه وصل .. او انها وصلت {external_order_id} رقم الأمر"
@@ -192,6 +194,17 @@ def table_created_locale(table_number, floor_name):
 
 def table_deleted_locale(table_number, floor_name):
     return f"{floor_name} حذف على {table_number} الجدول رقم."
+
+def product_out_of_stock_locale(product_name):
+    return f"هو من المخزون {product_name}"
+
+def modifier_group_out_of_stock_locale(product_name, modifier_group_name):
+    return f"هو من المخزون {product_name} ل {modifier_group_name} مجموعة المعدل"
+
+def modifier_out_of_stock_locale(product_name, modifier_name):
+    return f"هو من المخزون {product_name} ل {modifier_name} مجموعة المعدل"
+
+
 
 def get_key_value(language, dictionary, key):
     if language == "English":
