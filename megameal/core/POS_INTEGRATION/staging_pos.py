@@ -29,47 +29,62 @@ class StagingIntegration():
         }
         try:
             try:
-                if data["customer"]["phno"] is None:
-                    coreCustomer = Customer.objects.filter(
-                    Phone_Number="0",
-                    VendorId=vendorId,
-                ).first()
-                    
-                else:
-                    coreCustomer = Customer.objects.filter(
-                        Phone_Number=data["customer"]["phno"],
-                        VendorId=vendorId,
-                    ).first()
+                coreCustomer = Customer.objects.filter(Phone_Number=data["customer"]["phno"], VendorId=vendorId).first()
 
-                if coreCustomer:
-                    if (coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest'):
-                        addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first() 
-                        
+                addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first()
+                
+                customer_address = data["customer"]
+
+                if (data["platform"] == "Webiste") or (data["platform"] == "Mobile App"):
+                    if not coreCustomer:
+                        coreCustomer = Customer.objects.create(
+                            FirstName = data["customer"]["fname"],
+                            LastName = data["customer"]["lname"],
+                            Email = data["customer"]["email"],
+                            Phone_Number = data["customer"]["phno"],
+                            VendorId = vendor_instance
+                        )
+
+                        addrs = Address.objects.create(
+                            address_line1 = customer_address["address1"],
+                            address_line2 = customer_address["address2"],
+                            city = customer_address["city"],
+                            state = customer_address["state"],
+                            country = customer_address["country"],
+                            zipcode = customer_address["zip"],
+                            type = "shipping_address",
+                            is_selected = True,
+                            customer = coreCustomer
+                        )
+
+                    else:
                         if not addrs:
-                            customer_address = data["customer"]
-
-                            if not all([
-                                customer_address.get("address1"),
-                                customer_address.get("address2"),
-                                customer_address.get("city"),
-                                customer_address.get("state"),
-                                customer_address.get("country"),
-                                customer_address.get("zip")
-                            ]):
-                                pass
-                            
-                            else:
-                                addrs = Address.objects.create(
-                                    address_line1=customer_address["address1"],
-                                    address_line2=customer_address["address2"],
-                                    city=customer_address["city"],
-                                    state=customer_address["state"],
-                                    country=customer_address["country"],
-                                    zipcode=customer_address["zip"],
-                                    type="shipping_address",
-                                    is_selected=True,
-                                    customer=coreCustomer
-                                )
+                            addrs = Address.objects.create(
+                            address_line1 = customer_address["address1"],
+                            address_line2 = customer_address["address2"],
+                            city = customer_address["city"],
+                            state = customer_address["state"],
+                            country = customer_address["country"],
+                            zipcode = customer_address["zip"],
+                            type = "shipping_address",
+                            is_selected = True,
+                            customer = coreCustomer
+                        )
+                
+                else:
+                    if coreCustomer and ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')):
+                        if not addrs:
+                            addrs = Address.objects.create(
+                                address_line1 = customer_address["address1"],
+                                address_line2 = customer_address["address2"],
+                                city = customer_address["city"],
+                                state = customer_address["state"],
+                                country = customer_address["country"],
+                                zipcode = customer_address["zip"],
+                                type = "shipping_address",
+                                is_selected = True,
+                                customer = coreCustomer
+                            )
                 
             except Exception as e:
                 print(e)
