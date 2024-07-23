@@ -1901,7 +1901,7 @@ def createOrder(request):
             "remake": False,
             "customerName": request.data.get('name') if request.data.get('name') else "",
             "status": "pending",
-            "Platform": request.data.get('platform'),
+            "platform": request.data.get('platform'),
             "customer": {
                 "fname": request.data.get('FirstName') if request.data.get('FirstName') else "Guest",
                 "lname": request.data.get('LastName') if request.data.get('LastName') else "",

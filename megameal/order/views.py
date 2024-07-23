@@ -134,7 +134,7 @@ def womsCreateOrder(request):
                 "remake": False,
                 "customerName": request.data.get('name') if request.data.get('name') else "test",
                 "status": "pending",
-                "Platform": "WOMS",
+                "platform": "WOMS",
                 "points_redeemed":request.data.get('points_redeemed') or 0,
                 "customer": {
                     # "internalId": "1",
