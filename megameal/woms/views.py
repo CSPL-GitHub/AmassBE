@@ -15,88 +15,72 @@ import secrets
 import socket
 
 
-# @api_view(["POST"])
-# def getLoginauthkey(request):
-#     requestJson = JSONParser().parse(request)
-#     try:
-#         Waiter.objects.filter(vendorId=requestJson.get('vendorId'),email=requestJson.get('email'),password=requestJson.get('password')).update(token=secrets.token_hex(8))
-#         data=Waiter.objects.get(vendorId=requestJson.get('vendorId'),email=requestJson.get('email'),password=requestJson.get('password'))
-#         server_ip = [l for l in ([ip for ip in socket.gethostbyname_ex(socket.gethostname())[2] if not ip.startswith("127.")][:1], [[(s.connect(('8.8.8.8', 53)), s.getsockname()[0], s.close()) for s in [socket.socket(socket.AF_INET, socket.SOCK_DGRAM)]][0][1]]) if l][0][0]
-#         res={
-#             "token":data.token,
-#             "waiterId":data.pk,
-#             "name":data.name,
-#             "email":data.email,
-#             "status":data.status,
-#             "waiterHead":data.is_waiter_head,
-#             "image" :f"http://{server_ip}:8000{data.image.url}",
-#             }
-#         return Response(res)
-#     except:
-#         return JsonResponse(
-#             {"msg": "not found"}, status=status.HTTP_400_BAD_REQUEST
-#         )
- 
 
 @api_view(["POST"])
 def waiter_login(request):
-    request_json = JSONParser().parse(request)
+    request_data = JSONParser().parse(request)
 
     try:
         waiter = Waiter.objects.filter(
-            username=request_json.get('username'),
-            password=request_json.get('password')
+            username=request_data.get('username'),
+            password=request_data.get('password')
         ).first()
 
-        if waiter:    
-            waiter.token = secrets.token_hex(8)
-            waiter.save()
-
-            local_ips = []
-            host_name = socket.gethostname()
-            host_ip_info = socket.gethostbyname_ex(host_name)
-
-            for ip in host_ip_info[2]:
-                if not ip.startswith("127."):
-                    local_ips.append(ip)
-
-            external_ip = None
-
-            external_ip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            port = request.META.get("SERVER_PORT")
-
-            try:
-                external_ip_socket.connect(('8.8.8.8', 53))
-                external_ip = external_ip_socket.getsockname()[0]
-            finally:
-                external_ip_socket.close()
-
-            if local_ips:
-                server_ip = local_ips[0]
-            else:
-                server_ip = external_ip
-
-            response_data = {
-                "waiterId": waiter.pk,
-                "username": waiter.username,
-                "token": waiter.token,
-                "name": waiter.name,
-                "email": waiter.email,
-                "status": waiter.status,
-                "waiterHead": waiter.is_waiter_head,
-                "vendorId": waiter.vendorId.pk,
-                "image": f"http://{server_ip}:{port}{waiter.image.url}",
-            }
-
-            return Response(response_data, status=status.HTTP_200_OK)
+        if not waiter:
+            return Response({"message": "Invalid credentials"}, status=status.HTTP_400_BAD_REQUEST)
         
-        else:
-            return Response("Invalid user credentials", status=status.HTTP_400_BAD_REQUEST)
+        waiter.token = secrets.token_hex(8)
+        waiter.save()
 
-    except Waiter.DoesNotExist:
-        return JsonResponse(
-            {"msg": "not found"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        local_ips = []
+
+        host_name = socket.gethostname()
+
+        host_ip_info = socket.gethostbyname_ex(host_name)
+
+        for ip in host_ip_info[2]:
+            if not ip.startswith("127."):
+                local_ips.append(ip)
+
+        external_ip = None
+
+        external_ip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+        port = request.META.get("SERVER_PORT")
+
+        try:
+            external_ip_socket.connect(('8.8.8.8', 53))
+
+            external_ip = external_ip_socket.getsockname()[0]
+
+        finally:
+            external_ip_socket.close()
+
+        if local_ips:
+            server_ip = local_ips[0]
+
+        else:
+            server_ip = external_ip
+
+        waiter_info = {
+            "id": waiter.pk,
+            "username": waiter.username,
+            "token": waiter.token,
+            "name": waiter.name,
+            "email": waiter.email,
+            "is_waiter_head": waiter.is_waiter_head,
+            "profile_picture": f"http://{server_ip}:{port}{waiter.image.url}",
+            "primary_language": waiter.vendorId.primary_language,
+            "secondary_language": waiter.vendorId.secondary_language if waiter.vendorId.secondary_language else "",
+            "currency": waiter.vendorId.currency,
+            "currency_symbol": waiter.vendorId.currency_symbol,
+            "vendor_id": waiter.vendorId.pk,
+        }
+
+        return Response({"message": "", "waiter_info": waiter_info}, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
  
  
 @api_view(['GET'])
