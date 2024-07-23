@@ -16,6 +16,66 @@ import socket
 
 
 
+def get_table_data(hotelTable, vendorId, language="English"):
+    waiter_name = ""
+    floor_name = ""
+
+    if hotelTable:
+        if language == "English":
+            if hotelTable.waiterId:
+                waiter_name = hotelTable.waiterId.name
+
+            floor_name = hotelTable.floor.name
+
+        else:
+            if hotelTable.waiterId:
+                waiter_name = hotelTable.waiterId.name_locale
+                
+            floor_name = hotelTable.floor.name_locale
+    
+    data = { 
+        "tableId": hotelTable.pk, 
+        "tableNumber": hotelTable.tableNumber,
+        "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
+        "status": hotelTable.status,
+        "waiterName": waiter_name,
+        "tableCapacity": hotelTable.tableCapacity, 
+        "guestCount": hotelTable.guestCount,
+        "floorId": hotelTable.floor.pk,
+        "floorName": floor_name
+    }
+    
+    try:
+        test = Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
+
+        latest_order = Order.objects.filter(id__in=test,vendorId=vendorId).order_by('-arrival_time').first()
+
+        if latest_order:
+            data["order"] = latest_order.externalOrderId
+            data["total_amount"] = latest_order.master_order.subtotal
+
+        else:
+            data["order"] = 0
+            data["total_amount"] = 0.0
+
+    except Order_tables.DoesNotExist:
+        print("Table not found")
+        data["order"] = 0
+        data["total_amount"] = 0.0
+
+    except Order.DoesNotExist:
+        print("Order not found")
+        data["order"] = 0
+        data["total_amount"] = 0.0
+
+    except Exception as e:
+        data["order"] = 0
+        data["total_amount"] = 0.0
+        print(f"Unexpected {e=}, {type(e)=}")
+
+    return data
+
+
 @api_view(["POST"])
 def waiter_login(request):
     request_data = JSONParser().parse(request)
@@ -147,66 +207,6 @@ def get_total_amount(external_order_id, vendor_id):
     return float(total_amount)
 
 
-def getTableData(hotelTable, vendorId, language="English"):
-    waiter_name = ""
-    floor_name = ""
-
-    if hotelTable:
-        if language == "English":
-            if hotelTable.waiterId:
-                waiter_name = hotelTable.waiterId.name
-
-            floor_name = hotelTable.floor.name
-
-        else:
-            if hotelTable.waiterId:
-                waiter_name = hotelTable.waiterId.name_locale
-                
-            floor_name = hotelTable.floor.name_locale
-    
-    data = { 
-        "tableId": hotelTable.pk, 
-        "tableNumber": hotelTable.tableNumber,
-        "waiterId": hotelTable.waiterId.pk if hotelTable.waiterId else 0,
-        "status": hotelTable.status,
-        "waiterName": waiter_name,
-        "tableCapacity": hotelTable.tableCapacity, 
-        "guestCount": hotelTable.guestCount,
-        "floorId": hotelTable.floor.pk,
-        "floorName": floor_name
-    }
-    
-    try:
-        test = Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
-
-        latest_order = Order.objects.filter(id__in=test,vendorId=vendorId).order_by('-arrival_time').first()
-
-        if latest_order:
-            data["order"] = latest_order.externalOrderId
-            data["total_amount"] = latest_order.master_order.subtotal
-
-        else:
-            data["order"] = 0
-            data["total_amount"] = 0.0
-
-    except Order_tables.DoesNotExist:
-        print("Table not found")
-        data["order"] = 0
-        data["total_amount"] = 0.0
-
-    except Order.DoesNotExist:
-        print("Order not found")
-        data["order"] = 0
-        data["total_amount"] = 0.0
-
-    except Exception as e:
-        data["order"] = 0
-        data["total_amount"] = 0.0
-        print(f"Unexpected {e=}, {type(e)=}")
-
-    return data
-
-
 def gettable(id, vendorId, language="English"):
     try:
         waiter = Waiter.objects.get(pk=id, vendorId=vendorId)
@@ -220,7 +220,7 @@ def gettable(id, vendorId, language="English"):
         result = []
 
         for table in data:
-            table_data = getTableData(table, language)
+            table_data = get_table_data(table, language)
             result.append(table_data)
         
         return result
@@ -259,7 +259,7 @@ def filterTables(waiterId, filter, search, status, waiter, floor, vendorId, lang
         table_data = []
         
         for table in data:
-            table_info = getTableData(hotelTable=table, vendorId=vendorId, language=language)
+            table_info = get_table_data(hotelTable=table, vendorId=vendorId, language=language)
 
             table_data.append(table_info)
         
@@ -311,7 +311,7 @@ def assinTableupdate(request):
 
     try:
         if table_instance.waiterId != None:
-            result = getTableData(hotelTable=table_instance, language=language, vendorId=vendor_id)
+            result = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
 
             old_waiter_id = str(table_instance.waiterId.pk)
             
@@ -324,7 +324,7 @@ def assinTableupdate(request):
         table_instance.waiterId = waiter_instance
         table_instance.save()
 
-        table_data = getTableData(hotelTable=table_instance, language=language, vendorId=vendor_id)
+        table_data = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
 
         webSocketPush(
             message={"result": table_data, "UPDATE": "UPDATE"},
@@ -386,7 +386,7 @@ def createTables(request):
         table=Hotal_Tables_serializers(data=data)
         if table.is_valid():
             tableData=table.save()
-            res=  getTableData(hotelTable=tableData,vendorId=vendorId)
+            res=  get_table_data(hotelTable=tableData,vendorId=vendorId)
             print("status ",status )
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
@@ -406,7 +406,7 @@ def deleteTables(request):
         data = JSONParser().parse(request)
         tableData=HotelTable.objects.get(pk=data.get('tableId'))
         if tableData:
-            res=  getTableData(hotelTable=tableData,vendorId=vendorId)
+            res=  get_table_data(hotelTable=tableData,vendorId=vendorId)
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+str(tableData.waiterId.pk)+"-----"+str(vendorId),username="CORE",)#update table for new waiter
             webSocketPush(message={"result":res,"UPDATE": "REMOVE"},room_name=WOMS+"POS-----"+str(vendorId),username="CORE",)#update table for new waiter
             for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
@@ -458,7 +458,7 @@ def Table_update_api(request):
 
         table_instance.save()
         
-        table_data = getTableData(hotelTable=table_instance, language=language, vendorId=vendor_id)
+        table_data = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
 
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
