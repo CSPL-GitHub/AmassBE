@@ -14,6 +14,7 @@ from order import order_helper
 from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, VendorSocialMedia
 from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
+from pos.language import store_close_message_locale, product_out_of_stock_locale, modifier_group_out_of_stock_locale, modifier_out_of_stock_locale
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
@@ -223,45 +224,88 @@ def updateUser(request):
 @api_view(['POST'])
 def check_order_items_status(request):
     vendor_id = request.GET.get('vendor', None)
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return JsonResponse({"error": "Invalid Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     order_details = request.data
+
     data = StoreTiming.objects.filter(vendor=vendor_id)
+
     slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
+
     store_status = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
-    print("store_status  ",store_status)
+    if store_status.store_status == False:
+        store_status = False
+
+    else:
+        if slot is None:
+            store_status = True
+
+        else:
+            current_time = datetime.now().time()
+
+            if (slot.open_time < current_time < slot.close_time) and not slot.is_holiday:
+                store_status = True
+
+            else:
+                store_status = False
+    
     if store_status == False:
-        return JsonResponse({"msg": f"store is already closed"}, status=400)
+        if language == "English":
+            return JsonResponse({"msg": "Store is already closed"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        else:
+            return JsonResponse({"msg": store_close_message_locale}, status=status.HTTP_400_BAD_REQUEST)
     
     for item in order_details.get('items', []):
-        product = Product.objects.filter(pk=item['productId'])
+        product = Product.objects.filter(pk=item['productId']).first()
 
-        if product.exists() and product.first().active == False:
-            return JsonResponse({"msg": f"{product.first().productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
+        if product and product.active == False:
+            if language == "English":
+                return JsonResponse({"msg": f"{product.productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            else:
+                return JsonResponse({"msg": product_out_of_stock_locale(product.productName_locale)}, status=status.HTTP_400_BAD_REQUEST)
 
         for modifier_group in item['modifiersGroup']:
             
-            modifiersGroup_instance = ProductModifierGroup.objects.filter(pk=modifier_group.get('modGroupId') or modifier_group.get('id'))
+            modifier_group_instance = ProductModifierGroup.objects.filter(
+                pk=modifier_group.get('modGroupId') or modifier_group.get('id')
+            ).first()
             
-            if modifiersGroup_instance.exists() and modifiersGroup_instance.first().active == False:
-                return JsonResponse(
-                    {"msg": f"modifier group {modifiersGroup_instance.first().name} of {product.first().productName} is out of stock"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            if modifier_group_instance and modifier_group_instance.active == False:
+                if language == "English":
+                    return JsonResponse(
+                        {"msg": f"modifier group {modifier_group_instance.name} of {product.productName} is out of stock"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                else:
+                    return JsonResponse(
+                        {"msg": modifier_group_out_of_stock_locale(modifier_group_instance.name_locale, product.productName_locale)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 
             for modifier in modifier_group['modifiers']:
                 if modifier["status"]:
-                    modifier_instance = ProductModifier.objects.filter(pk=modifier['modifierId'])
+                    modifier_instance = ProductModifier.objects.filter(pk=modifier['modifierId']).first()
 
-                    if modifier_instance.exists() and modifier_instance.first().active == False:
-                        return JsonResponse(
-                            {"msg": f"modifier {modifier_instance.first().modifierName} of {product.first().productName} is out of stock"},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                    if modifier_instance and modifier_instance.active == False:
+                        if language == "English":
+                            return JsonResponse(
+                                {"msg": f"modifier {modifier_instance.modifierName} of {product.productName} is out of stock"},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        
+                        else:
+                            return JsonResponse(
+                                {"msg": f"modifier {modifier_instance.modifierName} of {product.productName} is out of stock"},
+                                {"msg": modifier_out_of_stock_locale(modifier_group_instance.name_locale, product.productName_locale)},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
     
     return Response({"success":True},status=status.HTTP_200_OK)
 
