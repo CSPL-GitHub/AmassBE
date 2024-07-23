@@ -33,7 +33,7 @@ class StagingIntegration():
                 
                 customer_address = data["customer"]
 
-                if (data["platform"] == "Webiste") or (data["platform"] == "Mobile App"):
+                if (data["platform"] == "Website") or (data["platform"] == "Mobile App"):
                     if not coreCustomer:
                         coreCustomer = Customer.objects.create(
                             FirstName = data["customer"]["fname"],
@@ -74,7 +74,7 @@ class StagingIntegration():
                 else:
                     if coreCustomer and ((coreCustomer.Phone_Number != '0') or (coreCustomer.FirstName != 'Guest')):
                         addrs = Address.objects.filter(customer=coreCustomer.pk, type="shipping_address", is_selected=True).first()
-                        
+
                         if not addrs:
                             addrs = Address.objects.create(
                                 address_line1 = customer_address["address1"],
