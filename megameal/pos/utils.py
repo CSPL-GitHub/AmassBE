@@ -726,12 +726,6 @@ def process_product_excel(file_path, sheet_name, vendor_id):
                         print(f"Error processing row: {row}, Error: Cell value not 'yes' or 'no'\n")
                         continue
                     
-                    if pd.isnull(row["Modifier Image"]) or row["Modifier Image"] == "":
-                        row["Error"] = "Modifier Image null or empty"
-                        failed_rows.append(row)
-                        print(f"Error processing row: {row}, Error: Modifier Image null or empty\n")
-                        continue
-                    
                     modifier_description = row["Modifier Description"]
                     
                     if pd.isnull(row["Modifier Description"]) or row["Modifier Description"] == "":
