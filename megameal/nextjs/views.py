@@ -14,7 +14,10 @@ from order import order_helper
 from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, VendorSocialMedia
 from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
-from pos.language import store_close_message_locale, product_out_of_stock_locale, modifier_group_out_of_stock_locale, modifier_out_of_stock_locale
+from pos.language import (
+    store_close_message_locale, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
+    modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale
+)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
@@ -363,15 +366,40 @@ def CreateOrder(request):
             result["payment"]["default"] = True
 
         for item in result['items']:
-            product_instance = Product.objects.filter(pk=item['productId'])
+            product_instance = Product.objects.filter(pk=item['productId']).first()
             
-            if product_instance.exists() and product_instance.first().active == False:
-                return JsonResponse({"msg": f"{product_instance.first().productName} is no longer availabe"}, status=400)
+            if (not product_instance) or (product_instance.active == False):
+                if language == "English":
+                    return JsonResponse(
+                        {"msg": f"{product_instance.productName} is no longer available"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                    
+                else:
+                    return JsonResponse(
+                        {"msg": product_no_longer_available_locale(product_instance.productName_locale)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             
             modifiers_list = []
 
             for modifier_group in item['modifiersGroup']:
                 for modifier in modifier_group['modifiers']:
+                    modifier_instance = ProductModifier.objects.filter(PLU=modifier["id"], vendorId=vendorId).first()
+
+                    if modifier_instance and modifier_instance.active == False:
+                        if language == "English":
+                            return JsonResponse(
+                                {"msg": f"{modifier_instance.modifierName} is no longer available"},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                            
+                        else:
+                            return JsonResponse(
+                                {"msg": modifier_no_longer_available_locale(modifier_instance.modifierName_locale)},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    
                     modifier_info = {
                         "plu": modifier["plu"],
                         "name": modifier['name'],

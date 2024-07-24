@@ -204,6 +204,11 @@ def modifier_group_out_of_stock_locale(product_name, modifier_group_name):
 def modifier_out_of_stock_locale(product_name, modifier_name):
     return f"هو من المخزون {product_name} ل {modifier_name} مجموعة المعدل"
 
+def product_no_longer_available_locale(product_name):
+    return f"لم يعد متاحا {product_name}"
+
+def modifier_no_longer_available_locale(modifier_name):
+    return f"لم يعد متاحا {modifier_name}"
 
 
 def get_key_value(language, dictionary, key):

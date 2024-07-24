@@ -294,14 +294,25 @@ class Product_Option_Joint(models.Model):
 
 
 class Product_Tax(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    isDeleted=models.BooleanField(default=False)
-    name=models.CharField(max_length=122)
-    percentage=models.FloatField()
-    enabled=models.BooleanField(default=True)
-    posId=models.CharField(max_length=122)
-    taxLevel=models.IntegerField(choices=TaxLevel.choices, default=TaxLevel.ORDER, null=True, blank=True)
+    name = models.CharField(max_length=122)
+    name_locale = models.CharField(max_length=122, null=True, blank=True)
+    percentage = models.FloatField()
+    taxLevel = models.IntegerField(choices=TaxLevel.choices, default=TaxLevel.ORDER, null=True, blank=True)
+    enabled = models.BooleanField(default=True)
+    isDeleted = models.BooleanField(default=False)
+    vendorId = models.ForeignKey(Vendor,on_delete=models.CASCADE)
 
+    def save(self, *args, **kwargs):
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        super().save(*args, **kwargs)
+        
+        return self
+
+    def __str__(self):
+        return self.name
+    
     def to_dict(self):
         return {
             'vendorId': self.vendorId.pk,
@@ -309,7 +320,6 @@ class Product_Tax(models.Model):
             'name': self.name,
             'percentage': self.percentage,
             'enabled': self.enabled,
-            'posId': self.posId,
             'taxLevel':self.taxLevel
         }
 
