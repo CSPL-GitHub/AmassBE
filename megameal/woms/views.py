@@ -6,11 +6,9 @@ from rest_framework.parsers import JSONParser
 from woms.models import *
 from woms.serializer import *
 from static.order_status_const import *
-from core.models import (
-    Product, ProductCategory, ProductCategoryJoint, ProductImage, ProductAndModifierGroupJoint,
-    ProductModifier, ProductModifierGroup, Product_Option_Joint, ProductModifierAndModifierGroupJoint
-)
+from core.models import Product, ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint
 from koms.models import Order,Order_content,Order_modifer, Order_tables
+from koms.views import webSocketPush
 import secrets
 import socket
 
@@ -285,7 +283,6 @@ def get_waiters(request):
  
 @api_view(["post"])
 def assign_waiter_to_table(request):
-    from koms.views import webSocketPush
     requestJson = JSONParser().parse(request)
 
     table_id = requestJson.get('tableId')
@@ -356,8 +353,6 @@ def assign_waiter_to_table(request):
 
 @api_view(['POST']) 
 def update_table_status(request):
-    from koms.views import webSocketPush
-
     try:
         requestJson = JSONParser().parse(request)
 
