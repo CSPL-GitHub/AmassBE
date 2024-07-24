@@ -386,7 +386,7 @@ def CreateOrder(request):
 
             for modifier_group in item['modifiersGroup']:
                 for modifier in modifier_group['modifiers']:
-                    modifier_instance = ProductModifier.objects.filter(PLU=modifier["id"], vendorId=vendorId).first()
+                    modifier_instance = ProductModifier.objects.filter(pk=modifier["modifierId"], vendorId=vendorId).first()
 
                     if modifier_instance and modifier_instance.active == False:
                         if language == "English":
