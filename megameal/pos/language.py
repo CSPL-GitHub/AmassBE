@@ -185,6 +185,8 @@ weekdays_locale = {
 
 store_close_message_locale = "المتجر مغلق"
 
+valid_address_message_locale = "الرجاء إدخال عنوان صالح"
+
 
 def order_has_arrived_locale(external_order_id):
     return f"انه وصل .. او انها وصلت {external_order_id} رقم الأمر"
@@ -209,6 +211,9 @@ def product_no_longer_available_locale(product_name):
 
 def modifier_no_longer_available_locale(modifier_name):
     return f"لم يعد متاحا {modifier_name}"
+
+def delivery_address_validation_locale(kilometer_limit):
+    return f"يقع عنوان التسليم على بعد أكثر من {kilometer_limit} كيلومتر"
 
 
 def get_key_value(language, dictionary, key):
