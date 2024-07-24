@@ -119,6 +119,8 @@ def get_order_id(order_data):
 
 @api_view(["GET"])
 def get_tax(request):
+    platform = request.GET.get("platform")
+    language = request.GET.get("language", "English")
     vendor_id = request.GET.get("vendorId")
 
     if not vendor_id:
@@ -126,6 +128,7 @@ def get_tax(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -138,14 +141,32 @@ def get_tax(request):
 
     taxes = Product_Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
 
-    for tax in taxes:
-        tax_list.append({
-            "id": tax.pk,
-            "type": tax.name,
-            "rate": tax.percentage,
-            "value": round((tax.percentage / 100), 3),
-            "is_active": tax.enabled,
-        })
+    if (platform == "Website") or (platform == "Mobile App"):
+        for tax in taxes:
+            if language == "English":
+                tax_name = tax.name
+
+            else:
+                tax_name = tax.name_locale
+
+            tax_list.append({
+                "id": tax.pk,
+                "type": tax_name,
+                "rate": tax.percentage,
+                "value": round((tax.percentage / 100), 3),
+                "is_active": tax.enabled,
+            })
+
+    else:
+        for tax in taxes:
+            tax_list.append({
+                "id": tax.pk,
+                "type": tax.name,
+                "type_locale": tax.name_locale,
+                "rate": tax.percentage,
+                "value": round((tax.percentage / 100), 3),
+                "is_active": tax.enabled,
+            })
 
     return JsonResponse({"taxes":tax_list})
 
