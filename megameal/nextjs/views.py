@@ -697,7 +697,7 @@ def verify_address(request):
     if delivery_settings:
         kilometer_limit = delivery_settings.delivery_kilometer_limit
     
-    if distance > kilometer_limit:
+    if (distance > kilometer_limit) and (kilometer_limit > 0):
         if language == "English":
             return Response({"error": f"Delivery address is located more than {kilometer_limit} kilometers away"})
         
