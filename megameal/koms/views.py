@@ -1,6 +1,6 @@
 from order import order_helper
 from core.utils import API_Messages, UpdatePoint, OrderType
-from core.models import Product, ProductImage,Platform,ProductModifier,Product_Tax,ProductModifierGroup,ProductCategory
+from core.models import Product, ProductImage,Platform,ProductModifier,Tax,ProductModifierGroup,ProductCategory
 from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
 from rest_framework.views import APIView
@@ -952,7 +952,7 @@ def updateTicketStatus(request):
                 
                 tax_total = 0
 
-                for tax in Product_Tax.objects.filter(vendorId=request.GET.get("vendorId")):
+                for tax in Tax.objects.filter(vendorId=request.GET.get("vendorId")):
                     tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
                 
                 master_order_instance.tax = tax_total
@@ -1996,7 +1996,7 @@ def additem(request):
 
         master_order_instance.subtotal = subtotal + master_order_instance.subtotal
         tax_total = 0
-        for tax in Product_Tax.objects.filter(vendorId=vendorId):
+        for tax in Tax.objects.filter(vendorId=vendorId):
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
         master_order_instance.tax = tax_total
         master_order_instance.TotalAmount =  master_order_instance.subtotal + tax_total
@@ -2180,7 +2180,7 @@ def editContent(request):
 
         tax_total = 0
 
-        for tax in Product_Tax.objects.filter(vendorId=vendor_id):
+        for tax in Tax.objects.filter(vendorId=vendor_id):
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
 
         master_order_instance.tax = tax_total

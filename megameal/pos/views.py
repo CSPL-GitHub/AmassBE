@@ -6,7 +6,7 @@ from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
     ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
-    ProductModifierAndModifierGroupJoint, Product_Tax
+    ProductModifierAndModifierGroupJoint, Tax
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
@@ -139,7 +139,7 @@ def get_tax(request):
 
     tax_list = []
 
-    taxes = Product_Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
+    taxes = Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
 
     if (platform == "Website") or (platform == "Mobile App"):
         for tax in taxes:
@@ -197,12 +197,12 @@ def create_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    existing_tax = Product_Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
+    existing_tax = Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
 
     if existing_tax:
         return Response("Entry already created", status=status.HTTP_409_CONFLICT)
 
-    tax = Product_Tax.objects.create(
+    tax = Tax.objects.create(
         name=tax_type,
         percentage=rate,
         enabled=is_active,
@@ -248,7 +248,7 @@ def update_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    tax = Product_Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
+    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
 
     if not tax:
         return Response("No record found", status=status.HTTP_404_NOT_FOUND)
@@ -289,7 +289,7 @@ def delete_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    tax = Product_Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
+    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
 
     if not tax:
         return Response("No record found", status=status.HTTP_404_NOT_FOUND)
