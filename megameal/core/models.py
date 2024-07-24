@@ -293,7 +293,7 @@ class Product_Option_Joint(models.Model):
     optionValueId=models.ForeignKey(Product_Option_Value,on_delete=models.CASCADE)
 
 
-class Product_Tax(models.Model):
+class Tax(models.Model):
     name = models.CharField(max_length=122)
     name_locale = models.CharField(max_length=122, null=True, blank=True)
     percentage = models.FloatField()
@@ -327,7 +327,7 @@ class Product_Tax(models.Model):
 class Product_Taxt_Joint(models.Model):
     vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
     productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    taxId=models.ForeignKey(Product_Tax,on_delete=models.CASCADE)
+    taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
 
 
 class POS_Settings(models.Model):
