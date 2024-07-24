@@ -162,7 +162,8 @@ def waiter_login(request):
         else:
             server_ip = external_ip
 
-        waiter_info = {
+        return Response({
+            "message": "",
             "id": waiter.pk,
             "username": waiter.username,
             "token": waiter.token,
@@ -175,14 +176,54 @@ def waiter_login(request):
             "currency": waiter.vendorId.currency,
             "currency_symbol": waiter.vendorId.currency_symbol,
             "vendor_id": waiter.vendorId.pk,
-        }
-
-        return Response({"message": "", "waiter_info": waiter_info}, status=status.HTTP_200_OK)
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
         return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
  
  
+@api_view(['GET'])
+def get_tables(request):
+    waiter_id = request.GET.get("waiterId")
+    vendor_id = request.GET.get("vendorId")
+
+    try:
+        if (not vendor_id) or (not waiter_id):
+            return Response("Invalid Vendor ID or Waiter ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
+            waiter_id = int(waiter_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid Vendor ID or Waiter ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+        waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
+
+        if not waiter_instance:
+            return JsonResponse({"message": "Waiter does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        hotel_tables = HotelTable.objects.filter(vendorId=vendor_id)
+        
+        if waiter_instance.is_waiter_head == False:
+            hotel_tables = hotel_tables.filter(waiterId=waiter_id)
+        
+        table_capacity_set = set()
+
+        for table in hotel_tables:
+            table_capacity_set.add(str(table.tableCapacity))
+        
+        return JsonResponse({"message": "", "tableCapacity": list(table_capacity_set)}, safe=False)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(['GET'])
 def get_waiters(request):
     try:
@@ -686,18 +727,6 @@ def switchOrderTables(request):
         return JsonResponse(requestJson,safe=False)
     except Exception as e:
         return JsonResponse({"msg": f"Unexpected {e=}, {type(e)=}"})
-
-
-@api_view(['GET'])
-def show_tableCapacity(request, id=0):
-    vendorId=request.GET.get("vendorId")
-    try:
-        data=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
-        tableCapacity =list(set([ i.tableCapacity for i in data]))
-        table = [str(i) for i in tableCapacity]
-        return JsonResponse({ "tableCapacity": table}, safe=False)
-    except Exception as e:
-        return JsonResponse({"error":str(e)},status=status.HTTP_400_BAD_REQUEST)
 
 
 @api_view(['GET'])

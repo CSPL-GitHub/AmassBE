@@ -4,6 +4,7 @@ from . import views
 
 urlpatterns = [
    path('login/', views.waiter_login),
+   path('tables/', views.get_tables),
    path('get_waiters/', views.get_waiters),
    path('assign_waiter/', views.assign_waiter_to_table),
    path('update_table_status/', views.update_table_status),
@@ -16,7 +17,6 @@ urlpatterns = [
    path('allCategory/<int:id>/', views.allCategory), # show products
    path('productByCategory/', views.productByCategory), # show products by category
    path('productByCategory/<int:id>/', views.productByCategory), # show products by category
-   path('tableCapacity/<int:id>/', views.show_tableCapacity), # show products 
    path('createOrder/', views.createOrder), # show products 
    path('singleProdMod/<str:prod>/<int:order>/', views.singleProdMod), # show products modifiers
    path('switchOrderTables/', views.switchOrderTables)
