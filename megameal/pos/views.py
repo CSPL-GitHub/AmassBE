@@ -4812,144 +4812,156 @@ def get_orders_of_customer(request):
         total_pages = paginator.num_pages
         
         for order in paginated_orders:
-         koms_order = KOMSOrder.objects.filter(master_order=order.pk)                       # This is a temparory    
-         if koms_order:                                                                     # Fix for Broken orders between 
-            koms_order = koms_order.last()                                                  # core and KOMS
-            koms_order = KOMSOrder.objects.filter(master_order=order.pk).last()
+            koms_order = KOMSOrder.objects.filter(master_order=order.pk)                       # This is a temparory    
+            if koms_order:                                                                     # Fix for Broken orders between 
+                koms_order = koms_order.last()                                                  # core and KOMS
+                koms_order = KOMSOrder.objects.filter(master_order=order.pk).last()
 
-            order_contents = Order_content.objects.filter(orderId=koms_order.pk)
+                order_contents = Order_content.objects.filter(orderId=koms_order.pk)
 
-            order_items = []
-            for content in order_contents:
-                product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=content.SKU)
+                order_items = []
+                for content in order_contents:
+                    product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=content.SKU)
 
-                # modifier_list = defaultdict(list)
-                modifier_list = []
-                    
-                modifiers = Order_modifer.objects.filter(contentID=content.pk)
-                    
-                if modifiers:
-                    for modifier in modifiers:
-                        product_modifier = ProductModifier.objects.filter(modifierPLU=modifier.SKU, vendorId=vendor_id).first()
+                    modifier_list = []
                         
-                        modifier_list.append({
-                            'modifier_name': modifier.name,
-                            'modifier_plu': modifier.SKU,
-                            'modifier_quantity': modifier.quantity,
-                            'modifier_price': product_modifier.modifierPrice if product_modifier else 0.0,
-                            'modifier_img': product_modifier.modifierImg if product_modifier else ""
-                        })
+                    modifiers = Order_modifer.objects.filter(contentID=content.pk)
+                        
+                    if modifiers:
+                        for modifier in modifiers:
+                            product_modifier = ProductModifier.objects.filter(modifierPLU=modifier.SKU, vendorId=vendor_id).first()
 
-                product_image = ProductImage.objects.filter(product=product.product.pk).first()
+                            if language == "English":
+                                modifier_name = product_modifier.modifierName
 
-                if product_image:
-                    image_url = product_image.url
-                else:
-                    image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+                            else:
+                                modifier_name = product_modifier.modifierName_locale
+                            
+                            modifier_list.append({
+                                'modifier_name': modifier_name,
+                                'modifier_plu': product_modifier.modifierPLU,
+                                'modifier_quantity': modifier.quantity,
+                                'modifier_price': product_modifier.modifierPrice if product_modifier else 0.0,
+                                'modifier_img': product_modifier.modifierImg if product_modifier else ""
+                            })
+
+                    product_image = ProductImage.objects.filter(product=product.product.pk).first()
+
+                    if product_image:
+                        image_url = product_image.url
+
+                    else:
+                        image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+                    
+                    if language == "English":
+                        product_name = product.product.productName
+                        category_name = product.category.categoryName
+                    
+                    else:
+                        product_name = product.product.productName_locale
+                        category_name = product.category.categoryName_locale
+                    
+                    order_items.append({
+                        'quantity': content.quantity,
+                        'product_plu': content.SKU,
+                        'product_name': product_name,
+                        'tag': product.product.tag,
+                        'is_unlimited': product.product.is_unlimited,
+                        'preparation_time': product.product.preparationTime,
+                        'is_taxable': product.product.taxable,
+                        'product_image': image_url,
+                        'category': category_name,
+                        "product_note": content.note if content.note else "",
+                        "unit_price": product.product.productPrice,
+                        'modifiers': modifier_list
+                    })
                 
-                order_items.append({
-                    'quantity': content.quantity,
-                    'product_plu': content.SKU,
-                    'product_name': product.product.productName,
-                    'tag': product.product.tag,
-                    'is_unlimited': product.product.is_unlimited,
-                    'preparation_time': product.product.preparationTime,
-                    'is_taxable': product.product.taxable,
-                    'product_image': image_url,
-                    'category': product.category.categoryName,
-                    "product_note": content.note if content.note else "",
-                    "unit_price": product.product.productPrice,
-                    'modifiers': modifier_list
-                })
-            
-            payment_data = {}
-            
-            payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
-            
-            if payment_details:
-                if PaymentType.get_payment_str(payment_details.type) == 'CASH':
-                    payment_data['paymentKey'] = ''
-                    payment_data['platform'] = ''
-                    payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+                payment_data = {}
+                
+                payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
+                
+                if payment_details:
+                    if PaymentType.get_payment_str(payment_details.type) == 'CASH':
+                        payment_data['paymentKey'] = ''
+                        payment_data['platform'] = ''
+                        payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+
+                        if language != "English":
+                            payment_data["mode"] = payment_type_locale[1]
+
+                    else:
+                        payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
+                        payment_data["platform"] = payment_details.platform if payment_details.platform else ''
+                        payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
+
+                        if language != "English":
+                            payment_data["mode"] = payment_type_locale[payment_details.type]
+                    
+                    payment_data["status"] = payment_details.status
+
+                else:
+                    payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
 
                     if language != "English":
-                        payment_data["mode"] = payment_type_locale[1]
+                        payment_mode = payment_type_locale[1]
+
+                    payment_data = {
+                        "paymentKey": "",
+                        "platform": "",
+                        "status": False,
+                        "mode": payment_mode
+                    }
+
+                table_numbers_list = ""
+
+                table_details = Order_tables.objects.filter(orderId_id=koms_order.pk)
+
+                if table_details:
+                    for table in table_details:
+                        table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
+
+                    table_numbers_list = table_numbers_list[:-1]
+
+                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
+
+                if loyalty_points_redeem_history:
+                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+
+                    if not total_points_redeemed:
+                        total_points_redeemed = 0
 
                 else:
-                    payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
-                    payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                    payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
-
-                    if language != "English":
-                        payment_data["mode"] = payment_type_locale[payment_details.type]
+                    total_points_redeemed = 0
                 
-                payment_data["status"] = payment_details.status
-
-            else:
-                payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+                platform_name = order.platform.Name
 
                 if language != "English":
-                    payment_mode = payment_type_locale[1]
-
-                payment_data = {
-                    "paymentKey": "",
-                    "platform": "",
-                    "status": False,
-                    "mode": payment_mode
+                    platform_name = order.platform.Name_locale
+                
+                order_data = {
+                    "orderId": order.pk,
+                    "staging_order_id": koms_order.pk,
+                    "external_order_id": order.externalOrderId,
+                    "status": koms_order.order_status,
+                    "order_note": order.Notes if order.Notes else "",
+                    "total_tax": order.tax,
+                    "total_discount": order.discount,
+                    "delivery_charge": order.delivery_charge,
+                    "subtotal": order.subtotal,
+                    "total_amount": order.TotalAmount,
+                    "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_type": order.orderType,
+                    "platform_name": platform_name,
+                    "table_numbers": table_numbers_list,
+                    "items": order_items,
+                    "payment": payment_data,
+                    "total_points_redeemed": total_points_redeemed
                 }
 
-            # table_ids = []
-            table_numbers_list = ""
-
-            table_details = Order_tables.objects.filter(orderId_id=koms_order.pk)
-
-            if table_details:
-                for table in table_details:
-                    table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
-                    # table_ids.append(table.tableId.pk)
-
-                table_numbers_list = table_numbers_list[:-1]
-
-            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
-
-            if loyalty_points_redeem_history:
-                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                if not total_points_redeemed:
-                    total_points_redeemed = 0
-
-            else:
-                total_points_redeemed = 0
+                order_list.append(order_data)
             
-            platform_name = order.platform.Name
-
-            if language != "English":
-                platform_name = order.platform.Name_locale
-            
-            order_data = {
-                "orderId": order.pk,
-                "staging_order_id": koms_order.pk,
-                "external_order_id": order.externalOrderId,
-                "status": koms_order.order_status,
-                "order_note": order.Notes if order.Notes else "",
-                "total_tax": order.tax,
-                "total_discount": order.discount,
-                "delivery_charge": order.delivery_charge,
-                "subtotal": order.subtotal,
-                "total_amount": order.TotalAmount,
-                "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "order_type": order.orderType,
-                "platform_name": platform_name,
-                "table_numbers": table_numbers_list,
-                "items": order_items,
-                "payment": payment_data,
-                "total_points_redeemed": total_points_redeemed
-            }
-
-            order_list.append(order_data)
-        
         response = {
             "total_pages": total_pages,
             "current_page": current_page,
