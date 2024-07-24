@@ -16,7 +16,8 @@ from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
 from pos.language import (
     store_close_message_locale, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
-    modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale
+    modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale,
+    valid_address_message_locale, delivery_address_validation_locale,
 )
 from django.http import JsonResponse
 from datetime import datetime, timedelta
@@ -533,27 +534,35 @@ def get_timings(request):
 
 @api_view(['POST'])
 def set_customer_address(request):
-    vendorId=request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+    vendorId = request.GET.get('vendorId')
 
     vendor = Vendor.objects.get(pk=vendorId)
 
     vendor_addr = f"{vendor.address_line_1} {vendor.city} {vendor.country}"
 
-    id = request.GET.get('id',None)
+    id = request.GET.get('id', None)
 
     data = request.data
 
     addr = f"{data['address_line1']} {data['address_line2']} {data['city']} {data['state']} {data['state']}"
 
-    distance = getDIstance(vendor_addr,addr)
+    distance = getDIstance(vendor_addr, addr)
 
     if distance == None:
-        return Response(
-            {"AddressError": "Please enter valid address"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        if language == "English":
+            return Response(
+                {"AddressError": "Please enter valid address"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        else:
+            return Response(
+                {"AddressError": valid_address_message_locale},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
-    distance = getDIstance(vendor_addr,addr)/1000
+    distance = getDIstance(vendor_addr, addr) / 1000
 
     delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
 
@@ -563,10 +572,17 @@ def set_customer_address(request):
         kilometer_limit = delivery_settings.delivery_kilometer_limit
     
         if distance > kilometer_limit:
-            return Response(
-                {"error":f"Delivery address is located more than {kilometer_limit} kilometers away"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+            if language == "English":
+                return Response(
+                    {"error": f"Delivery address is located more than {kilometer_limit} kilometers away"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            else:
+                return Response(
+                    {"error": delivery_address_validation_locale(kilometer_limit)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
     
     serealizer = Addressserializers(data=data)
     
@@ -580,7 +596,7 @@ def set_customer_address(request):
         save = serealizer.save()
         instance=Address.objects.filter(customer=save.customer.pk)
 
-        return Response(Addressserializers(instance=instance,many=True).data)
+        return Response(Addressserializers(instance=instance, many=True).data)
     
     else :
         return Response(serealizer._errors, status=status.HTTP_400_BAD_REQUEST)
@@ -654,24 +670,25 @@ def get_points(request):
 
 @api_view(['GET'])
 def verify_address(request):
-    vendorId=request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+    vendorId = request.GET.get('vendorId')
 
     vendor = Vendor.objects.get(pk=vendorId)
 
     vendor_addr = f"{vendor.address_line_1}_{vendor.city}_{vendor.country}"
 
-    id = request.GET.get('id',None)
-
-    data = request.data
-
-    addr =request.GET.get('destination')
+    addr = request.GET.get('destination')
 
     distance = getDIstance(vendor_addr,addr)
 
     if distance == None:
-        return Response({"AddressError":f"Please enter valid address"})
+        if language == "English":
+            return Response({"AddressError": f"Please enter valid address"})
+        
+        else:
+            return Response({"AddressError": valid_address_message_locale})
     
-    distance = getDIstance(vendor_addr,addr)/1000
+    distance = getDIstance(vendor_addr, addr) / 1000
 
     delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
     
@@ -681,7 +698,11 @@ def verify_address(request):
         kilometer_limit = delivery_settings.delivery_kilometer_limit
     
     if distance > kilometer_limit:
-        return Response({"error":f"Delivery address is located more than {kilometer_limit} kilometers away"})
+        if language == "English":
+            return Response({"error": f"Delivery address is located more than {kilometer_limit} kilometers away"})
+        
+        else:
+            return Response({"error": delivery_address_validation_locale(kilometer_limit)})
     
     return Response({"success": kilometer_limit})
 
