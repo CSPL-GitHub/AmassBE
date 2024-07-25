@@ -31,7 +31,7 @@ from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
 from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.models import StoreTiming
-from pos.language import order_has_arrived_locale
+from pos.language import order_has_arrived_locale, payment_type_english, language_localization
 from inventory.utils import sync_order_content_with_inventory
 from pos.language import get_key_value
 import secrets
@@ -628,9 +628,19 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
         master_order = coreOrder.objects.filter(Q(externalOrderId=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
         try:
-            payment_type = OrderPayment.objects.filter(orderId=master_order.pk)
+            payment_type = OrderPayment.objects.filter(orderId=master_order.pk).last()
             
-            payment_mode = get_key_value(language, "payment_type", payment_type.last().type) if payment_type else get_key_value(language, "payment_type", 1)
+            if payment_type:
+                payment_mode = payment_type_english[payment_type.type]
+                
+                if language != "English":
+                    payment_mode = language_localization[payment_type_english[payment_type.type]]
+
+            else:
+                payment_mode = payment_type_english[1]
+                
+                if language != "English":
+                    payment_mode = language_localization[payment_type_english[1]]
             
             payment_details = {
                 "total": master_order.TotalAmount,
@@ -639,14 +649,18 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "delivery_charge": master_order.delivery_charge,
                 "discount": master_order.discount,
                 "tip": master_order.tip,
-                "paymentKey": payment_type.last().paymentKey,
-                "platform": payment_type.last().platform,
-                "status": payment_type.last().status,
+                "paymentKey": payment_type.paymentKey,
+                "platform": payment_type.platform,
+                "status": payment_type.status,
                 "mode": payment_mode
             }
                 
         except Exception as e:
-            payment_mode = get_key_value(language, "payment_type", 1)
+            if language == "English":
+                payment_mode = payment_type_english[1]
+
+            else:
+                payment_mode = language_localization[payment_type_english[1]]
 
             payment_details = {
                 "total": 0.0,
