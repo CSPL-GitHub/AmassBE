@@ -33,7 +33,6 @@ from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgr
 from pos.models import StoreTiming
 from pos.language import order_has_arrived_locale, payment_type_english, language_localization
 from inventory.utils import sync_order_content_with_inventory
-from pos.language import get_key_value
 import secrets
 import json
 import string
