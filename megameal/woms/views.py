@@ -327,20 +327,22 @@ def assign_waiter_to_table(request):
 
         webSocketPush(
             message={"result": table_data, "UPDATE": "UPDATE"},
-            room_name=f"WOMS{str(waiter_id)}------{str(vendor_id)}",
+            room_name=f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
             username="CORE",
-        )#update table for new waiter
+        )
         
         webSocketPush(
             message={"result": table_data, "UPDATE": "UPDATE"},
             room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
             username="CORE",
-        ) #update table for POS
+        )
         
-        for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendor_id):
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
+        
+        for waiter_head in waiter_heads:
             webSocketPush(
                 message={"result": table_data, "UPDATE": "UPDATE"},
-                room_name=f"WOMS{str(i.pk)}------{str(vendor_id)}",
+                room_name=f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
                 username="CORE",
             )
         
