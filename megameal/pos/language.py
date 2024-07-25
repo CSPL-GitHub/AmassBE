@@ -5,13 +5,6 @@ order_type_english = {
     3: "DineIn"
 }
 
-order_type_locale = {
-    "All": "الجميع",
-    1: "يلتقط",
-    2: "توصيل",
-    3: "تناول الطعام في"
-}
-
 koms_order_status_english = {
     "All": "All",
     1: 'Pending',
@@ -74,8 +67,11 @@ language_localization = {
     "Unknown": "مجهول",
     "All": "الجميع",
     "all": "الجميع",
+    "Delivery": "توصيل",
     "delivery": "توصيل",
+    "Pickup": "يلتقط",
     "pickup": "يلتقط",
+    "DineIn": "تناول الطعام في",
     "dinein": "تناول الطعام في",
     "offline": "غير متصل على الانترنت",
     "ascending": "تصاعدي",
@@ -199,17 +195,11 @@ def delivery_address_validation_locale(kilometer_limit):
 
 def get_key_value(language, dictionary, key):
     if language == "English":
-        if dictionary == "order_type":
-            value = order_type_english[key]
-
-        elif dictionary == "koms_order_status":
+        if dictionary == "koms_order_status":
             value = koms_order_status_english[key]
 
     else:
-        if dictionary == "order_type":
-            value = order_type_locale[key]
-
-        elif dictionary == "koms_order_status":
+        if dictionary == "koms_order_status":
             value = koms_order_status_locale[key]
 
     return value
