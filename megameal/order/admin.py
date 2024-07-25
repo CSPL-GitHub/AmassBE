@@ -4,10 +4,15 @@ from .models import *
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
+    fields = (
+        'vendorId', 'externalOrderId', 'OrderDate', 'platform', 'customerId', 'orderType',
+        'Status', 'Notes', 'arrivalTime', 'subtotal', 'delivery_charge', 'tax', 'discount',
+        'TotalAmount', 'due',
+    )
     
-    list_display = ('pk','customerId','TotalAmount','vendorId',)
-    list_filter = ('vendorId',)
-    search_fields = ('pk','vendorId__Name')
+    list_display = ('pk', 'customerId', 'TotalAmount', 'vendorId',)
+    list_filter = ('vendorId', 'platform', 'orderType',)
+    search_fields = ('pk', 'externalOrderId', 'vendorId__Name')
 
 
 @admin.register(Customer)
