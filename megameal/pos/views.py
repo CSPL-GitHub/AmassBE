@@ -65,7 +65,6 @@ from inventory.utils import (
 )
 from pos.language import(
     get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    weekdays_locale, 
     language_localization, payment_type_locale
 )
 import pytz
@@ -3978,7 +3977,7 @@ def get_store_timings(request):
             day = instance.day
 
         else:
-            day = weekdays_locale[instance.day]
+            day = language_localization[instance.day]
 
         store_timing_list.append({
             "id": instance.pk,

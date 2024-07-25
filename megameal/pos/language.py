@@ -70,6 +70,13 @@ platform_locale = (
 )
 
 language_localization = {
+    "Monday": "الاثنين",
+    "Tuesday": "يوم الثلاثاء",
+    "Wednesday": "الأربعاء",
+    "Thursday": "يوم الخميس",
+    "Friday": "جمعة",
+    "Saturday": "السبت",
+    "Sunday": "الأحد",
     "All": "الجميع",
     "all": "الجميع",
     "delivery": "توصيل",
@@ -163,16 +170,6 @@ language_localization = {
     "Revenue from Cash Payment": "الإيرادات من الدفع النقدي",
     "Revenue from Online Payment": "الإيرادات من الدفع عبر الإنترنت",
     "Revenue from Card Payment": "الإيرادات من دفع البطاقة",
-}
-
-weekdays_locale = {
-    "Monday": "الاثنين",
-    "Tuesday": "يوم الثلاثاء",
-    "Wednesday": "الأربعاء",
-    "Thursday": "يوم الخميس",
-    "Friday": "جمعة",
-    "Saturday": "السبت",
-    "Sunday": "الأحد"
 }
 
 store_close_message_locale = "المتجر مغلق"
