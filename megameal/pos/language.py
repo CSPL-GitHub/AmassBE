@@ -55,13 +55,7 @@ payment_status_locale = {
 payment_type_english = {
     1: 'Cash',
     2: 'Online',
-    3: 'Card'
-}
-
-payment_type_locale = {
-    1: 'نقدي',
-    2: 'متصل',
-    3: 'بطاقة'
+    3: 'Card',
 }
 
 platform_locale = (
@@ -77,12 +71,15 @@ language_localization = {
     "Friday": "جمعة",
     "Saturday": "السبت",
     "Sunday": "الأحد",
+    "Cash": "نقدي",
+    "Online": "متصل",
+    "online": "متصل",
+    "Card": "بطاقة",
     "All": "الجميع",
     "all": "الجميع",
     "delivery": "توصيل",
     "pickup": "يلتقط",
     "dinein": "تناول الطعام في",
-    "online": "متصل",
     "offline": "غير متصل على الانترنت",
     "ascending": "تصاعدي",
     "descending": "تنازلي",
@@ -214,9 +211,6 @@ def get_key_value(language, dictionary, key):
         elif dictionary == "payment_status":
             value = payment_status_english[key]
 
-        elif dictionary == "payment_type":
-            value = payment_type_english[key]
-
     else:
         if dictionary == "order_type":
             value = order_type_locale[key]
@@ -226,9 +220,6 @@ def get_key_value(language, dictionary, key):
 
         elif dictionary == "payment_status":
             value = payment_status_locale[key]
-
-        elif dictionary == "payment_type":
-            value = payment_type_locale[key]
 
     return value
 

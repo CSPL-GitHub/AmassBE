@@ -63,7 +63,10 @@ from inventory.utils import (
     delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, table_created_locale, table_deleted_locale, language_localization
+from pos.language import (
+    get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
+    language_localization, payment_type_english,
+)
 import pytz
 import re
 import openpyxl
@@ -2070,7 +2073,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
             
-            payment_mode = get_key_value(language, "payment_type", payment_type.type)
+            payment_mode = payment_type_english[payment_type.type]
+            
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[payment_type.type]]
             
             payment_details = {
                 "total": payment_details_order.TotalAmount,
@@ -2088,7 +2094,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         except Exception as e:
             print("Error", e)
 
-            payment_mode = get_key_value(language, "payment_type", 1)
+            payment_mode = payment_type_english[1]
+            
+            if language == "English":
+                payment_mode = language_localization[payment_type_english[1]]
 
             payment_details = {
                 "total": 0.0,
@@ -2363,7 +2372,10 @@ def order_data_socket(request):
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
 
-            payment_mode = get_key_value(language, "payment_type", payment_type.type)
+            payment_mode = payment_type_english[payment_type.type]
+                
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[payment_type.type]]
             
             payment_details ={
                 "total": payment_details_order.TotalAmount,
@@ -2381,7 +2393,10 @@ def order_data_socket(request):
         except Exception as e:
             print("Error", e)
 
-            payment_mode = get_key_value(language, "payment_type", 1)
+            payment_mode = payment_type_english[1]
+                
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[1]]
 
             payment_details ={
                 "total": 0.0,
@@ -3652,7 +3667,11 @@ def excel_download_for_dashboard(request):
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
-                            payment_type = get_key_value(language, "payment_type", payment_detail.type)
+
+                            payment_type = payment_type_english[payment_detail.type]
+                
+                            if language != "English":
+                                payment_type = language_localization[payment_type_english[payment_detail.type]]
                             
                         else:
                             transaction_id = ""
@@ -5256,26 +5275,26 @@ def get_orders_of_customer(request):
                     if PaymentType.get_payment_str(payment_details.type) == 'CASH':
                         payment_data['paymentKey'] = ''
                         payment_data['platform'] = ''
-                        payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+                        payment_data["mode"] = payment_type_english[1]
 
                         if language != "English":
-                            payment_data["mode"] = get_key_value(language, "payment_type", 1)
+                            payment_data["mode"] = language_localization[payment_type_english[1]]
 
                     else:
                         payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
                         payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                        payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
+                        payment_data["mode"] = payment_type_english[payment_details.type]
 
                         if language != "English":
-                            payment_data["mode"] = get_key_value(language, "payment_type", payment_details.type)
+                            payment_data["mode"] = language_localization[payment_type_english[payment_details.type]]
                     
                     payment_data["status"] = payment_details.status
 
                 else:
-                    payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+                    payment_mode = payment_type_english[1]
 
                     if language != "English":
-                        payment_mode = get_key_value(language, "payment_type", 1)
+                        payment_mode = language_localization[payment_type_english[1]]
 
                     payment_data = {
                         "paymentKey": "",
