@@ -2439,72 +2439,87 @@ def updatePaymentDetails(request):
     if payment:    
         print(payment.platform)
 
-        payment.paymentBy=data['payment']['paymentBy']
-        payment.paymentKey=data['payment']['paymentKey']
-        payment.type=data['payment']['type']
-        payment.status=True
-        payment.platform=data['payment']['platform']
+        payment.paymentBy = data['payment']['paymentBy']
+        payment.paymentKey = data['payment']['paymentKey']
+        payment.type = data['payment']['type']
+        payment.status = True
+        payment.platform = data['payment']['platform']
 
         payment.save()
 
     else:
         OrderPayment.objects.create(
-            orderId=coreOrder,
-            paymentBy=data['payment']['paymentBy'],
-            paymentKey=data['payment']['paymentKey'],
-            paid=coreOrder.TotalAmount,
-            due=0,
-            tip=0,
-            type=data['payment']['type'],
-            status=True,
-            platform=data['payment']['platform']
+            orderId = coreOrder,
+            paymentBy = data['payment']['paymentBy'],
+            paymentKey = data['payment']['paymentKey'],
+            paid = coreOrder.TotalAmount,
+            due = 0,
+            tip = 0,
+            type = data['payment']['type'],
+            status = True,
+            platform = data['payment']['platform']
         )
     
     if coreOrder.orderType == 3:
-        order.order_status=10 # CLOSE order
+        order.order_status = 10 # CLOSE order
         order.save()
         
-        coreOrder.Status=2                    # this is just a temporary fix to update 
+        coreOrder.Status = 2                    # this is just a temporary fix to update 
         coreOrder.save()                      # core order status this needs to be changed by updateCoreOrder function
 
-        tables=Order_tables.objects.filter(orderId=order)
+        tables = Order_tables.objects.filter(orderId=order)
         
         for table in tables:
             table.tableId.status = 1 # EMPTY TABLE
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            res = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
+            table_data = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
 
-            webSocketPush(
-                message={"result":res, "UPDATE": "UPDATE"},
-                room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),
-                username="CORE"
-            )#update table for new waiter
+            waiter_id = 0
+
+            if table.tableId.waiterId:
+                waiter_id = table.tableId.waiterId.pk
             
             webSocketPush(
-                message={"result": res, "UPDATE": "UPDATE"},
-                room_name=f"WOMSPOS------{language}-{str(vendorId)}",
-                username="CORE",
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                username = "CORE",
+            )
+            
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{language}-{str(vendorId)}",
+                username = "CORE",
             )
 
-            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
-                # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
-                webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(i.pk)+"------"+str(vendorId),username="CORE",)
+            waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId)
+            
+            for waiter_head in waiter_heads:
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                    username = "CORE",
+                )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
-        order.order_status=10
+        order.order_status = 10
         order.save()
         
-        coreOrder.Status=2
+        coreOrder.Status = 2
         coreOrder.save()
     
-    webSocketPush(message={"id": order.pk,"orderId": order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+'-'+str(oldStatus),username="CORE",)  # WheelMan order remove order from old status
-    # processStation(oldStatus=str(oldStatus),currentStatus=str(orderStatus),orderId=content.orderId.pk,station=content.stationId,vendorId=vendorId)
-    allStationWiseRemove(id=order.pk,old=str(oldStatus),current=str(oldStatus),vendorId=vendorId)
-    allStationWiseSingle(id=order.pk,vendorId=vendorId)
-    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+    webSocketPush(
+        message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
+        room_name=str(vendorId)+'-'+str(oldStatus),
+        username="CORE",
+    )  # WheelMan order remove order from old status
+    
+    allStationWiseRemove(id=order.pk, old=str(oldStatus), current=str(oldStatus), vendorId=vendorId)
+    allStationWiseSingle(id=order.pk, vendorId=vendorId)
     allStationWiseCategory(vendorId=vendorId) 
+    
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
 
     return JsonResponse({})
 
