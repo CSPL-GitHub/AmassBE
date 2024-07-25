@@ -19,20 +19,6 @@ koms_order_status_english = {
     10: 'Close'
 }
 
-koms_order_status_locale = {
-    "All": "الجميع",
-    1: 'قيد الانتظار',
-    2: 'يعالج',
-    3: 'مستعد',
-    4: 'في الانتظار',
-    5: 'ألغيت',
-    6: 'يتذكر',
-    7: 'عالي',
-    8: 'تعيين',
-    9: 'وارد',
-    10: 'يغلق'
-}
-
 payment_status_english = {
     'True': 'Paid',
     'False': 'Pending',
@@ -65,6 +51,15 @@ language_localization = {
     "Paid": "مدفوع",
     "Pending": "قيد الانتظار",
     "Unknown": "مجهول",
+    "Processing": "يعالج",
+    "Ready": "مستعد",
+    "Onhold": "في الانتظار",
+    "Canceled": "ألغيت",
+    "Recall": "يتذكر",
+    "High": "عالي",
+    "Assign": "تعيين",
+    "Incoming": "وارد",
+    "Close": "يغلق",
     "All": "الجميع",
     "all": "الجميع",
     "Delivery": "توصيل",
@@ -192,17 +187,6 @@ def modifier_no_longer_available_locale(modifier_name):
 def delivery_address_validation_locale(kilometer_limit):
     return f"يقع عنوان التسليم على بعد أكثر من {kilometer_limit} كيلومتر"
 
-
-def get_key_value(language, dictionary, key):
-    if language == "English":
-        if dictionary == "koms_order_status":
-            value = koms_order_status_english[key]
-
-    else:
-        if dictionary == "koms_order_status":
-            value = koms_order_status_locale[key]
-
-    return value
 
 
 def check_key_exists(language, dictionary, key):

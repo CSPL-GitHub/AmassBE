@@ -64,8 +64,8 @@ from inventory.utils import (
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
 from pos.language import (
-    get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    language_localization, payment_type_english, payment_status_english, order_type_english,
+    check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
+    payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
 )
 import pytz
 import re
@@ -3566,11 +3566,11 @@ def excel_download_for_dashboard(request):
         return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     order_type_parameter = order_type_english[order_type]
+    order_status_parameter = koms_order_status_english[order_status]
                 
     if language != "English":
         order_type_parameter = language_localization[order_type_english[order_type]]
-
-    order_status_parameter = get_key_value(language, "koms_order_status", order_status)
+        order_status_parameter = language_localization[koms_order_status_english[order_status]]
 
     if platform_id == "All":
         platform_parameter = "All"
@@ -3659,11 +3659,11 @@ def excel_download_for_dashboard(request):
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
                         order_type = order_type_english[order_detail.orderType]
+                        order_status = koms_order_status_english[order.order_status]
                 
                         if language != "English":
                             order_type = language_localization[order_type_english[order_detail.orderType]]
-
-                        order_status = get_key_value(language, "koms_order_status", order.order_status)
+                            order_status = language_localization[koms_order_status_english[order.order_status]]
                         
                         if payment_detail:
                             if payment_detail.status == True:
