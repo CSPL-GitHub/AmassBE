@@ -66,7 +66,7 @@ from inventory.utils import (
 from pos.language import(
     get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
     all_platform_locale, weekdays_locale, order_type_locale_for_excel, sort_by_locale_for_report_excel, 
-    excel_headers_locale, payment_type_locale
+    language_localization, payment_type_locale
 )
 import pytz
 import re
@@ -3739,23 +3739,23 @@ def excel_download_for_dashboard(request):
         sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     else:
-        sheet.append([excel_headers_locale['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
         sheet.append(['', '', '', '', '', '', '', '', ''])
 
         sheet.append([
-            excel_headers_locale['Order ID'],
-            excel_headers_locale['Platform'],
-            excel_headers_locale['Amount'],
-            excel_headers_locale['Order Type'],
-            excel_headers_locale['Order Status'],
-            excel_headers_locale['Order Time'],
-            excel_headers_locale['Payment Type'],
-            excel_headers_locale['Payment Status'],
-            excel_headers_locale['Transaction ID']
+            language_localization['Order ID'],
+            language_localization['Platform'],
+            language_localization['Amount'],
+            language_localization['Order Type'],
+            language_localization['Order Status'],
+            language_localization['Order Time'],
+            language_localization['Payment Type'],
+            language_localization['Payment Status'],
+            language_localization['Transaction ID']
         ])
 
     for order_id, details in order_details.items():
@@ -3775,7 +3775,7 @@ def excel_download_for_dashboard(request):
         sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
 
     else:
-        sheet.append([f'{excel_headers_locale["Total orders"]} = {order_count}', '', f'{excel_headers_locale["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
+        sheet.append([f'{language_localization["Total orders"]} = {order_count}', '', f'{language_localization["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
     
     directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
     os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -6125,19 +6125,19 @@ def top_selling_products_report(request):
 
             order_type = order_type_locale_for_excel[order_type]
 
-            sheet.append([excel_headers_locale["Start Date"], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale["End Date"], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale["Order Type"], f'{order_type}'])
-            sheet.append([excel_headers_locale["Top"], f'{top_number}'])
-            sheet.append([excel_headers_locale["Sorted by"], f'{sort_by}'])
-            sheet.append([excel_headers_locale["Total records"], f'{len(top_selling_items)}'])
+            sheet.append([language_localization["Start Date"], f'{formatted_start_date}'])
+            sheet.append([language_localization["End Date"], f'{formatted_end_date}'])
+            sheet.append([language_localization["Order Type"], f'{order_type}'])
+            sheet.append([language_localization["Top"], f'{top_number}'])
+            sheet.append([language_localization["Sorted by"], f'{sort_by}'])
+            sheet.append([language_localization["Total records"], f'{len(top_selling_items)}'])
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale['Product Name'],
-                excel_headers_locale['Quantity Sold'],
-                excel_headers_locale['Unit Price'],
-                excel_headers_locale['Total Sale']
+                language_localization['Product Name'],
+                language_localization['Quantity Sold'],
+                language_localization['Unit Price'],
+                language_localization['Total Sale']
             ])
 
         if order_items.exists():    
@@ -6507,12 +6507,12 @@ def most_repeating_customers_report(request):
             order_type = order_type_locale_for_excel[order_type]
             sort_by = sort_by_locale_for_report_excel[sort_by]
 
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
-            sheet.append([excel_headers_locale['Top'], f'{top_number}'])
-            sheet.append([excel_headers_locale['Sorted by'], f'{sort_by}'])
-            sheet.append([excel_headers_locale['Total records'], f'{len(top_customers)}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Top'], f'{top_number}'])
+            sheet.append([language_localization['Sorted by'], f'{sort_by}'])
+            sheet.append([language_localization['Total records'], f'{len(top_customers)}'])
             sheet.append([''])
         
         if platform:
@@ -6535,19 +6535,19 @@ def most_repeating_customers_report(request):
 
             else:
                 sheet.append([
-                    excel_headers_locale['Customer Name'],
-                    excel_headers_locale['Phone Number'],
-                    excel_headers_locale['Email ID'],
-                    excel_headers_locale['Address'],
-                    excel_headers_locale['Total Points Credited'],
-                    excel_headers_locale['Total Points Redeemed'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Online Orders'],
-                    excel_headers_locale['Total Offline Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Most Ordered Items']
+                    language_localization['Customer Name'],
+                    language_localization['Phone Number'],
+                    language_localization['Email ID'],
+                    language_localization['Address'],
+                    language_localization['Total Points Credited'],
+                    language_localization['Total Points Redeemed'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Online Orders'],
+                    language_localization['Total Offline Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Most Ordered Items']
                 ])
 
         else:
@@ -6568,17 +6568,17 @@ def most_repeating_customers_report(request):
 
             else:
                 sheet.append([
-                    excel_headers_locale['Customer Name'],
-                    excel_headers_locale['Phone Number'],
-                    excel_headers_locale['Email ID'],
-                    excel_headers_locale['Address'],
-                    excel_headers_locale['Total Points Credited'],
-                    excel_headers_locale['Total Points Redeemed'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Most Ordered Items']
+                    language_localization['Customer Name'],
+                    language_localization['Phone Number'],
+                    language_localization['Email ID'],
+                    language_localization['Address'],
+                    language_localization['Total Points Credited'],
+                    language_localization['Total Points Redeemed'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Most Ordered Items']
                 ])
 
         for customer in top_customers:
@@ -7336,15 +7336,15 @@ def finance_report(request):
             sheet.append(['Category', 'Total Orders', 'Tax Collected', 'Revenue Generated'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
             sheet.append([''])
         
             sheet.append([
-                excel_headers_locale['Category'],
-                excel_headers_locale['Total Orders'],
-                excel_headers_locale['Tax Collected'],
-                excel_headers_locale['Revenue Generated']
+                language_localization['Category'],
+                language_localization['Total Orders'],
+                language_localization['Tax Collected'],
+                language_localization['Revenue Generated']
             ])
 
         if language == "English":
@@ -7353,7 +7353,7 @@ def finance_report(request):
 
         else:
             for key, value in report_data.items():
-                sheet.append([excel_headers_locale[key], value["orders"], value["tax"], value["revenue"]])
+                sheet.append([language_localization[key], value["orders"], value["tax"], value["revenue"]])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -7693,9 +7693,9 @@ def footfall_revenue_report(request):
             sheet.append(['Filtered by', f'{filter_by}'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Filtered by'], f'{filter_by}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Filtered by'], f'{filter_by}'])
 
         sheet.append([''])
 
@@ -7717,19 +7717,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Order Count Data']])
+                sheet.append([language_localization['Order Count Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Total Offline Orders'],
-                    excel_headers_locale['Total Online Orders'],
-                    excel_headers_locale['Cash Payment Orders'],
-                    excel_headers_locale['Online Payment Orders'],
-                    excel_headers_locale['Card Payment Orders'],
+                    language_localization['Instance'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Total Offline Orders'],
+                    language_localization['Total Online Orders'],
+                    language_localization['Cash Payment Orders'],
+                    language_localization['Online Payment Orders'],
+                    language_localization['Card Payment Orders'],
                 ])
 
             for data in filtered_data:
@@ -7765,19 +7765,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Tax Collection Data']])
+                sheet.append([language_localization['Tax Collection Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Tax Collected'],
-                    excel_headers_locale['Tax Collection from Delivery'],
-                    excel_headers_locale['Tax Collection from Pickup'],
-                    excel_headers_locale['Tax Collection from DineIn'],
-                    excel_headers_locale['Tax Collection from Offline Orders'],
-                    excel_headers_locale['Tax Collection from Online Orders'],
-                    excel_headers_locale['Tax Collection from Cash Payment'],
-                    excel_headers_locale['Tax Collection from Online Payment'],
-                    excel_headers_locale['Tax Collection from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Tax Collected'],
+                    language_localization['Tax Collection from Delivery'],
+                    language_localization['Tax Collection from Pickup'],
+                    language_localization['Tax Collection from DineIn'],
+                    language_localization['Tax Collection from Offline Orders'],
+                    language_localization['Tax Collection from Online Orders'],
+                    language_localization['Tax Collection from Cash Payment'],
+                    language_localization['Tax Collection from Online Payment'],
+                    language_localization['Tax Collection from Card Payment'],
                 ])
 
 
@@ -7814,19 +7814,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Revenue Generation Data']])
+                sheet.append([language_localization['Revenue Generation Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Revenue Generated'],
-                    excel_headers_locale['Revenue from Delivery'],
-                    excel_headers_locale['Revenue from Pickup'],
-                    excel_headers_locale['Revenue from DineIn'],
-                    excel_headers_locale['Revenue from Offline Orders'],
-                    excel_headers_locale['Revenue from Online Orders'],
-                    excel_headers_locale['Revenue from Cash Payment'],
-                    excel_headers_locale['Revenue from Online Payment'],
-                    excel_headers_locale['Revenue from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Revenue Generated'],
+                    language_localization['Revenue from Delivery'],
+                    language_localization['Revenue from Pickup'],
+                    language_localization['Revenue from DineIn'],
+                    language_localization['Revenue from Offline Orders'],
+                    language_localization['Revenue from Online Orders'],
+                    language_localization['Revenue from Cash Payment'],
+                    language_localization['Revenue from Online Payment'],
+                    language_localization['Revenue from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -7859,17 +7859,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Order Count Data']])
+                sheet.append([language_localization['Order Count Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Cash Payment Orders'],
-                    excel_headers_locale['Online Payment Orders'],
-                    excel_headers_locale['Card Payment Orders'],
+                    language_localization['Instance'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Cash Payment Orders'],
+                    language_localization['Online Payment Orders'],
+                    language_localization['Card Payment Orders'],
                 ])
 
             for data in filtered_data:
@@ -7901,17 +7901,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Tax Collection Data']])
+                sheet.append([language_localization['Tax Collection Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Tax Collected'],
-                    excel_headers_locale['Tax Collection from Delivery'],
-                    excel_headers_locale['Tax Collection from Pickup'],
-                    excel_headers_locale['Tax Collection from DineIn'],
-                    excel_headers_locale['Tax Collection from Cash Payment'],
-                    excel_headers_locale['Tax Collection from Online Payment'],
-                    excel_headers_locale['Tax Collection from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Tax Collected'],
+                    language_localization['Tax Collection from Delivery'],
+                    language_localization['Tax Collection from Pickup'],
+                    language_localization['Tax Collection from DineIn'],
+                    language_localization['Tax Collection from Cash Payment'],
+                    language_localization['Tax Collection from Online Payment'],
+                    language_localization['Tax Collection from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -7943,17 +7943,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Revenue Generation Data']])
+                sheet.append([language_localization['Revenue Generation Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Revenue Generated'],
-                    excel_headers_locale['Revenue from Delivery'],
-                    excel_headers_locale['Revenue from Pickup'],
-                    excel_headers_locale['Revenue from DineIn'],
-                    excel_headers_locale['Revenue from Cash Payment'],
-                    excel_headers_locale['Revenue from Online Payment'],
-                    excel_headers_locale['Revenue from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Revenue Generated'],
+                    language_localization['Revenue from Delivery'],
+                    language_localization['Revenue from Pickup'],
+                    language_localization['Revenue from DineIn'],
+                    language_localization['Revenue from Cash Payment'],
+                    language_localization['Revenue from Online Payment'],
+                    language_localization['Revenue from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -8059,8 +8059,8 @@ def order_report(request):
             sheet.append(['End Date', f'{formatted_end_date}'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
 
         sheet.append([''])
 
@@ -8069,11 +8069,11 @@ def order_report(request):
         
         else:
             sheet.append([
-                excel_headers_locale["Category"],
-                excel_headers_locale["Total Orders"],
-                excel_headers_locale["Complete Orders"],
-                excel_headers_locale["Cancelled Orders"],
-                excel_headers_locale["Processing Orders"]
+                language_localization["Category"],
+                language_localization["Total Orders"],
+                language_localization["Complete Orders"],
+                language_localization["Cancelled Orders"],
+                language_localization["Processing Orders"]
             ])
 
         for category, orders_info in order_count_details.items():
@@ -8291,27 +8291,27 @@ def cancel_order_report(request):
             sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
             sheet.append([''])
 
-            sheet.append([excel_headers_locale["Cancelled Orders"], excel_headers_locale["Cancelled Products"], excel_headers_locale["Loss Made"]])
+            sheet.append([language_localization["Cancelled Orders"], language_localization["Cancelled Products"], language_localization["Loss Made"]])
             sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
             sheet.append([''])
 
-            sheet.append([excel_headers_locale['Cancelled Product Details']])
-            sheet.append([excel_headers_locale['Top'], top_number])
-            sheet.append([excel_headers_locale['Sorted by'], sort_by])
+            sheet.append([language_localization['Cancelled Product Details']])
+            sheet.append([language_localization['Top'], top_number])
+            sheet.append([language_localization['Sorted by'], sort_by])
 
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale['Product Name'],
-                excel_headers_locale['Quantity Cancelled'],
-                excel_headers_locale['Unit Price'],
-                excel_headers_locale['Estimated Revenue']
+                language_localization['Product Name'],
+                language_localization['Quantity Cancelled'],
+                language_localization['Unit Price'],
+                language_localization['Estimated Revenue']
             ])
 
         for product_detail in cancelled_product_details:
@@ -8526,17 +8526,17 @@ def pincode_report(request):
             sheet.append(["Pincode", "Locality", "Orders", "Revenue", "Most Ordered Products"])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale["Pincode"],
-                excel_headers_locale["Locality"],
-                excel_headers_locale["Orders"],
-                excel_headers_locale["Revenue"],
-                excel_headers_locale["Most Ordered Products"]
+                language_localization["Pincode"],
+                language_localization["Locality"],
+                language_localization["Orders"],
+                language_localization["Revenue"],
+                language_localization["Most Ordered Products"]
             ])
         
         for info in pincode_list:

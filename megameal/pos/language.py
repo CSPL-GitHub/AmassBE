@@ -86,7 +86,7 @@ order_type_locale_for_excel = {
     "offline": "غير متصل على الانترنت"
 }
 
-excel_headers_locale = {
+language_localization = {
     "Order ID": "رقم الطلب",
     "Platform": "منصة",
     "Start Date": "تاريخ البدء",
