@@ -1783,28 +1783,28 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
         if language == "English":
             notify(
-                type=3,
-                msg='0',
-                desc=f"Table no.{table_number} created on {floor_name}",
-                stn=['POS'],
-                vendorId=instance.vendorId.pk
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{table_number} created on {floor_name}",
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
             )
 
         else:
             notify(
-                type=3,
-                msg='0',
-                desc=table_created_locale(table_number, floor_name),
-                stn=['POS'],
-                vendorId=instance.vendorId.pk
+                type = 3,
+                msg = '0',
+                desc = table_created_locale(table_number, floor_name),
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
             )
 
-        response = get_table_data(hotelTable=instance, vendorId=vendor_id)
+        table_data = get_table_data(hotelTable=instance, vendorId=vendor_id)
         
         webSocketPush(
-            message={"result": response, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
         )
 
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
@@ -1813,26 +1813,26 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             for head in waiter_heads:
                 if language == "English":
                     notify(
-                        type=3,
-                        msg='0',
-                        desc=f"Table no.{table_number} created on {floor_name}",
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{table_number} created on {floor_name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
                     )
 
                 else:
                     notify(
-                        type=3,
-                        msg='0',
-                        desc=table_created_locale(table_number, floor_name),
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
+                        type = 3,
+                        msg = '0',
+                        desc = table_created_locale(table_number, floor_name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
                     )
         
                 webSocketPush(
-                    message={"result":response, "UPDATE": "UPDATE"},
-                    room_name=WOMS + str(head.pk) + "------" + str(vendor_id),
-                    username="CORE",
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
                 )
 
     def perform_destroy(self, instance):
@@ -1844,28 +1844,28 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
         if language == "English":
             notify(
-                type=3,
-                msg='0',
-                desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                stn=['POS'],
-                vendorId=vendor_id
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                stn = ['POS'],
+                vendorId = vendor_id
             )
 
         else:
             notify(
-                type=3,
-                msg='0',
-                desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
-                stn=['POS'],
-                vendorId=vendor_id
+                type = 3,
+                msg = '0',
+                desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                stn = ['POS'],
+                vendorId = vendor_id
             )
 
-        response = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        all_tables_data = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
         
         webSocketPush(
-            message={"result": response, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
         )
         
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
@@ -1874,21 +1874,27 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             for head in waiter_heads:
                 if language == "English":
                     notify(
-                        type=3,
-                        msg='0',
-                        desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
                     )
 
                 else:
                     notify(
-                        type=3,
-                        msg='0',
-                        desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
+                        type = 3,
+                        msg = '0',
+                        desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
                     )
+
+                webSocketPush(
+                    message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
     
 
 @api_view(['POST'])
