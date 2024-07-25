@@ -316,7 +316,7 @@ def assign_waiter_to_table(request):
             
             webSocketPush(
                 message = {"result": result, "UPDATE": "REMOVE",},
-                room_name = f"WOMS{old_waiter_id}------{str(vendor_id)}",
+                room_name = f"WOMS{old_waiter_id}------{language}-{str(vendor_id)}",
                 username="CORE",
             )#remove table from old waiter
         
