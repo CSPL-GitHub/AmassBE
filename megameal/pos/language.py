@@ -170,11 +170,9 @@ language_localization = {
     "Revenue from Cash Payment": "الإيرادات من الدفع النقدي",
     "Revenue from Online Payment": "الإيرادات من الدفع عبر الإنترنت",
     "Revenue from Card Payment": "الإيرادات من دفع البطاقة",
+    "Store is already closed": "المتجر مغلق",
+    "Please enter a valid address": "يرجى إدخال عنوان صالح"
 }
-
-store_close_message_locale = "المتجر مغلق"
-
-valid_address_message_locale = "الرجاء إدخال عنوان صالح"
 
 
 def order_has_arrived_locale(external_order_id):

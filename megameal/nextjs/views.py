@@ -15,9 +15,9 @@ from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, 
 from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
 from pos.language import (
-    store_close_message_locale, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
+    language_localization, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
     modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale,
-    valid_address_message_locale, delivery_address_validation_locale,
+    delivery_address_validation_locale,
 )
 from django.http import JsonResponse
 from datetime import datetime, timedelta
@@ -262,7 +262,7 @@ def check_order_items_status(request):
             return JsonResponse({"msg": "Store is already closed"}, status=status.HTTP_400_BAD_REQUEST)
         
         else:
-            return JsonResponse({"msg": store_close_message_locale}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"msg": language_localization["Store is already closed"]}, status=status.HTTP_400_BAD_REQUEST)
     
     for item in order_details.get('items', []):
         product = Product.objects.filter(pk=item['productId']).first()
@@ -552,13 +552,13 @@ def set_customer_address(request):
     if distance == None:
         if language == "English":
             return Response(
-                {"AddressError": "Please enter valid address"},
+                {"AddressError": "Please enter a valid address"},
                 status=status.HTTP_400_BAD_REQUEST
             )
         
         else:
             return Response(
-                {"AddressError": valid_address_message_locale},
+                {"AddressError": language_localization["Please enter a valid address"]},
                 status=status.HTTP_400_BAD_REQUEST
             )
     
@@ -698,10 +698,10 @@ def verify_address(request):
 
     if distance == None:
         if language == "English":
-            return Response({"AddressError": f"Please enter valid address"})
+            return Response({"AddressError": "Please enter a valid address"})
         
         else:
-            return Response({"AddressError": valid_address_message_locale})
+            return Response({"AddressError": language_localization["Please enter a valid address"]})
     
     distance = getDIstance(vendor_addr, addr) / 1000
 

@@ -63,10 +63,7 @@ from inventory.utils import (
     delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import(
-    get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    language_localization, payment_type_locale
-)
+from pos.language import get_key_value, check_key_exists, table_created_locale, table_deleted_locale, language_localization
 import pytz
 import re
 import openpyxl
@@ -5262,7 +5259,7 @@ def get_orders_of_customer(request):
                         payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
 
                         if language != "English":
-                            payment_data["mode"] = payment_type_locale[1]
+                            payment_data["mode"] = get_key_value(language, "payment_type", 1)
 
                     else:
                         payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
@@ -5270,7 +5267,7 @@ def get_orders_of_customer(request):
                         payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
 
                         if language != "English":
-                            payment_data["mode"] = payment_type_locale[payment_details.type]
+                            payment_data["mode"] = get_key_value(language, "payment_type", payment_details.type)
                     
                     payment_data["status"] = payment_details.status
 
@@ -5278,7 +5275,7 @@ def get_orders_of_customer(request):
                     payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
 
                     if language != "English":
-                        payment_mode = payment_type_locale[1]
+                        payment_mode = get_key_value(language, "payment_type", 1)
 
                     payment_data = {
                         "paymentKey": "",
