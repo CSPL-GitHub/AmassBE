@@ -655,10 +655,25 @@ def getDIstance(source,destination):
 
 @api_view(['GET'])
 def getOrderData(request):
-    vendorId = request.GET.get('vendorId')
-    orderId = request.GET.get('orderId')
-    order = KOMSorder.objects.filter(master_order__externalOrderId = orderId)
-    data = order_data(vendor_id=vendorId, page_number=1, search=str(order.first().externalOrderId), order_status="All", order_type="All", platform="All", is_dashboard=0, s_date=None, e_date=None)
+    external_order_id = request.GET.get('orderId')
+    vendor_id = request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+
+    order = KOMSorder.objects.filter(master_order__externalOrderId = external_order_id).first()
+    
+    data = order_data(
+        vendor_id = vendor_id,
+        page_number = 1,
+        search = str(order.externalOrderId),
+        order_status = "All",
+        order_type = "All",
+        platform = "All",
+        is_dashboard = 0,
+        s_date = None,
+        e_date = None,
+        language = language
+    )
+    
     return Response(data)
 
 
