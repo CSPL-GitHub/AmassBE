@@ -65,7 +65,7 @@ from inventory.utils import (
 )
 from pos.language import (
     get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    language_localization, payment_type_english, payment_status_english,
+    language_localization, payment_type_english, payment_status_english, order_type_english,
 )
 import pytz
 import re
@@ -3565,25 +3565,27 @@ def excel_download_for_dashboard(request):
     if check_key_exists(language, "koms_order_status", order_status) == False:
         return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
-    order_type_parameter = get_key_value(language, "order_type", order_type)
+    order_type_parameter = order_type_english[order_type]
+                
+    if language != "English":
+        order_type_parameter = language_localization[order_type_english[order_type]]
+
     order_status_parameter = get_key_value(language, "koms_order_status", order_status)
 
     if platform_id == "All":
-        if language == "English":
-            platform_parameter = "All"
+        platform_parameter = "All"
 
-        else:
-            platform_parameter = "الجميع"
+        if language != "English":
+            platform_parameter = language_localization["All"]
         
     else:
-        platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
+        platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            if language == "English":
-                platform_parameter = platform_parameter.Name
+            platform_parameter = platform_instance.Name
 
-            else:
-                platform_parameter = platform_parameter.Name_locale
+            if language != "English":
+                platform_parameter = platform_instance.Name_locale
 
         else:
             return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3647,14 +3649,19 @@ def excel_download_for_dashboard(request):
                 for order in koms_orders:
                     order_id = order.externalOrderId
                     
-                    order_detail = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+                    order_detail = Order.objects.filter(
+                        Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))
+                    ).last()
                     
                     payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
 
                     if order_detail:
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
-                        order_type = get_key_value(language, "order_type", order_detail.orderType)
+                        order_type = order_type_english[order_detail.orderType]
+                
+                        if language != "English":
+                            order_type = language_localization[order_type_english[order_detail.orderType]]
 
                         order_status = get_key_value(language, "koms_order_status", order.order_status)
                         
@@ -3716,8 +3723,6 @@ def excel_download_for_dashboard(request):
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
-
-    # order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
 
     new_order_details = OrderedDict()
     sorted_items = []
