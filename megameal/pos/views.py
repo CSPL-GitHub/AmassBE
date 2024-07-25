@@ -65,7 +65,7 @@ from inventory.utils import (
 )
 from pos.language import (
     get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    language_localization, payment_type_english,
+    language_localization, payment_type_english, payment_status_english,
 )
 import pytz
 import re
@@ -3660,10 +3660,16 @@ def excel_download_for_dashboard(request):
                         
                         if payment_detail:
                             if payment_detail.status == True:
-                                payment_status = get_key_value(language, "payment_status", "True")
+                                payment_status = payment_status_english["True"]
+                
+                                if language != "English":
+                                    payment_status = language_localization[payment_status_english["True"]]
                             
                             else:
-                                payment_status = get_key_value(language, "payment_status", "False")
+                                payment_status = payment_status_english["False"]
+                
+                                if language != "English":
+                                    payment_status = language_localization[payment_status_english["False"]]
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
@@ -3675,8 +3681,12 @@ def excel_download_for_dashboard(request):
                             
                         else:
                             transaction_id = ""
-                            payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
+
+                            payment_status = payment_status_english["Unknown"]
+                
+                            if language != "English":
+                                payment_status = language_localization[payment_status_english["Unknown"]]
                             
                         platform_name = ""
 
