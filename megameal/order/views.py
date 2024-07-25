@@ -1,20 +1,17 @@
-import json
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
 from rest_framework.parsers import JSONParser
 from core.POS_INTEGRATION.staging_pos import StagingIntegration
-from koms.views import createOrderInKomsAndWoms
-from core.utils import CorePlatform, UpdatePoint
-from order.models import Order, Customer, OrderPayment, LoyaltyProgramSettings, LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory
 from order import order_helper
+from order.models import Order, Customer, OrderPayment, LoyaltyProgramSettings, LoyaltyPointsCreditHistory
 from core.utils import API_Messages
-from core.models import POS_Settings, Vendor, Product, ProductCategoryJoint, ProductModifier, ProductModifierGroup
+from core.models import POS_Settings, Vendor, Product, ProductCategoryJoint
 from koms.models import Station
 from koms.models import Order as KOMSOrder
-from django.http import JsonResponse
 from django.utils import timezone
-from datetime import datetime, timedelta
+from datetime import timedelta
 from rest_framework import status
+import json
 
 
 
@@ -78,26 +75,6 @@ def addLineItem(request):
         return Response(coreResponse, status=500)
 
 
-@api_view(["POST"])
-def updateOrderStatusFromKOMS(request):
-     # +++++ response template
-    coreResponse = {
-        API_Messages.STATUS: API_Messages.ERROR,
-        "msg": "Something went wrong"
-    }
-    try:
-        # ++++++++++ request data
-        data = dict(JSONParser().parse(request))
-        vendorId = data["vendorId"]
-        data["updatePoint"]=UpdatePoint.KOMS
-        # ++++ pick all the channels of vendor
-        rs=order_helper.OrderHelper.orderStatusUpdate(data=data,vendorId=vendorId)
-        return Response(rs[0], status=rs[1])
-    except Exception as err:
-        coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
-        return Response(coreResponse, status=500)
-
-
 def getPrepTime(plu,vendorId):
     try:
         prd=ProductCategoryJoint.objects.get(product=Product.objects.get(PLU=plu,vendorId=vendorId))
@@ -108,121 +85,6 @@ def getPrepTime(plu,vendorId):
         # return {"prepTime":0,"tag":}[]
         stn=Station.objects.filter(station_name=prd.category.categoryStation.station_name,vendorId=vendorId).first()
         return {"prepTime":prd.product.preparationTime,"tag":stn.pk}
-
-
-@api_view(['post'])
-def womsCreateOrder(request):
-    vendorId = request.GET.get('vendorId', None)
-
-    if vendorId == None:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, status=400, safe=False)
-    
-    try:
-        orderid=str(CorePlatform.POS)+datetime.now().strftime("%H%M%S")
-        result = {
-                "internalOrderId": orderid,
-                "vendorId": vendorId,
-                "externalOrderId":orderid,
-                # "orderType": request.data.get("type", "DINEIN" ),
-                "orderType":"DINEIN",
-                "pickupTime": '',
-                "arrivalTime": '',
-                "deliveryIsAsap": 'true',
-                "note": request.data.get('productNote'),
-                "tables": request.data.get('tables'),
-                "items": [],
-                "remake": False,
-                "customerName": request.data.get('name') if request.data.get('name') else "test",
-                "status": "pending",
-                "platform": "WOMS",
-                "points_redeemed":request.data.get('points_redeemed') or 0,
-                "customer": {
-                    # "internalId": "1",
-                    "fname": request.data.get('name') if request.data.get('name') else "",
-                    "lname": " ",
-                    "email": request.data.get('email') if request.data.get('email') else "",
-                    "phno": request.data.get('mobileNo') if request.data.get('mobileNo') else "",
-                    "address1": " ",
-                    "address2": "",
-                    "city": "",
-                    "state": "",
-                    "country": "",
-                    "zip": "",
-                    "vendorId": vendorId
-                },
-                # "discount":{
-                #     "value":0.0,
-                #     "calType":2
-                #     },
-                "payment": {
-                    "tipAmount": request.data.get('tip',0.0),
-                    "payConfirmation": request.data.get("paymentId") if request.data.get("paymentId") else "0000",
-                    "payAmount": request.data.get("finalTotal",0.0),
-                    "payType":"",
-                    "default": False,
-                    "custProfileId":"",
-                    "custPayProfileId":"",
-                    "payData": "",
-                    "CardId":"NA",
-                    "expDate":"0000",
-                    "transcationId":request.data.get("paymentId"),
-                    "lastDigits":"123",
-                    "billingZip":""
-                }
-            }
-        items = []
-        for item in request.data["products"]:
-                try:
-                    corePrd = Product.objects.get(
-                        pk=item['productId']
-                        # , vendorId=vendorId
-                        )
-                except Product.DoesNotExist:
-                    return {API_Messages.ERROR:" Not found"}
-                itemData = {
-                    "plu": corePrd.productParentId.PLU if corePrd.productParentId != None else corePrd.PLU,
-                    "sku": item.get("sku"),
-                    "productName": corePrd.productName,
-                    "variantName": str(item["variation_id"]) if item.get("variation_id") else "txt",
-                    "quantity": item["quantity"],
-                    "tag": ProductCategoryJoint.objects.get(product=corePrd.pk).category.pk, 
-                    "subItems":  [
-                           {
-                        "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
-                        "name": subItem['name'],
-                        "status":subItem["status"],
-                        "group":  ProductModifierGroup.objects.filter(PLU=subItemGrp['plu']).first().pk,
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers']
-                ] ,
-                    "itemRemark": item["note"],  # Note Unavailable
-                    "unit": "qty",  # Default
-                    "modifiers": [
-                           {
-                        "plu": ProductModifier.objects.get(pk=subItem["modifierId"]).modifierPLU,
-                        "name": subItem['name'],
-                        "status":subItem["status"],
-                        "quantity":subItem["quantity"],
-                        # "group":  subItemGrp['id']
-                        "group":  ProductModifierGroup.objects.filter(PLU=subItemGrp['plu']).first().pk,
-                    } for subItemGrp in item['modifiersGroup'] for subItem in subItemGrp['modifiers'] if subItem["status"]
-                ]  # TODO
-                }
-                
-                if corePrd.productParentId != None:
-                    itemData["variant"] = {
-                        "plu": corePrd.PLU
-                    }
-                #####++++++++ Modifiers
-                items.append(itemData)
-        result["items"] = items
-        result["tip"] = request.data.get('tip',0.0)
-        res=order_helper.OrderHelper.openOrder(result,vendorId)
-        return JsonResponse({'token':res})
-    except Exception as e:
-        print(e)
-        return JsonResponse(
-                {"msg": e}, status=400
-            )
 
 
 # For testing purpose of create_loyalty_points_credit_history signal
