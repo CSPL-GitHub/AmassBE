@@ -3559,10 +3559,10 @@ def excel_download_for_dashboard(request):
     if order_status != "All":
         order_status = int(order_status)
     
-    if check_key_exists(language, "order_type", order_type) == False:
+    if check_key_exists("order_type", order_type) == False:
         return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if check_key_exists(language, "koms_order_status", order_status) == False:
+    if check_key_exists("koms_order_status", order_status) == False:
         return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
     order_type_parameter = order_type_english[order_type]

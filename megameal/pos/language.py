@@ -189,19 +189,11 @@ def delivery_address_validation_locale(kilometer_limit):
 
 
 
-def check_key_exists(language, dictionary, key):
-    if language == "English":
-        if dictionary == "order_type":
-            value = key in order_type_english.keys()
+def check_key_exists(dictionary, key):
+    if dictionary == "order_type":
+        value = key in order_type_english.keys()
 
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_english.keys()
-
-    else:
-        if dictionary == "order_type":
-            value = key in order_type_locale.keys()
-
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_locale.keys()
+    elif dictionary == "koms_order_status":
+        value = koms_order_status_english.keys()
 
     return value
