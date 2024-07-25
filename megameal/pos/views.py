@@ -12,7 +12,7 @@ from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
 from woms.views import get_table_data, filter_tables
 from order.models import (
-    Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
+    Order, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
 )
 from django.core.paginator import Paginator
@@ -21,7 +21,7 @@ from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, Cast, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value, FloatField
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -57,16 +57,16 @@ from rest_framework.pagination import PageNumberPagination
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
-from static.order_status_const import WOMS
 from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
-    single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
-    single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
-    delete_modifier_in_odoo, sync_order_content_with_inventory,
+    single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
+    delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
+    single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
 from pos.language import(
-    get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
-    order_type_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale, payment_type_locale
+    get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
+    all_platform_locale, weekdays_locale, order_type_locale_for_excel, sort_by_locale_for_report_excel, 
+    excel_headers_locale, payment_type_locale
 )
 import pytz
 import re
@@ -80,20 +80,6 @@ from operator import itemgetter
 import calendar
 import pgeocode
 
-
-
-class CustomPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 50
-
-    def get_paginated_response(self, data):
-        return Response({
-            'total_pages': self.page.paginator.num_pages if self.page.paginator.count > 0 else 1,
-            'current_page': self.page.number,
-            'page_size': self.page.paginator.per_page,
-            'results': data
-        })
 
 
 def date_sort_top_selling_products(item):
@@ -115,6 +101,840 @@ def date_sort_order_status_type_summary(item):
 
 def get_order_id(order_data):
     return order_data["orderId"]
+
+
+class CustomPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+    def get_paginated_response(self, data):
+        return Response({
+            'total_pages': self.page.paginator.num_pages if self.page.paginator.count > 0 else 1,
+            'current_page': self.page.number,
+            'page_size': self.page.paginator.per_page,
+            'results': data
+        })
+
+
+class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
+    queryset = CoreUserCategory.objects.all().order_by('-pk')
+    serializer_class = CoreUserCategoryModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
+        
+        return CoreUserCategory.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+
+        serializer_data = serializer.data
+        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'vendor': 1})
+        
+        return JsonResponse({"user_categories": serializer_data})
+
+    def create(self, request, *args, **kwargs):
+        try:
+            name = request.data.get('name')
+            vendor_id = request.data.get('vendor')
+
+            if not name: 
+                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not vendor_id:
+                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            existing_category = CoreUserCategory.objects.filter(
+                Q(name__iexact=f"{name}_{vendor_id}") & Q(vendor_id=vendor_id)
+            )
+
+            if existing_category.exists():
+                return Response(
+                    {"error": "Category with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+            
+            core_user_category = CoreUserCategory(name=f"{name}_{vendor_id}", vendor_id=vendor_id)
+            core_user_category.save()
+
+            serializer = self.get_serializer(core_user_category)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        except IntegrityError:
+            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
+        
+    def update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            name = request.data.get('name')
+            vendor_id = request.GET.get('vendor')
+
+            if not name: 
+                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+                
+            if not vendor_id:
+                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            existing_category = CoreUserCategory.objects.filter(
+                Q(name__iexact=f"{name}_{vendor_id}") & ~Q(pk=instance.pk) & Q(vendor_id=vendor_id)
+            )
+
+            if existing_category.exists():
+                return Response(
+                    {"error": "Category with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+            
+            instance.name = f"{name}_{vendor_id}"
+            instance.save()
+
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+    
+        except IntegrityError:
+            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CoreUserModelViewSet(viewsets.ModelViewSet):
+    queryset = CoreUser.objects.all().order_by('-pk')
+    serializer_class = CoreUserModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('first_name', 'last_name', 'email')
+    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
+    ordering_fields = ('id', 'first_name', 'last_name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+        group_id = self.request.GET.get('group')
+
+        if vendor_id:
+            if not group_id:
+                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
+
+            elif group_id=='0':
+                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
+            
+            else:
+                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
+        
+        return CoreUser.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"users": serializer.data})
+    
+    def perform_create(self, serializer):
+        password = self.request.data.get('password')
+        if password:
+            serializer.save(password=make_password(password))
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
+        password = self.request.data.get('password')
+        if password:
+            serializer.save(password=make_password(password))
+        else:
+            serializer.save()
+
+
+class DepartmentModelViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all().order_by('-pk')
+    serializer_class = DepartmentModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
+        
+        return Department.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"departments": serializer.data})
+    
+    def create(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.data.get('vendor')
+
+        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
+
+        if existing_department.exists():
+            return Response(
+                {"error": "Department with this name already exists"},
+                status=status.HTTP_400_BAD_REQUEST
+        )
+
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.GET.get('vendor')
+
+        instance = self.get_object()
+
+        if name:
+            existing_department = Department.objects.filter(
+                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
+            )
+
+            if existing_department.exists():
+                return Response(
+                    {"error": "Department with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().update(request, *args, **kwargs)
+
+
+class WaiterViewSet(viewsets.ModelViewSet):
+    queryset = Waiter.objects.all()
+    serializer_class = WaiterSerializer
+    filter_class = WaiterFilter
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = Waiter.objects.filter(vendorId=vendor_id)
+
+            return queryset
+        
+        else:
+            return Waiter.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('name')
+        language = request.GET.get('language', 'English')
+
+        if name_query:
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"waiters": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class FloorViewSet(viewsets.ModelViewSet):
+    queryset = Floor.objects.all().order_by('id')
+    serializer_class = FloorSerializer
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
+
+            return queryset
+        
+        else:
+            return Floor.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"floors": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+    
+
+class HotelTableViewSet(viewsets.ModelViewSet):
+    queryset = HotelTable.objects.all()
+    serializer_class = HotelTableSerializer
+    filter_class = HotelTableFilter
+    filter_backends = [DjangoFilterBackend]
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
+
+            return queryset
+        
+        else:
+            return HotelTable.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        floor_id_query = request.GET.get('floor', None)
+
+        if floor_id_query:
+            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"tables": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+
+        serialized_data = self.get_serializer(instance).data
+
+        table_number = serialized_data.get('tableNumber')
+        floor_name = serialized_data.get('floor')
+        vendor_id = serialized_data.get('vendorId')
+
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{table_number} created on {floor_name}",
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
+            )
+
+        else:
+            notify(
+                type = 3,
+                msg = '0',
+                desc = table_created_locale(table_number, floor_name),
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
+            )
+
+        table_data = get_table_data(hotelTable=instance, vendorId=vendor_id)
+        
+        webSocketPush(
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
+
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
+
+        if waiter_heads:
+            for head in waiter_heads:
+                if language == "English":
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{table_number} created on {floor_name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                else:
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = table_created_locale(table_number, floor_name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+        
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+        vendor_id = instance.vendorId.pk
+
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                stn = ['POS'],
+                vendorId = vendor_id
+            )
+
+        else:
+            notify(
+                type = 3,
+                msg = '0',
+                desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                stn = ['POS'],
+                vendorId = vendor_id
+            )
+
+        all_tables_data = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        
+        webSocketPush(
+            message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
+        
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
+
+        if waiter_heads:
+            for head in waiter_heads:
+                if language == "English":
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                else:
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                webSocketPush(
+                    message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
+  
+
+class ProductCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
+    filter_class = ProductCategoryFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    pagination_class = CustomPagination 
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
+        
+        else:
+            queryset = ProductCategory.objects.none()
+        
+        queryset = queryset.order_by('-pk')
+
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('categoryName', None)
+        language = request.GET.get('language', 'English')
+        
+        if name_query:
+            if language == "English":
+                queryset = queryset.filter(categoryName__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(categoryName_locale__icontains=name_query)
+
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+
+            return self.get_paginated_response(serializer.data)
+    
+    def create(self, request, *args, **kwargs):
+        try:
+            plu = request.data.get('categoryPLU')
+            vendor_id = request.data.get('vendorId')
+
+            existing_category = ProductCategory.objects.filter(categoryPLU=plu, vendorId=vendor_id).first()
+
+            if existing_category:
+                return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_category_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                headers = self.get_success_headers(serializer.data)
+
+                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def update(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                partial = kwargs.pop('partial', False)
+                instance = self.get_object()
+
+                new_plu = request.data.get('categoryPLU')
+
+                if new_plu != instance.categoryPLU:
+                    existing_category = ProductCategory.objects.filter(categoryPLU=new_plu, vendorId=instance.vendorId).first()
+
+                    if existing_category:
+                        return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                serializer = self.get_serializer(instance, data=request.data, partial=partial)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+
+                vendor_id = serializer.instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_category_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
+
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+
+                if inventory_platform:
+                    delete_status, error_message, request_data = delete_category_in_odoo(inventory_platform.baseUrl, instance.categoryPLU, vendor_id)
+                
+                    if delete_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                self.perform_destroy(instance)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+                    
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ModifierGroupViewSet(viewsets.ModelViewSet):
+    queryset = ProductModifierGroup.objects.all()
+    serializer_class = ModifierGroupSerializer
+    filter_class = ModifierGroupFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    pagination_class = CustomPagination 
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
+        
+        else:
+            queryset = ProductModifierGroup.objects.none()
+        
+        queryset = queryset.order_by('-id')
+
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('name', None)
+        
+        if name_query:
+            language = request.GET.get('language', "English")
+
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
+
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+
+            return self.get_paginated_response(serializer.data)
+        
+    def create(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+
+            plu = data.get('PLU')
+            vendor_id = data.get('vendorId')
+
+            existing_modifier_group = ProductModifierGroup.objects.filter(PLU=plu, vendorId=vendor_id).first()
+
+            if existing_modifier_group:
+                return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                headers = self.get_success_headers(serializer.data)
+                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def update(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                partial = kwargs.pop('partial', False)
+                instance = self.get_object()
+
+                new_plu = request.data.get('PLU')
+
+                if new_plu != instance.PLU:
+                    existing_category = ProductModifierGroup.objects.filter(PLU=new_plu, vendorId=instance.vendorId).first()
+
+                    if existing_category:
+                        return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                serializer = self.get_serializer(instance, data=request.data, partial=partial)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                return Response(serializer.data)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
+                
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = delete_modifier_group_in_odoo(inventory_platform.baseUrl, instance.PLU, vendor_id)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                self.perform_destroy(instance)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DiscountCouponModelViewSet(viewsets.ModelViewSet):
+    queryset = Order_Discount.objects.all().order_by('-pk')
+    serializer_class = DiscountCouponModelSerializer
+    filter_class = DiscountCouponFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ("discountName", "discountCode", "value")
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Order_Discount.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class StationModelViewSet(viewsets.ModelViewSet):
+    queryset = Station.objects.all().order_by('-pk')
+    serializer_class = StationModelSerializer
+    filter_class = StationFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ('station_name',)
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Station.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class ChefModelViewSet(viewsets.ModelViewSet):
+    queryset = Staff.objects.all().order_by('-pk')
+    serializer_class = ChefModelSerializer
+    filter_class = ChefFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ('first_name', 'last_name',)
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Staff.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Staff.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class BannerModelViewSet(viewsets.ModelViewSet):
+    queryset = Banner.objects.all().order_by('-pk')
+    serializer_class = BannerModelSerializer
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId')
+
+        if vendor_id:
+            platform_type = self.request.GET.get('platform_type')
+            
+            if platform_type:
+                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
+            
+            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
+        
+        return Banner.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"banners": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+
 
 
 @api_view(["GET"])
@@ -1045,7 +1865,8 @@ def showtabledetails(request):
     except Exception as e :
             print(e)
             return []
-        
+
+
 @api_view(['GET'])
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
@@ -1056,6 +1877,7 @@ def show_tableCapacity(request):
         return JsonResponse({ "tableCapacity": table}, safe=False)
     except Exception as e:
         return JsonResponse({"error":str(e)})
+
 
 @api_view(["POST", "GET"])
 def productStatusChange(request):
@@ -1677,226 +2499,6 @@ def order_data_socket(request):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
-class WaiterViewSet(viewsets.ModelViewSet):
-    queryset = Waiter.objects.all()
-    serializer_class = WaiterSerializer
-    filter_class = WaiterFilter
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = Waiter.objects.filter(vendorId=vendor_id)
-
-            return queryset
-        
-        else:
-            return Waiter.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name')
-        language = request.GET.get('language', 'English')
-
-        if name_query:
-            if language == "English":
-                queryset = queryset.filter(name__icontains=name_query)
-
-            else:
-                queryset = queryset.filter(name_locale__icontains=name_query)
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"waiters": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class FloorViewSet(viewsets.ModelViewSet):
-    queryset = Floor.objects.all().order_by('id')
-    serializer_class = FloorSerializer
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
-
-            return queryset
-        
-        else:
-            return Floor.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"floors": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-    
-
-class HotelTableViewSet(viewsets.ModelViewSet):
-    queryset = HotelTable.objects.all()
-    serializer_class = HotelTableSerializer
-    filter_class = HotelTableFilter
-    filter_backends = [DjangoFilterBackend]
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
-
-            return queryset
-        
-        else:
-            return HotelTable.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        floor_id_query = request.GET.get('floor', None)
-
-        if floor_id_query:
-            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"tables": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-    
-    def perform_create(self, serializer):
-        instance = serializer.save()
-
-        serialized_data = self.get_serializer(instance).data
-
-        table_number = serialized_data.get('tableNumber')
-        floor_name = serialized_data.get('floor')
-        vendor_id = serialized_data.get('vendorId')
-
-        language = self.request.GET.get('language', 'English')
-
-        if language == "English":
-            notify(
-                type = 3,
-                msg = '0',
-                desc = f"Table no.{table_number} created on {floor_name}",
-                stn = ['POS'],
-                vendorId = instance.vendorId.pk
-            )
-
-        else:
-            notify(
-                type = 3,
-                msg = '0',
-                desc = table_created_locale(table_number, floor_name),
-                stn = ['POS'],
-                vendorId = instance.vendorId.pk
-            )
-
-        table_data = get_table_data(hotelTable=instance, vendorId=vendor_id)
-        
-        webSocketPush(
-            message = {"result": table_data, "UPDATE": "UPDATE"},
-            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
-            username = "CORE",
-        )
-
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
-
-        if waiter_heads:
-            for head in waiter_heads:
-                if language == "English":
-                    notify(
-                        type = 3,
-                        msg = '0',
-                        desc = f"Table no.{table_number} created on {floor_name}",
-                        stn = [f'WOMS{head.pk}'],
-                        vendorId = vendor_id
-                    )
-
-                else:
-                    notify(
-                        type = 3,
-                        msg = '0',
-                        desc = table_created_locale(table_number, floor_name),
-                        stn = [f'WOMS{head.pk}'],
-                        vendorId = vendor_id
-                    )
-        
-                webSocketPush(
-                    message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
-                    username = "CORE",
-                )
-
-    def perform_destroy(self, instance):
-        instance.delete()
-
-        vendor_id = instance.vendorId.pk
-
-        language = self.request.GET.get('language', 'English')
-
-        if language == "English":
-            notify(
-                type = 3,
-                msg = '0',
-                desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                stn = ['POS'],
-                vendorId = vendor_id
-            )
-
-        else:
-            notify(
-                type = 3,
-                msg = '0',
-                desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
-                stn = ['POS'],
-                vendorId = vendor_id
-            )
-
-        all_tables_data = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
-        
-        webSocketPush(
-            message = {"result": all_tables_data, "UPDATE": "UPDATE"},
-            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
-            username = "CORE",
-        )
-        
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
-
-        if waiter_heads:
-            for head in waiter_heads:
-                if language == "English":
-                    notify(
-                        type = 3,
-                        msg = '0',
-                        desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                        stn = [f'WOMS{head.pk}'],
-                        vendorId = vendor_id
-                    )
-
-                else:
-                    notify(
-                        type = 3,
-                        msg = '0',
-                        desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
-                        stn = [f'WOMS{head.pk}'],
-                        vendorId = vendor_id
-                    )
-
-                webSocketPush(
-                    message = {"result": all_tables_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
-                    username = "CORE",
-                )
-    
-
 @api_view(['POST'])
 def createOrder(request):
     try:
@@ -2104,6 +2706,7 @@ def platform_list(request):
             })
 
     return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
+
 
 @api_view(["GET"])
 def order_details(request):
@@ -2789,7 +3392,7 @@ def update_order_koms(request):
 
 
 @api_view(["POST"])
-def  orderList(request):
+def orderList(request):
     data=request.data
 
     data=order_data(
@@ -3241,6 +3844,7 @@ def get_pos_user(request):
         "itemsCount": paginator.count # itemsCount key should not be renamed as it is required for jsGrid plugin
     })
 
+
 def create_pos_user(request):
     vendors = Vendor.objects.all()
 
@@ -3315,6 +3919,7 @@ def delete_pos_user(request, pos_user_id):
         print(e)
         return JsonResponse({"message": "Something went wrong!"}, content_type="application/json")
 
+
 @api_view(['GET'])
 def get_store_timings(request):
     vendor_id = request.GET.get("vendorId")
@@ -3388,6 +3993,7 @@ def get_store_timings(request):
 
     return JsonResponse({"store_status": store_status_final, "store_timing": store_timing_list})
 
+
 @api_view(['POST'])
 def set_store_timings(request):
     vendor = request.GET.get("vendorId")
@@ -3424,142 +4030,6 @@ def delete_store_timings(request):
         return Response(status=status.HTTP_404_NOT_FOUND)
     
     return Response(status=status.HTTP_200_OK)
-
-
-class ProductCategoryViewSet(viewsets.ModelViewSet):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
-    filter_class = ProductCategoryFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
-        
-        else:
-            queryset = ProductCategory.objects.none()
-        
-        queryset = queryset.order_by('-pk')
-
-        return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('categoryName', None)
-        language = request.GET.get('language', 'English')
-        
-        if name_query:
-            if language == "English":
-                queryset = queryset.filter(categoryName__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(categoryName_locale__icontains=name_query)
-
-        page = self.paginate_queryset(queryset)
-
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-
-            return self.get_paginated_response(serializer.data)
-    
-    def create(self, request, *args, **kwargs):
-        try:
-            plu = request.data.get('categoryPLU')
-            vendor_id = request.data.get('vendorId')
-
-            existing_category = ProductCategory.objects.filter(categoryPLU=plu, vendorId=vendor_id).first()
-
-            if existing_category:
-                return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            with transaction.atomic():
-                serializer = self.get_serializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_category_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                headers = self.get_success_headers(serializer.data)
-
-                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def update(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                partial = kwargs.pop('partial', False)
-                instance = self.get_object()
-
-                new_plu = request.data.get('categoryPLU')
-
-                if new_plu != instance.categoryPLU:
-                    existing_category = ProductCategory.objects.filter(categoryPLU=new_plu, vendorId=instance.vendorId).first()
-
-                    if existing_category:
-                        return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
-                serializer = self.get_serializer(instance, data=request.data, partial=partial)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-
-                vendor_id = serializer.instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_category_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def destroy(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                instance = self.get_object()
-
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-
-                if inventory_platform:
-                    delete_status, error_message, request_data = delete_category_in_odoo(inventory_platform.baseUrl, instance.categoryPLU, vendor_id)
-                
-                    if delete_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                self.perform_destroy(instance)
-                return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET",])
@@ -3896,6 +4366,7 @@ def update_product(request, product_id):
     else:
         return Response("Product ID empty", status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["DELETE"])
 def delete_product(request, product_id):
     vendor_id = request.GET.get('vendorId', None)
@@ -3938,143 +4409,6 @@ def delete_product(request, product_id):
     
     else:
         return Response("Product not found", status=status.HTTP_404_NOT_FOUND)
-
-class ModifierGroupViewSet(viewsets.ModelViewSet):
-    queryset = ProductModifierGroup.objects.all()
-    serializer_class = ModifierGroupSerializer
-    filter_class = ModifierGroupFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
-        
-        else:
-            queryset = ProductModifierGroup.objects.none()
-        
-        queryset = queryset.order_by('-id')
-
-        return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name', None)
-        
-        if name_query:
-            language = request.GET.get('language', "English")
-
-            if language == "English":
-                queryset = queryset.filter(name__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(name_locale__icontains=name_query)
-
-        page = self.paginate_queryset(queryset)
-
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-
-            return self.get_paginated_response(serializer.data)
-        
-    def create(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body)
-
-            plu = data.get('PLU')
-            vendor_id = data.get('vendorId')
-
-            existing_modifier_group = ProductModifierGroup.objects.filter(PLU=plu, vendorId=vendor_id).first()
-
-            if existing_modifier_group:
-                return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            with transaction.atomic():
-                serializer = self.get_serializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                headers = self.get_success_headers(serializer.data)
-                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-        
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-    def update(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                partial = kwargs.pop('partial', False)
-                instance = self.get_object()
-
-                new_plu = request.data.get('PLU')
-
-                if new_plu != instance.PLU:
-                    existing_category = ProductModifierGroup.objects.filter(PLU=new_plu, vendorId=instance.vendorId).first()
-
-                    if existing_category:
-                        return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-                    
-                serializer = self.get_serializer(instance, data=request.data, partial=partial)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                return Response(serializer.data)
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    def destroy(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                instance = self.get_object()
-                
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = delete_modifier_group_in_odoo(inventory_platform.baseUrl, instance.PLU, vendor_id)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                self.perform_destroy(instance)
-                return Response(status=status.HTTP_204_NO_CONTENT)
-                
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET",])
@@ -5605,134 +5939,6 @@ def loyalty_points_redeem(vendor_id, customer_id, master_order_id, is_wordpress,
                 return is_redeemed
             
             return is_redeemed
-
-
-class DiscountCouponModelViewSet(viewsets.ModelViewSet):
-    queryset = Order_Discount.objects.all().order_by('-pk')
-    serializer_class = DiscountCouponModelSerializer
-    filter_class = DiscountCouponFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ("discountName", "discountCode", "value")
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Order_Discount.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Station.objects.all().order_by('-pk')
-    serializer_class = StationModelSerializer
-    filter_class = StationFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ('station_name',)
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Station.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class ChefModelViewSet(viewsets.ModelViewSet):
-    queryset = Staff.objects.all().order_by('-pk')
-    serializer_class = ChefModelSerializer
-    filter_class = ChefFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ('first_name', 'last_name',)
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Staff.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Staff.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class BannerModelViewSet(viewsets.ModelViewSet):
-    queryset = Banner.objects.all().order_by('-pk')
-    serializer_class = BannerModelSerializer
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId')
-
-        if vendor_id:
-            platform_type = self.request.GET.get('platform_type')
-            
-            if platform_type:
-                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
-            
-            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
-        
-        return Banner.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"banners": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -8862,201 +9068,3 @@ def get_pos_menu(request):
             "is_sop_active": pos_menu.is_sop_active,
         }, status=status.HTTP_400_BAD_REQUEST
     )
-
-
-
-class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUserCategory.objects.all().order_by('-pk')
-    serializer_class = CoreUserCategoryModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
-        
-        return CoreUserCategory.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-
-        serializer_data = serializer.data
-        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'vendor': 1})
-        
-        return JsonResponse({"user_categories": serializer_data})
-
-    def create(self, request, *args, **kwargs):
-        try:
-            name = request.data.get('name')
-            vendor_id = request.data.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            core_user_category = CoreUserCategory(name=f"{name}_{vendor_id}", vendor_id=vendor_id)
-            core_user_category.save()
-
-            serializer = self.get_serializer(core_user_category)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
-        
-    def update(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            name = request.data.get('name')
-            vendor_id = request.GET.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-                
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & ~Q(pk=instance.pk) & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            instance.name = f"{name}_{vendor_id}"
-            instance.save()
-
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-    
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class CoreUserModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUser.objects.all().order_by('-pk')
-    serializer_class = CoreUserModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('first_name', 'last_name', 'email')
-    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
-    ordering_fields = ('id', 'first_name', 'last_name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-        group_id = self.request.GET.get('group')
-
-        if vendor_id:
-            if not group_id:
-                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
-
-            elif group_id=='0':
-                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
-            
-            else:
-                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
-        
-        return CoreUser.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"users": serializer.data})
-    
-    def perform_create(self, serializer):
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=make_password(password))
-        else:
-            serializer.save()
-
-    def perform_update(self, serializer):
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=make_password(password))
-        else:
-            serializer.save()
-
-
-class DepartmentModelViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all().order_by('-pk')
-    serializer_class = DepartmentModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
-        
-        return Department.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"departments": serializer.data})
-    
-    def create(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.data.get('vendor')
-
-        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
-
-        if existing_department.exists():
-            return Response(
-                {"error": "Department with this name already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.GET.get('vendor')
-
-        instance = self.get_object()
-
-        if name:
-            existing_department = Department.objects.filter(
-                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
-            )
-
-            if existing_department.exists():
-                return Response(
-                    {"error": "Department with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
