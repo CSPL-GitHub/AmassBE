@@ -14,6 +14,11 @@ from order import order_helper
 from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, VendorSocialMedia
 from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
+from pos.language import (
+    language_localization, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
+    modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale,
+    delivery_address_validation_locale,
+)
 from django.http import JsonResponse
 from datetime import datetime, timedelta
 from rest_framework import status, viewsets
@@ -223,45 +228,88 @@ def updateUser(request):
 @api_view(['POST'])
 def check_order_items_status(request):
     vendor_id = request.GET.get('vendor', None)
+    language = request.GET.get('language', 'English')
 
     if not vendor_id:
         return JsonResponse({"error": "Invalid Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
     
     order_details = request.data
+
     data = StoreTiming.objects.filter(vendor=vendor_id)
+
     slot = data.filter(is_active=True , day=datetime.now().strftime("%A")).first()
+
     store_status = POSSetting.objects.filter(vendor=vendor_id).first()
 
-    store_status = False if store_status.store_status==False else  True if slot==None else True if  (slot.open_time < datetime.now().time() < slot.close_time) and not slot.is_holiday else False
-    print("store_status  ",store_status)
+    if store_status.store_status == False:
+        store_status = False
+
+    else:
+        if slot is None:
+            store_status = True
+
+        else:
+            current_time = datetime.now().time()
+
+            if (slot.open_time < current_time < slot.close_time) and not slot.is_holiday:
+                store_status = True
+
+            else:
+                store_status = False
+    
     if store_status == False:
-        return JsonResponse({"msg": f"store is already closed"}, status=400)
+        if language == "English":
+            return JsonResponse({"msg": "Store is already closed"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        else:
+            return JsonResponse({"msg": language_localization["Store is already closed"]}, status=status.HTTP_400_BAD_REQUEST)
     
     for item in order_details.get('items', []):
-        product = Product.objects.filter(pk=item['productId'])
+        product = Product.objects.filter(pk=item['productId']).first()
 
-        if product.exists() and product.first().active == False:
-            return JsonResponse({"msg": f"{product.first().productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
+        if product and product.active == False:
+            if language == "English":
+                return JsonResponse({"msg": f"{product.productName} is out of stock"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            else:
+                return JsonResponse({"msg": product_out_of_stock_locale(product.productName_locale)}, status=status.HTTP_400_BAD_REQUEST)
 
         for modifier_group in item['modifiersGroup']:
             
-            modifiersGroup_instance = ProductModifierGroup.objects.filter(pk=modifier_group.get('modGroupId') or modifier_group.get('id'))
+            modifier_group_instance = ProductModifierGroup.objects.filter(
+                pk=modifier_group.get('modGroupId') or modifier_group.get('id')
+            ).first()
             
-            if modifiersGroup_instance.exists() and modifiersGroup_instance.first().active == False:
-                return JsonResponse(
-                    {"msg": f"modifier group {modifiersGroup_instance.first().name} of {product.first().productName} is out of stock"},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            if modifier_group_instance and modifier_group_instance.active == False:
+                if language == "English":
+                    return JsonResponse(
+                        {"msg": f"modifier group {modifier_group_instance.name} of {product.productName} is out of stock"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                
+                else:
+                    return JsonResponse(
+                        {"msg": modifier_group_out_of_stock_locale(modifier_group_instance.name_locale, product.productName_locale)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
                 
             for modifier in modifier_group['modifiers']:
                 if modifier["status"]:
-                    modifier_instance = ProductModifier.objects.filter(pk=modifier['modifierId'])
+                    modifier_instance = ProductModifier.objects.filter(pk=modifier['modifierId']).first()
 
-                    if modifier_instance.exists() and modifier_instance.first().active == False:
-                        return JsonResponse(
-                            {"msg": f"modifier {modifier_instance.first().modifierName} of {product.first().productName} is out of stock"},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
+                    if modifier_instance and modifier_instance.active == False:
+                        if language == "English":
+                            return JsonResponse(
+                                {"msg": f"modifier {modifier_instance.modifierName} of {product.productName} is out of stock"},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        
+                        else:
+                            return JsonResponse(
+                                {"msg": f"modifier {modifier_instance.modifierName} of {product.productName} is out of stock"},
+                                {"msg": modifier_out_of_stock_locale(modifier_group_instance.name_locale, product.productName_locale)},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
     
     return Response({"success":True},status=status.HTTP_200_OK)
 
@@ -319,15 +367,40 @@ def CreateOrder(request):
             result["payment"]["default"] = True
 
         for item in result['items']:
-            product_instance = Product.objects.filter(pk=item['productId'])
+            product_instance = Product.objects.filter(pk=item['productId']).first()
             
-            if product_instance.exists() and product_instance.first().active == False:
-                return JsonResponse({"msg": f"{product_instance.first().productName} is no longer availabe"}, status=400)
+            if (not product_instance) or (product_instance.active == False):
+                if language == "English":
+                    return JsonResponse(
+                        {"msg": f"{product_instance.productName} is no longer available"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                    
+                else:
+                    return JsonResponse(
+                        {"msg": product_no_longer_available_locale(product_instance.productName_locale)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
             
             modifiers_list = []
 
             for modifier_group in item['modifiersGroup']:
                 for modifier in modifier_group['modifiers']:
+                    modifier_instance = ProductModifier.objects.filter(pk=modifier["modifierId"], vendorId=vendorId).first()
+
+                    if modifier_instance and modifier_instance.active == False:
+                        if language == "English":
+                            return JsonResponse(
+                                {"msg": f"{modifier_instance.modifierName} is no longer available"},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                            
+                        else:
+                            return JsonResponse(
+                                {"msg": modifier_no_longer_available_locale(modifier_instance.modifierName_locale)},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                    
                     modifier_info = {
                         "plu": modifier["plu"],
                         "name": modifier['name'],
@@ -461,27 +534,35 @@ def get_timings(request):
 
 @api_view(['POST'])
 def set_customer_address(request):
-    vendorId=request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+    vendorId = request.GET.get('vendorId')
 
     vendor = Vendor.objects.get(pk=vendorId)
 
     vendor_addr = f"{vendor.address_line_1} {vendor.city} {vendor.country}"
 
-    id = request.GET.get('id',None)
+    id = request.GET.get('id', None)
 
     data = request.data
 
     addr = f"{data['address_line1']} {data['address_line2']} {data['city']} {data['state']} {data['state']}"
 
-    distance = getDIstance(vendor_addr,addr)
+    distance = getDIstance(vendor_addr, addr)
 
     if distance == None:
-        return Response(
-            {"AddressError": "Please enter valid address"},
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        if language == "English":
+            return Response(
+                {"AddressError": "Please enter a valid address"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        else:
+            return Response(
+                {"AddressError": language_localization["Please enter a valid address"]},
+                status=status.HTTP_400_BAD_REQUEST
+            )
     
-    distance = getDIstance(vendor_addr,addr)/1000
+    distance = getDIstance(vendor_addr, addr) / 1000
 
     delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
 
@@ -490,11 +571,18 @@ def set_customer_address(request):
     if delivery_settings:
         kilometer_limit = delivery_settings.delivery_kilometer_limit
     
-        if distance > kilometer_limit:
-            return Response(
-                {"error":f"Delivery address is located more than {kilometer_limit} kilometers away"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
+        if distance > kilometer_limit and kilometer_limit > 0 :
+            if language == "English":
+                return Response(
+                    {"error": f"Delivery address is located more than {kilometer_limit} kilometers away"},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            else:
+                return Response(
+                    {"error": delivery_address_validation_locale(kilometer_limit)},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
     
     serealizer = Addressserializers(data=data)
     
@@ -508,7 +596,7 @@ def set_customer_address(request):
         save = serealizer.save()
         instance=Address.objects.filter(customer=save.customer.pk)
 
-        return Response(Addressserializers(instance=instance,many=True).data)
+        return Response(Addressserializers(instance=instance, many=True).data)
     
     else :
         return Response(serealizer._errors, status=status.HTTP_400_BAD_REQUEST)
@@ -567,10 +655,25 @@ def getDIstance(source,destination):
 
 @api_view(['GET'])
 def getOrderData(request):
-    vendorId = request.GET.get('vendorId')
-    orderId = request.GET.get('orderId')
-    order = KOMSorder.objects.filter(master_order__externalOrderId = orderId)
-    data = order_data(vendor_id=vendorId, page_number=1, search=str(order.first().externalOrderId), order_status="All", order_type="All", platform="All", is_dashboard=0, s_date=None, e_date=None)
+    external_order_id = request.GET.get('orderId')
+    vendor_id = request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+
+    order = KOMSorder.objects.filter(master_order__externalOrderId = external_order_id).first()
+    
+    data = order_data(
+        vendor_id = vendor_id,
+        page_number = 1,
+        search = str(order.externalOrderId),
+        order_status = "All",
+        order_type = "All",
+        platform = "All",
+        is_dashboard = 0,
+        s_date = None,
+        e_date = None,
+        language = language
+    )
+    
     return Response(data)
 
 
@@ -582,24 +685,25 @@ def get_points(request):
 
 @api_view(['GET'])
 def verify_address(request):
-    vendorId=request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+    vendorId = request.GET.get('vendorId')
 
     vendor = Vendor.objects.get(pk=vendorId)
 
     vendor_addr = f"{vendor.address_line_1}_{vendor.city}_{vendor.country}"
 
-    id = request.GET.get('id',None)
-
-    data = request.data
-
-    addr =request.GET.get('destination')
+    addr = request.GET.get('destination')
 
     distance = getDIstance(vendor_addr,addr)
 
     if distance == None:
-        return Response({"AddressError":f"Please enter valid address"})
+        if language == "English":
+            return Response({"AddressError": "Please enter a valid address"})
+        
+        else:
+            return Response({"AddressError": language_localization["Please enter a valid address"]})
     
-    distance = getDIstance(vendor_addr,addr)/1000
+    distance = getDIstance(vendor_addr, addr) / 1000
 
     delivery_settings = POSSetting.objects.filter(vendor=vendorId).first()
     
@@ -608,8 +712,12 @@ def verify_address(request):
     if delivery_settings:
         kilometer_limit = delivery_settings.delivery_kilometer_limit
     
-    if distance > kilometer_limit:
-        return Response({"error":f"Delivery address is located more than {kilometer_limit} kilometers away"})
+    if (distance > kilometer_limit) and (kilometer_limit > 0):
+        if language == "English":
+            return Response({"error": f"Delivery address is located more than {kilometer_limit} kilometers away"})
+        
+        else:
+            return Response({"error": delivery_address_validation_locale(kilometer_limit)})
     
     return Response({"success": kilometer_limit})
 

@@ -1,4 +1,4 @@
-from core.models import Platform, ProductModifier, Product, Product_Tax, Product_Taxt_Joint, Vendor
+from core.models import Platform, ProductModifier, Product, Tax, Product_Taxt_Joint, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email
 from koms.models import Order as KOMSorder
@@ -171,7 +171,7 @@ class StagingIntegration():
                 tax = data.get("tax")
 
             else:
-                taxes = Product_Tax.objects.filter(enabled=True, vendorId=vendorId)
+                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
 
                 if taxes.exists():
                     tax = order.tax+productTaxes
@@ -192,7 +192,7 @@ class StagingIntegration():
             try:
                 data["orderLevelTax"] = []
 
-                orderTaxes = Product_Tax.objects.filter(
+                orderTaxes = Tax.objects.filter(
                     vendorId=vendorId, isDeleted=False, taxLevel=TaxLevel.ORDER, enabled=True
                 )
 
@@ -200,7 +200,7 @@ class StagingIntegration():
                     for orderTax in orderTaxes:
                         data["orderLevelTax"].append(orderTax.to_dict())
 
-            except Product_Tax.DoesNotExist:
+            except Tax.DoesNotExist:
                 print("Tax not found for vendor")
             # +++++ Taxes
 
@@ -229,7 +229,7 @@ class StagingIntegration():
             ((order.platform.Name == 'Website') or (order.platform.Name == 'Mobile App')):
                 tax_details = []
                 
-                taxes = Product_Tax.objects.filter(enabled=True, vendorId=vendorId)
+                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
 
                 if taxes:
                     for tax in taxes:
@@ -421,10 +421,10 @@ class StagingIntegration():
                 print("No tax found for product")
 
             try:
-                taxForProduct = Product_Tax.objects.filter(
+                taxForProduct = Tax.objects.filter(
                     vendorId=vendor, isDeleted=False, enabled=True, taxLevel=TaxLevel.ORDER)
                 appliedTaxes.extend(list(taxForProduct))
-            except Product_Tax.DoesNotExist:
+            except Tax.DoesNotExist:
                 print("No tax found for order")
 
             taxTlt = 0.0

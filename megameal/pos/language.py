@@ -64,29 +64,28 @@ payment_type_locale = {
     3: 'بطاقة'
 }
 
-all_platform_locale = {'All': 'الجميع'}
-
 platform_locale = (
     ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
-sort_by_locale_for_report_excel = {
-    "ascending": "تصاعدي",
-    "descending": "تنازلي"
-}
-
-order_type_locale_for_excel = {
+language_localization = {
+    "Monday": "الاثنين",
+    "Tuesday": "يوم الثلاثاء",
+    "Wednesday": "الأربعاء",
+    "Thursday": "يوم الخميس",
+    "Friday": "جمعة",
+    "Saturday": "السبت",
+    "Sunday": "الأحد",
     "All": "الجميع",
     "all": "الجميع",
     "delivery": "توصيل",
     "pickup": "يلتقط",
     "dinein": "تناول الطعام في",
     "online": "متصل",
-    "offline": "غير متصل على الانترنت"
-}
-
-excel_headers_locale = {
+    "offline": "غير متصل على الانترنت",
+    "ascending": "تصاعدي",
+    "descending": "تنازلي",
     "Order ID": "رقم الطلب",
     "Platform": "منصة",
     "Start Date": "تاريخ البدء",
@@ -171,16 +170,8 @@ excel_headers_locale = {
     "Revenue from Cash Payment": "الإيرادات من الدفع النقدي",
     "Revenue from Online Payment": "الإيرادات من الدفع عبر الإنترنت",
     "Revenue from Card Payment": "الإيرادات من دفع البطاقة",
-}
-
-weekdays_locale = {
-    "Monday": "الاثنين",
-    "Tuesday": "يوم الثلاثاء",
-    "Wednesday": "الأربعاء",
-    "Thursday": "يوم الخميس",
-    "Friday": "جمعة",
-    "Saturday": "السبت",
-    "Sunday": "الأحد"
+    "Store is already closed": "المتجر مغلق",
+    "Please enter a valid address": "يرجى إدخال عنوان صالح"
 }
 
 
@@ -192,6 +183,25 @@ def table_created_locale(table_number, floor_name):
 
 def table_deleted_locale(table_number, floor_name):
     return f"{floor_name} حذف على {table_number} الجدول رقم."
+
+def product_out_of_stock_locale(product_name):
+    return f"هو من المخزون {product_name}"
+
+def modifier_group_out_of_stock_locale(product_name, modifier_group_name):
+    return f"هو من المخزون {product_name} ل {modifier_group_name} مجموعة المعدل"
+
+def modifier_out_of_stock_locale(product_name, modifier_name):
+    return f"هو من المخزون {product_name} ل {modifier_name} مجموعة المعدل"
+
+def product_no_longer_available_locale(product_name):
+    return f"لم يعد متاحا {product_name}"
+
+def modifier_no_longer_available_locale(modifier_name):
+    return f"لم يعد متاحا {modifier_name}"
+
+def delivery_address_validation_locale(kilometer_limit):
+    return f"يقع عنوان التسليم على بعد أكثر من {kilometer_limit} كيلومتر"
+
 
 def get_key_value(language, dictionary, key):
     if language == "English":

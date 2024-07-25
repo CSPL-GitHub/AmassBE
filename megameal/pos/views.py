@@ -6,13 +6,13 @@ from kiosk.serializer import KiosK_create_order_serializer
 from core.models import (
     Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
     ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
-    ProductModifierAndModifierGroupJoint, Product_Tax
+    ProductModifierAndModifierGroupJoint, Tax
 )
 from order import order_helper
 from woms.models import HotelTable, Waiter, Floor
 from woms.views import get_table_data, filter_tables
 from order.models import (
-    Order, OrderItem, OrderPayment, Customer, Address, LoyaltyProgramSettings,
+    Order, OrderPayment, Customer, Address, LoyaltyProgramSettings,
     LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
 )
 from django.core.paginator import Paginator
@@ -21,7 +21,7 @@ from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, Cast, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value, FloatField
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -57,17 +57,13 @@ from rest_framework.pagination import PageNumberPagination
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from koms.views import notify
-from static.order_status_const import WOMS
 from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
-    single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo, delete_product_in_odoo,
-    single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo, single_modifier_sync_with_odoo,
-    delete_modifier_in_odoo, sync_order_content_with_inventory,
+    single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
+    delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
+    single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import(
-    get_key_value, check_key_exists, all_platform_locale, table_created_locale, table_deleted_locale, weekdays_locale,
-    order_type_locale_for_excel, sort_by_locale_for_report_excel, excel_headers_locale, payment_type_locale
-)
+from pos.language import get_key_value, check_key_exists, table_created_locale, table_deleted_locale, language_localization
 import pytz
 import re
 import openpyxl
@@ -80,20 +76,6 @@ from operator import itemgetter
 import calendar
 import pgeocode
 
-
-
-class CustomPagination(PageNumberPagination):
-    page_size = 10
-    page_size_query_param = 'page_size'
-    max_page_size = 50
-
-    def get_paginated_response(self, data):
-        return Response({
-            'total_pages': self.page.paginator.num_pages if self.page.paginator.count > 0 else 1,
-            'current_page': self.page.number,
-            'page_size': self.page.paginator.per_page,
-            'results': data
-        })
 
 
 def date_sort_top_selling_products(item):
@@ -117,8 +99,844 @@ def get_order_id(order_data):
     return order_data["orderId"]
 
 
+class CustomPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'page_size'
+    max_page_size = 50
+
+    def get_paginated_response(self, data):
+        return Response({
+            'total_pages': self.page.paginator.num_pages if self.page.paginator.count > 0 else 1,
+            'current_page': self.page.number,
+            'page_size': self.page.paginator.per_page,
+            'results': data
+        })
+
+
+class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
+    queryset = CoreUserCategory.objects.all().order_by('-pk')
+    serializer_class = CoreUserCategoryModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
+        
+        return CoreUserCategory.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+
+        serializer_data = serializer.data
+        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'vendor': 1})
+        
+        return JsonResponse({"user_categories": serializer_data})
+
+    def create(self, request, *args, **kwargs):
+        try:
+            name = request.data.get('name')
+            vendor_id = request.data.get('vendor')
+
+            if not name: 
+                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if not vendor_id:
+                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            existing_category = CoreUserCategory.objects.filter(
+                Q(name__iexact=f"{name}_{vendor_id}") & Q(vendor_id=vendor_id)
+            )
+
+            if existing_category.exists():
+                return Response(
+                    {"error": "Category with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+            
+            core_user_category = CoreUserCategory(name=f"{name}_{vendor_id}", vendor_id=vendor_id)
+            core_user_category.save()
+
+            serializer = self.get_serializer(core_user_category)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
+        except IntegrityError:
+            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
+        
+    def update(self, request, *args, **kwargs):
+        try:
+            instance = self.get_object()
+            name = request.data.get('name')
+            vendor_id = request.GET.get('vendor')
+
+            if not name: 
+                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+                
+            if not vendor_id:
+                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
+
+            existing_category = CoreUserCategory.objects.filter(
+                Q(name__iexact=f"{name}_{vendor_id}") & ~Q(pk=instance.pk) & Q(vendor_id=vendor_id)
+            )
+
+            if existing_category.exists():
+                return Response(
+                    {"error": "Category with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+            
+            instance.name = f"{name}_{vendor_id}"
+            instance.save()
+
+            serializer = self.get_serializer(instance)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+    
+        except IntegrityError:
+            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class CoreUserModelViewSet(viewsets.ModelViewSet):
+    queryset = CoreUser.objects.all().order_by('-pk')
+    serializer_class = CoreUserModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('first_name', 'last_name', 'email')
+    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
+    ordering_fields = ('id', 'first_name', 'last_name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+        group_id = self.request.GET.get('group')
+
+        if vendor_id:
+            if not group_id:
+                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
+
+            elif group_id=='0':
+                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
+            
+            else:
+                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
+        
+        return CoreUser.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"users": serializer.data})
+    
+    def perform_create(self, serializer):
+        password = self.request.data.get('password')
+        if password:
+            serializer.save(password=make_password(password))
+        else:
+            serializer.save()
+
+    def perform_update(self, serializer):
+        password = self.request.data.get('password')
+        if password:
+            serializer.save(password=make_password(password))
+        else:
+            serializer.save()
+
+
+class DepartmentModelViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all().order_by('-pk')
+    serializer_class = DepartmentModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
+        
+        return Department.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"departments": serializer.data})
+    
+    def create(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.data.get('vendor')
+
+        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
+
+        if existing_department.exists():
+            return Response(
+                {"error": "Department with this name already exists"},
+                status=status.HTTP_400_BAD_REQUEST
+        )
+
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.GET.get('vendor')
+
+        instance = self.get_object()
+
+        if name:
+            existing_department = Department.objects.filter(
+                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
+            )
+
+            if existing_department.exists():
+                return Response(
+                    {"error": "Department with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().update(request, *args, **kwargs)
+
+
+class WaiterViewSet(viewsets.ModelViewSet):
+    queryset = Waiter.objects.all()
+    serializer_class = WaiterSerializer
+    filter_class = WaiterFilter
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = Waiter.objects.filter(vendorId=vendor_id)
+
+            return queryset
+        
+        else:
+            return Waiter.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('name')
+        language = request.GET.get('language', 'English')
+
+        if name_query:
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"waiters": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class FloorViewSet(viewsets.ModelViewSet):
+    queryset = Floor.objects.all().order_by('id')
+    serializer_class = FloorSerializer
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
+
+            return queryset
+        
+        else:
+            return Floor.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"floors": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+    
+
+class HotelTableViewSet(viewsets.ModelViewSet):
+    queryset = HotelTable.objects.all()
+    serializer_class = HotelTableSerializer
+    filter_class = HotelTableFilter
+    filter_backends = [DjangoFilterBackend]
+
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
+
+            return queryset
+        
+        else:
+            return HotelTable.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        floor_id_query = request.GET.get('floor', None)
+
+        if floor_id_query:
+            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"tables": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+    
+    def perform_create(self, serializer):
+        instance = serializer.save()
+
+        serialized_data = self.get_serializer(instance).data
+
+        table_number = serialized_data.get('tableNumber')
+        floor_name = serialized_data.get('floor')
+        vendor_id = serialized_data.get('vendorId')
+
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{table_number} created on {floor_name}",
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
+            )
+
+        else:
+            notify(
+                type = 3,
+                msg = '0',
+                desc = table_created_locale(table_number, floor_name),
+                stn = ['POS'],
+                vendorId = instance.vendorId.pk
+            )
+
+        table_data = get_table_data(hotelTable=instance, vendorId=vendor_id)
+        
+        webSocketPush(
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
+
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
+
+        if waiter_heads:
+            for head in waiter_heads:
+                if language == "English":
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{table_number} created on {floor_name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                else:
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = table_created_locale(table_number, floor_name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+        
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
+
+    def perform_destroy(self, instance):
+        instance.delete()
+
+        vendor_id = instance.vendorId.pk
+
+        language = self.request.GET.get('language', 'English')
+
+        if language == "English":
+            notify(
+                type = 3,
+                msg = '0',
+                desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                stn = ['POS'],
+                vendorId = vendor_id
+            )
+
+        else:
+            notify(
+                type = 3,
+                msg = '0',
+                desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                stn = ['POS'],
+                vendorId = vendor_id
+            )
+
+        all_tables_data = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
+        
+        webSocketPush(
+            message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
+        
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
+
+        if waiter_heads:
+            for head in waiter_heads:
+                if language == "English":
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                else:
+                    notify(
+                        type = 3,
+                        msg = '0',
+                        desc = table_deleted_locale(instance.tableNumber, instance.floor.name),
+                        stn = [f'WOMS{head.pk}'],
+                        vendorId = vendor_id
+                    )
+
+                webSocketPush(
+                    message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
+  
+
+class ProductCategoryViewSet(viewsets.ModelViewSet):
+    queryset = ProductCategory.objects.all()
+    serializer_class = ProductCategorySerializer
+    filter_class = ProductCategoryFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    pagination_class = CustomPagination 
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
+        
+        else:
+            queryset = ProductCategory.objects.none()
+        
+        queryset = queryset.order_by('-pk')
+
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('categoryName', None)
+        language = request.GET.get('language', 'English')
+        
+        if name_query:
+            if language == "English":
+                queryset = queryset.filter(categoryName__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(categoryName_locale__icontains=name_query)
+
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+
+            return self.get_paginated_response(serializer.data)
+    
+    def create(self, request, *args, **kwargs):
+        try:
+            plu = request.data.get('categoryPLU')
+            vendor_id = request.data.get('vendorId')
+
+            existing_category = ProductCategory.objects.filter(categoryPLU=plu, vendorId=vendor_id).first()
+
+            if existing_category:
+                return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+            
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_category_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                headers = self.get_success_headers(serializer.data)
+
+                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def update(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                partial = kwargs.pop('partial', False)
+                instance = self.get_object()
+
+                new_plu = request.data.get('categoryPLU')
+
+                if new_plu != instance.categoryPLU:
+                    existing_category = ProductCategory.objects.filter(categoryPLU=new_plu, vendorId=instance.vendorId).first()
+
+                    if existing_category:
+                        return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+                serializer = self.get_serializer(instance, data=request.data, partial=partial)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+
+                vendor_id = serializer.instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_category_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                return Response(serializer.data, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+    
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
+
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+
+                if inventory_platform:
+                    delete_status, error_message, request_data = delete_category_in_odoo(inventory_platform.baseUrl, instance.categoryPLU, vendor_id)
+                
+                    if delete_status == 0:
+                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                self.perform_destroy(instance)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+                    
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class ModifierGroupViewSet(viewsets.ModelViewSet):
+    queryset = ProductModifierGroup.objects.all()
+    serializer_class = ModifierGroupSerializer
+    filter_class = ModifierGroupFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    pagination_class = CustomPagination 
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
+        
+        else:
+            queryset = ProductModifierGroup.objects.none()
+        
+        queryset = queryset.order_by('-id')
+
+        return queryset
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('name', None)
+        
+        if name_query:
+            language = request.GET.get('language', "English")
+
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
+
+        page = self.paginate_queryset(queryset)
+
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+
+            return self.get_paginated_response(serializer.data)
+        
+    def create(self, request, *args, **kwargs):
+        try:
+            data = json.loads(request.body)
+
+            plu = data.get('PLU')
+            vendor_id = data.get('vendorId')
+
+            existing_modifier_group = ProductModifierGroup.objects.filter(PLU=plu, vendorId=vendor_id).first()
+
+            if existing_modifier_group:
+                return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            with transaction.atomic():
+                serializer = self.get_serializer(data=request.data)
+                serializer.is_valid(raise_exception=True)
+                self.perform_create(serializer)
+
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                headers = self.get_success_headers(serializer.data)
+                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+        
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        
+    def update(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                partial = kwargs.pop('partial', False)
+                instance = self.get_object()
+
+                new_plu = request.data.get('PLU')
+
+                if new_plu != instance.PLU:
+                    existing_category = ProductModifierGroup.objects.filter(PLU=new_plu, vendorId=instance.vendorId).first()
+
+                    if existing_category:
+                        return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                serializer = self.get_serializer(instance, data=request.data, partial=partial)
+                serializer.is_valid(raise_exception=True)
+                self.perform_update(serializer)
+
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                return Response(serializer.data)
+
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+    def destroy(self, request, *args, **kwargs):
+        try:
+            with transaction.atomic():
+                instance = self.get_object()
+                
+                vendor_id = instance.vendorId.pk
+                
+                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+                
+                if inventory_platform:
+                    sync_status = delete_modifier_group_in_odoo(inventory_platform.baseUrl, instance.PLU, vendor_id)
+                        
+                    if sync_status == 0:
+                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                    
+                    else:
+                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
+                
+                self.perform_destroy(instance)
+                return Response(status=status.HTTP_204_NO_CONTENT)
+                
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class DiscountCouponModelViewSet(viewsets.ModelViewSet):
+    queryset = Order_Discount.objects.all().order_by('-pk')
+    serializer_class = DiscountCouponModelSerializer
+    filter_class = DiscountCouponFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ("discountName", "discountCode", "value")
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Order_Discount.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class StationModelViewSet(viewsets.ModelViewSet):
+    queryset = Station.objects.all().order_by('-pk')
+    serializer_class = StationModelSerializer
+    filter_class = StationFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ('station_name',)
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Station.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class ChefModelViewSet(viewsets.ModelViewSet):
+    queryset = Staff.objects.all().order_by('-pk')
+    serializer_class = ChefModelSerializer
+    filter_class = ChefFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ('first_name', 'last_name',)
+    pagination_class = CustomPagination
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId', None)
+
+        if vendor_id:
+            return Staff.objects.filter(vendorId=vendor_id).order_by("-pk")
+        
+        return Staff.objects.none()
+
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        page = self.paginate_queryset(queryset)
+
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+
+class BannerModelViewSet(viewsets.ModelViewSet):
+    queryset = Banner.objects.all().order_by('-pk')
+    serializer_class = BannerModelSerializer
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
+        vendor_id = self.request.GET.get('vendorId')
+
+        if vendor_id:
+            platform_type = self.request.GET.get('platform_type')
+            
+            if platform_type:
+                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
+            
+            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
+        
+        return Banner.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        data = {"banners": serializer.data}
+        
+        return Response(data, status=status.HTTP_200_OK)
+
+
+
 @api_view(["GET"])
 def get_tax(request):
+    platform = request.GET.get("platform")
+    language = request.GET.get("language", "English")
     vendor_id = request.GET.get("vendorId")
 
     if not vendor_id:
@@ -126,6 +944,7 @@ def get_tax(request):
     
     try:
         vendor_id = int(vendor_id)
+
     except ValueError:
         return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
@@ -136,16 +955,34 @@ def get_tax(request):
 
     tax_list = []
 
-    taxes = Product_Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
+    taxes = Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
 
-    for tax in taxes:
-        tax_list.append({
-            "id": tax.pk,
-            "type": tax.name,
-            "rate": tax.percentage,
-            "value": round((tax.percentage / 100), 3),
-            "is_active": tax.enabled,
-        })
+    if (platform == "Website") or (platform == "Mobile App"):
+        for tax in taxes:
+            if language == "English":
+                tax_name = tax.name
+
+            else:
+                tax_name = tax.name_locale
+
+            tax_list.append({
+                "id": tax.pk,
+                "type": tax_name,
+                "rate": tax.percentage,
+                "value": round((tax.percentage / 100), 3),
+                "is_active": tax.enabled,
+            })
+
+    else:
+        for tax in taxes:
+            tax_list.append({
+                "id": tax.pk,
+                "type": tax.name,
+                "type_locale": tax.name_locale,
+                "rate": tax.percentage,
+                "value": round((tax.percentage / 100), 3),
+                "is_active": tax.enabled,
+            })
 
     return JsonResponse({"taxes":tax_list})
 
@@ -176,12 +1013,12 @@ def create_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    existing_tax = Product_Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
+    existing_tax = Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
 
     if existing_tax:
         return Response("Entry already created", status=status.HTTP_409_CONFLICT)
 
-    tax = Product_Tax.objects.create(
+    tax = Tax.objects.create(
         name=tax_type,
         percentage=rate,
         enabled=is_active,
@@ -227,7 +1064,7 @@ def update_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    tax = Product_Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
+    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
 
     if not tax:
         return Response("No record found", status=status.HTTP_404_NOT_FOUND)
@@ -268,7 +1105,7 @@ def delete_tax(request):
     if not vendor_instance:
         return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    tax = Product_Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
+    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
 
     if not tax:
         return Response("No record found", status=status.HTTP_404_NOT_FOUND)
@@ -1024,7 +1861,8 @@ def showtabledetails(request):
     except Exception as e :
             print(e)
             return []
-        
+
+
 @api_view(['GET'])
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
@@ -1035,6 +1873,7 @@ def show_tableCapacity(request):
         return JsonResponse({ "tableCapacity": table}, safe=False)
     except Exception as e:
         return JsonResponse({"error":str(e)})
+
 
 @api_view(["POST", "GET"])
 def productStatusChange(request):
@@ -1656,220 +2495,6 @@ def order_data_socket(request):
     return Response(response_data, status=status.HTTP_200_OK)
 
 
-class WaiterViewSet(viewsets.ModelViewSet):
-    queryset = Waiter.objects.all()
-    serializer_class = WaiterSerializer
-    filter_class = WaiterFilter
-    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = Waiter.objects.filter(vendorId=vendor_id)
-
-            return queryset
-        
-        else:
-            return Waiter.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name')
-        language = request.GET.get('language', 'English')
-
-        if name_query:
-            if language == "English":
-                queryset = queryset.filter(name__icontains=name_query)
-
-            else:
-                queryset = queryset.filter(name_locale__icontains=name_query)
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"waiters": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-
-class FloorViewSet(viewsets.ModelViewSet):
-    queryset = Floor.objects.all().order_by('id')
-    serializer_class = FloorSerializer
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
-
-            return queryset
-        
-        else:
-            return Floor.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"floors": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-    
-
-class HotelTableViewSet(viewsets.ModelViewSet):
-    queryset = HotelTable.objects.all()
-    serializer_class = HotelTableSerializer
-    filter_class = HotelTableFilter
-    filter_backends = [DjangoFilterBackend]
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
-
-            return queryset
-        
-        else:
-            return HotelTable.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        floor_id_query = request.GET.get('floor', None)
-
-        if floor_id_query:
-            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"tables": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-    
-    def perform_create(self, serializer):
-        instance = serializer.save()
-
-        serialized_data = self.get_serializer(instance).data
-
-        table_number = serialized_data.get('tableNumber')
-        floor_name = serialized_data.get('floor')
-        vendor_id = serialized_data.get('vendorId')
-
-        language = self.request.GET.get('language', 'English')
-
-        if language == "English":
-            notify(
-                type=3,
-                msg='0',
-                desc=f"Table no.{table_number} created on {floor_name}",
-                stn=['POS'],
-                vendorId=instance.vendorId.pk
-            )
-
-        else:
-            notify(
-                type=3,
-                msg='0',
-                desc=table_created_locale(table_number, floor_name),
-                stn=['POS'],
-                vendorId=instance.vendorId.pk
-            )
-
-        response = get_table_data(hotelTable=instance, vendorId=vendor_id)
-        
-        webSocketPush(
-            message={"result": response, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
-        )
-
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
-
-        if waiter_heads:
-            for head in waiter_heads:
-                if language == "English":
-                    notify(
-                        type=3,
-                        msg='0',
-                        desc=f"Table no.{table_number} created on {floor_name}",
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
-                    )
-
-                else:
-                    notify(
-                        type=3,
-                        msg='0',
-                        desc=table_created_locale(table_number, floor_name),
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
-                    )
-        
-                webSocketPush(
-                    message={"result":response, "UPDATE": "UPDATE"},
-                    room_name=WOMS + str(head.pk) + "------" + str(vendor_id),
-                    username="CORE",
-                )
-
-    def perform_destroy(self, instance):
-        instance.delete()
-
-        vendor_id = instance.vendorId.pk
-
-        language = self.request.GET.get('language', 'English')
-
-        if language == "English":
-            notify(
-                type=3,
-                msg='0',
-                desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                stn=['POS'],
-                vendorId=vendor_id
-            )
-
-        else:
-            notify(
-                type=3,
-                msg='0',
-                desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
-                stn=['POS'],
-                vendorId=vendor_id
-            )
-
-        response = filter_tables("POS", "All", "All", "All", "All", instance.floor.pk, vendor_id, language=language)
-        
-        webSocketPush(
-            message={"result": response, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
-        )
-        
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
-
-        if waiter_heads:
-            for head in waiter_heads:
-                if language == "English":
-                    notify(
-                        type=3,
-                        msg='0',
-                        desc=f"Table no.{instance.tableNumber} deleted on {instance.floor.name}",
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
-                    )
-
-                else:
-                    notify(
-                        type=3,
-                        msg='0',
-                        desc=table_deleted_locale(instance.tableNumber, instance.floor.name),
-                        stn=[f'WOMS{head.pk}'],
-                        vendorId=vendor_id
-                    )
-    
-
 @api_view(['POST'])
 def createOrder(request):
     try:
@@ -2056,7 +2681,7 @@ def platform_list(request):
     else:
         platform_details.append({
             "id": "",
-            "name": all_platform_locale["All"]
+            "name": language_localization["All"]
         })
     
     platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
@@ -2077,6 +2702,7 @@ def platform_list(request):
             })
 
     return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
+
 
 @api_view(["GET"])
 def order_details(request):
@@ -2412,72 +3038,87 @@ def updatePaymentDetails(request):
     if payment:    
         print(payment.platform)
 
-        payment.paymentBy=data['payment']['paymentBy']
-        payment.paymentKey=data['payment']['paymentKey']
-        payment.type=data['payment']['type']
-        payment.status=True
-        payment.platform=data['payment']['platform']
+        payment.paymentBy = data['payment']['paymentBy']
+        payment.paymentKey = data['payment']['paymentKey']
+        payment.type = data['payment']['type']
+        payment.status = True
+        payment.platform = data['payment']['platform']
 
         payment.save()
 
     else:
         OrderPayment.objects.create(
-            orderId=coreOrder,
-            paymentBy=data['payment']['paymentBy'],
-            paymentKey=data['payment']['paymentKey'],
-            paid=coreOrder.TotalAmount,
-            due=0,
-            tip=0,
-            type=data['payment']['type'],
-            status=True,
-            platform=data['payment']['platform']
+            orderId = coreOrder,
+            paymentBy = data['payment']['paymentBy'],
+            paymentKey = data['payment']['paymentKey'],
+            paid = coreOrder.TotalAmount,
+            due = 0,
+            tip = 0,
+            type = data['payment']['type'],
+            status = True,
+            platform = data['payment']['platform']
         )
     
     if coreOrder.orderType == 3:
-        order.order_status=10 # CLOSE order
+        order.order_status = 10 # CLOSE order
         order.save()
         
-        coreOrder.Status=2                    # this is just a temporary fix to update 
+        coreOrder.Status = 2                    # this is just a temporary fix to update 
         coreOrder.save()                      # core order status this needs to be changed by updateCoreOrder function
 
-        tables=Order_tables.objects.filter(orderId=order)
+        tables = Order_tables.objects.filter(orderId=order)
         
         for table in tables:
             table.tableId.status = 1 # EMPTY TABLE
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            res = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
+            table_data = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
 
-            webSocketPush(
-                message={"result":res, "UPDATE": "UPDATE"},
-                room_name="WOMS"+str(table.tableId.waiterId.pk if table.tableId.waiterId else 0)+"------"+str(vendorId),
-                username="CORE"
-            )#update table for new waiter
+            waiter_id = 0
+
+            if table.tableId.waiterId:
+                waiter_id = table.tableId.waiterId.pk
             
             webSocketPush(
-                message={"result": res, "UPDATE": "UPDATE"},
-                room_name=f"WOMSPOS------{language}-{str(vendorId)}",
-                username="CORE",
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                username = "CORE",
+            )
+            
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{language}-{str(vendorId)}",
+                username = "CORE",
             )
 
-            for i in Waiter.objects.filter(is_waiter_head=True,vendorId=vendorId):
-                # webSocketPush({"result":res,"UPDATE": "UPDATE"},WOMS+str(i.pk)+"-"+filter+"-"+search+"--","CORE",)
-                webSocketPush(message={"result":res,"UPDATE": "UPDATE"},room_name="WOMS"+str(i.pk)+"------"+str(vendorId),username="CORE",)
+            waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId)
+            
+            for waiter_head in waiter_heads:
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                    username = "CORE",
+                )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
-        order.order_status=10
+        order.order_status = 10
         order.save()
         
-        coreOrder.Status=2
+        coreOrder.Status = 2
         coreOrder.save()
     
-    webSocketPush(message={"id": order.pk,"orderId": order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+'-'+str(oldStatus),username="CORE",)  # WheelMan order remove order from old status
-    # processStation(oldStatus=str(oldStatus),currentStatus=str(orderStatus),orderId=content.orderId.pk,station=content.stationId,vendorId=vendorId)
-    allStationWiseRemove(id=order.pk,old=str(oldStatus),current=str(oldStatus),vendorId=vendorId)
-    allStationWiseSingle(id=order.pk,vendorId=vendorId)
-    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+    webSocketPush(
+        message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
+        room_name=str(vendorId)+'-'+str(oldStatus),
+        username="CORE",
+    )  # WheelMan order remove order from old status
+    
+    allStationWiseRemove(id=order.pk, old=str(oldStatus), current=str(oldStatus), vendorId=vendorId)
+    allStationWiseSingle(id=order.pk, vendorId=vendorId)
     allStationWiseCategory(vendorId=vendorId) 
+    
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
 
     return JsonResponse({})
 
@@ -2747,7 +3388,7 @@ def update_order_koms(request):
 
 
 @api_view(["POST"])
-def  orderList(request):
+def orderList(request):
     data=request.data
 
     data=order_data(
@@ -3094,23 +3735,23 @@ def excel_download_for_dashboard(request):
         sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
 
     else:
-        sheet.append([excel_headers_locale['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
-        sheet.append([excel_headers_locale['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
+        sheet.append([language_localization['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
         sheet.append(['', '', '', '', '', '', '', '', ''])
 
         sheet.append([
-            excel_headers_locale['Order ID'],
-            excel_headers_locale['Platform'],
-            excel_headers_locale['Amount'],
-            excel_headers_locale['Order Type'],
-            excel_headers_locale['Order Status'],
-            excel_headers_locale['Order Time'],
-            excel_headers_locale['Payment Type'],
-            excel_headers_locale['Payment Status'],
-            excel_headers_locale['Transaction ID']
+            language_localization['Order ID'],
+            language_localization['Platform'],
+            language_localization['Amount'],
+            language_localization['Order Type'],
+            language_localization['Order Status'],
+            language_localization['Order Time'],
+            language_localization['Payment Type'],
+            language_localization['Payment Status'],
+            language_localization['Transaction ID']
         ])
 
     for order_id, details in order_details.items():
@@ -3130,7 +3771,7 @@ def excel_download_for_dashboard(request):
         sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
 
     else:
-        sheet.append([f'{excel_headers_locale["Total orders"]} = {order_count}', '', f'{excel_headers_locale["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
+        sheet.append([f'{language_localization["Total orders"]} = {order_count}', '', f'{language_localization["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
     
     directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
     os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -3198,6 +3839,7 @@ def get_pos_user(request):
         "data": paginated_data, # data key should not be renamed as it is required for jsGrid plugin
         "itemsCount": paginator.count # itemsCount key should not be renamed as it is required for jsGrid plugin
     })
+
 
 def create_pos_user(request):
     vendors = Vendor.objects.all()
@@ -3273,6 +3915,7 @@ def delete_pos_user(request, pos_user_id):
         print(e)
         return JsonResponse({"message": "Something went wrong!"}, content_type="application/json")
 
+
 @api_view(['GET'])
 def get_store_timings(request):
     vendor_id = request.GET.get("vendorId")
@@ -3331,7 +3974,7 @@ def get_store_timings(request):
             day = instance.day
 
         else:
-            day = weekdays_locale[instance.day]
+            day = language_localization[instance.day]
 
         store_timing_list.append({
             "id": instance.pk,
@@ -3345,6 +3988,7 @@ def get_store_timings(request):
         })
 
     return JsonResponse({"store_status": store_status_final, "store_timing": store_timing_list})
+
 
 @api_view(['POST'])
 def set_store_timings(request):
@@ -3382,142 +4026,6 @@ def delete_store_timings(request):
         return Response(status=status.HTTP_404_NOT_FOUND)
     
     return Response(status=status.HTTP_200_OK)
-
-
-class ProductCategoryViewSet(viewsets.ModelViewSet):
-    queryset = ProductCategory.objects.all()
-    serializer_class = ProductCategorySerializer
-    filter_class = ProductCategoryFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
-        
-        else:
-            queryset = ProductCategory.objects.none()
-        
-        queryset = queryset.order_by('-pk')
-
-        return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('categoryName', None)
-        language = request.GET.get('language', 'English')
-        
-        if name_query:
-            if language == "English":
-                queryset = queryset.filter(categoryName__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(categoryName_locale__icontains=name_query)
-
-        page = self.paginate_queryset(queryset)
-
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-
-            return self.get_paginated_response(serializer.data)
-    
-    def create(self, request, *args, **kwargs):
-        try:
-            plu = request.data.get('categoryPLU')
-            vendor_id = request.data.get('vendorId')
-
-            existing_category = ProductCategory.objects.filter(categoryPLU=plu, vendorId=vendor_id).first()
-
-            if existing_category:
-                return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-            
-            with transaction.atomic():
-                serializer = self.get_serializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_category_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                headers = self.get_success_headers(serializer.data)
-
-                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def update(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                partial = kwargs.pop('partial', False)
-                instance = self.get_object()
-
-                new_plu = request.data.get('categoryPLU')
-
-                if new_plu != instance.categoryPLU:
-                    existing_category = ProductCategory.objects.filter(categoryPLU=new_plu, vendorId=instance.vendorId).first()
-
-                    if existing_category:
-                        return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
-                serializer = self.get_serializer(instance, data=request.data, partial=partial)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-
-                vendor_id = serializer.instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_category_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                return Response(serializer.data, status=status.HTTP_200_OK)
-            
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    def destroy(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                instance = self.get_object()
-
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-
-                if inventory_platform:
-                    delete_status, error_message, request_data = delete_category_in_odoo(inventory_platform.baseUrl, instance.categoryPLU, vendor_id)
-                
-                    if delete_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                self.perform_destroy(instance)
-                return Response(status=status.HTTP_204_NO_CONTENT)
-                    
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET",])
@@ -3854,6 +4362,7 @@ def update_product(request, product_id):
     else:
         return Response("Product ID empty", status=status.HTTP_400_BAD_REQUEST)
 
+
 @api_view(["DELETE"])
 def delete_product(request, product_id):
     vendor_id = request.GET.get('vendorId', None)
@@ -3896,143 +4405,6 @@ def delete_product(request, product_id):
     
     else:
         return Response("Product not found", status=status.HTTP_404_NOT_FOUND)
-
-class ModifierGroupViewSet(viewsets.ModelViewSet):
-    queryset = ProductModifierGroup.objects.all()
-    serializer_class = ModifierGroupSerializer
-    filter_class = ModifierGroupFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
-        
-        else:
-            queryset = ProductModifierGroup.objects.none()
-        
-        queryset = queryset.order_by('-id')
-
-        return queryset
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name', None)
-        
-        if name_query:
-            language = request.GET.get('language', "English")
-
-            if language == "English":
-                queryset = queryset.filter(name__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(name_locale__icontains=name_query)
-
-        page = self.paginate_queryset(queryset)
-
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-
-            return self.get_paginated_response(serializer.data)
-        
-    def create(self, request, *args, **kwargs):
-        try:
-            data = json.loads(request.body)
-
-            plu = data.get('PLU')
-            vendor_id = data.get('vendorId')
-
-            existing_modifier_group = ProductModifierGroup.objects.filter(PLU=plu, vendorId=vendor_id).first()
-
-            if existing_modifier_group:
-                return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-
-            with transaction.atomic():
-                serializer = self.get_serializer(data=request.data)
-                serializer.is_valid(raise_exception=True)
-                self.perform_create(serializer)
-
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                headers = self.get_success_headers(serializer.data)
-                return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
-        
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-        
-    def update(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                partial = kwargs.pop('partial', False)
-                instance = self.get_object()
-
-                new_plu = request.data.get('PLU')
-
-                if new_plu != instance.PLU:
-                    existing_category = ProductModifierGroup.objects.filter(PLU=new_plu, vendorId=instance.vendorId).first()
-
-                    if existing_category:
-                        return Response({'error': 'Modifier group with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
-                    
-                serializer = self.get_serializer(instance, data=request.data, partial=partial)
-                serializer.is_valid(raise_exception=True)
-                self.perform_update(serializer)
-
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = single_modifier_group_sync_with_odoo(serializer.instance)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                return Response(serializer.data)
-
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-    def destroy(self, request, *args, **kwargs):
-        try:
-            with transaction.atomic():
-                instance = self.get_object()
-                
-                vendor_id = instance.vendorId.pk
-                
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = delete_modifier_group_in_odoo(inventory_platform.baseUrl, instance.PLU, vendor_id)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier group did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier group synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                self.perform_destroy(instance)
-                return Response(status=status.HTTP_204_NO_CONTENT)
-                
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET",])
@@ -4812,144 +5184,156 @@ def get_orders_of_customer(request):
         total_pages = paginator.num_pages
         
         for order in paginated_orders:
-         koms_order = KOMSOrder.objects.filter(master_order=order.pk)                       # This is a temparory    
-         if koms_order:                                                                     # Fix for Broken orders between 
-            koms_order = koms_order.last()                                                  # core and KOMS
-            koms_order = KOMSOrder.objects.filter(master_order=order.pk).last()
+            koms_order = KOMSOrder.objects.filter(master_order=order.pk)                       # This is a temparory    
+            if koms_order:                                                                     # Fix for Broken orders between 
+                koms_order = koms_order.last()                                                  # core and KOMS
+                koms_order = KOMSOrder.objects.filter(master_order=order.pk).last()
 
-            order_contents = Order_content.objects.filter(orderId=koms_order.pk)
+                order_contents = Order_content.objects.filter(orderId=koms_order.pk)
 
-            order_items = []
-            for content in order_contents:
-                product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=content.SKU)
+                order_items = []
+                for content in order_contents:
+                    product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=content.SKU)
 
-                # modifier_list = defaultdict(list)
-                modifier_list = []
-                    
-                modifiers = Order_modifer.objects.filter(contentID=content.pk)
-                    
-                if modifiers:
-                    for modifier in modifiers:
-                        product_modifier = ProductModifier.objects.filter(modifierPLU=modifier.SKU, vendorId=vendor_id).first()
+                    modifier_list = []
                         
-                        modifier_list.append({
-                            'modifier_name': modifier.name,
-                            'modifier_plu': modifier.SKU,
-                            'modifier_quantity': modifier.quantity,
-                            'modifier_price': product_modifier.modifierPrice if product_modifier else 0.0,
-                            'modifier_img': product_modifier.modifierImg if product_modifier else ""
-                        })
+                    modifiers = Order_modifer.objects.filter(contentID=content.pk)
+                        
+                    if modifiers:
+                        for modifier in modifiers:
+                            product_modifier = ProductModifier.objects.filter(modifierPLU=modifier.SKU, vendorId=vendor_id).first()
 
-                product_image = ProductImage.objects.filter(product=product.product.pk).first()
+                            if language == "English":
+                                modifier_name = product_modifier.modifierName
 
-                if product_image:
-                    image_url = product_image.url
-                else:
-                    image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+                            else:
+                                modifier_name = product_modifier.modifierName_locale
+                            
+                            modifier_list.append({
+                                'modifier_name': modifier_name,
+                                'modifier_plu': product_modifier.modifierPLU,
+                                'modifier_quantity': modifier.quantity,
+                                'modifier_price': product_modifier.modifierPrice if product_modifier else 0.0,
+                                'modifier_img': product_modifier.modifierImg if product_modifier else ""
+                            })
+
+                    product_image = ProductImage.objects.filter(product=product.product.pk).first()
+
+                    if product_image:
+                        image_url = product_image.url
+
+                    else:
+                        image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+                    
+                    if language == "English":
+                        product_name = product.product.productName
+                        category_name = product.category.categoryName
+                    
+                    else:
+                        product_name = product.product.productName_locale
+                        category_name = product.category.categoryName_locale
+                    
+                    order_items.append({
+                        'quantity': content.quantity,
+                        'product_plu': content.SKU,
+                        'product_name': product_name,
+                        'tag': product.product.tag,
+                        'is_unlimited': product.product.is_unlimited,
+                        'preparation_time': product.product.preparationTime,
+                        'is_taxable': product.product.taxable,
+                        'product_image': image_url,
+                        'category': category_name,
+                        "product_note": content.note if content.note else "",
+                        "unit_price": product.product.productPrice,
+                        'modifiers': modifier_list
+                    })
                 
-                order_items.append({
-                    'quantity': content.quantity,
-                    'product_plu': content.SKU,
-                    'product_name': product.product.productName,
-                    'tag': product.product.tag,
-                    'is_unlimited': product.product.is_unlimited,
-                    'preparation_time': product.product.preparationTime,
-                    'is_taxable': product.product.taxable,
-                    'product_image': image_url,
-                    'category': product.category.categoryName,
-                    "product_note": content.note if content.note else "",
-                    "unit_price": product.product.productPrice,
-                    'modifiers': modifier_list
-                })
-            
-            payment_data = {}
-            
-            payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
-            
-            if payment_details:
-                if PaymentType.get_payment_str(payment_details.type) == 'CASH':
-                    payment_data['paymentKey'] = ''
-                    payment_data['platform'] = ''
-                    payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+                payment_data = {}
+                
+                payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
+                
+                if payment_details:
+                    if PaymentType.get_payment_str(payment_details.type) == 'CASH':
+                        payment_data['paymentKey'] = ''
+                        payment_data['platform'] = ''
+                        payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+
+                        if language != "English":
+                            payment_data["mode"] = get_key_value(language, "payment_type", 1)
+
+                    else:
+                        payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
+                        payment_data["platform"] = payment_details.platform if payment_details.platform else ''
+                        payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
+
+                        if language != "English":
+                            payment_data["mode"] = get_key_value(language, "payment_type", payment_details.type)
+                    
+                    payment_data["status"] = payment_details.status
+
+                else:
+                    payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
 
                     if language != "English":
-                        payment_data["mode"] = payment_type_locale[1]
+                        payment_mode = get_key_value(language, "payment_type", 1)
+
+                    payment_data = {
+                        "paymentKey": "",
+                        "platform": "",
+                        "status": False,
+                        "mode": payment_mode
+                    }
+
+                table_numbers_list = ""
+
+                table_details = Order_tables.objects.filter(orderId_id=koms_order.pk)
+
+                if table_details:
+                    for table in table_details:
+                        table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
+
+                    table_numbers_list = table_numbers_list[:-1]
+
+                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
+
+                if loyalty_points_redeem_history:
+                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+
+                    if not total_points_redeemed:
+                        total_points_redeemed = 0
 
                 else:
-                    payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
-                    payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                    payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
-
-                    if language != "English":
-                        payment_data["mode"] = payment_type_locale[payment_details.type]
+                    total_points_redeemed = 0
                 
-                payment_data["status"] = payment_details.status
-
-            else:
-                payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+                platform_name = order.platform.Name
 
                 if language != "English":
-                    payment_mode = payment_type_locale[1]
-
-                payment_data = {
-                    "paymentKey": "",
-                    "platform": "",
-                    "status": False,
-                    "mode": payment_mode
+                    platform_name = order.platform.Name_locale
+                
+                order_data = {
+                    "orderId": order.pk,
+                    "staging_order_id": koms_order.pk,
+                    "external_order_id": order.externalOrderId,
+                    "status": koms_order.order_status,
+                    "order_note": order.Notes if order.Notes else "",
+                    "total_tax": order.tax,
+                    "total_discount": order.discount,
+                    "delivery_charge": order.delivery_charge,
+                    "subtotal": order.subtotal,
+                    "total_amount": order.TotalAmount,
+                    "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_type": order.orderType,
+                    "platform_name": platform_name,
+                    "table_numbers": table_numbers_list,
+                    "items": order_items,
+                    "payment": payment_data,
+                    "total_points_redeemed": total_points_redeemed
                 }
 
-            # table_ids = []
-            table_numbers_list = ""
-
-            table_details = Order_tables.objects.filter(orderId_id=koms_order.pk)
-
-            if table_details:
-                for table in table_details:
-                    table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
-                    # table_ids.append(table.tableId.pk)
-
-                table_numbers_list = table_numbers_list[:-1]
-
-            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
-
-            if loyalty_points_redeem_history:
-                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                if not total_points_redeemed:
-                    total_points_redeemed = 0
-
-            else:
-                total_points_redeemed = 0
+                order_list.append(order_data)
             
-            platform_name = order.platform.Name
-
-            if language != "English":
-                platform_name = order.platform.Name_locale
-            
-            order_data = {
-                "orderId": order.pk,
-                "staging_order_id": koms_order.pk,
-                "external_order_id": order.externalOrderId,
-                "status": koms_order.order_status,
-                "order_note": order.Notes if order.Notes else "",
-                "total_tax": order.tax,
-                "total_discount": order.discount,
-                "delivery_charge": order.delivery_charge,
-                "subtotal": order.subtotal,
-                "total_amount": order.TotalAmount,
-                "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                "order_type": order.orderType,
-                "platform_name": platform_name,
-                "table_numbers": table_numbers_list,
-                "items": order_items,
-                "payment": payment_data,
-                "total_points_redeemed": total_points_redeemed
-            }
-
-            order_list.append(order_data)
-        
         response = {
             "total_pages": total_pages,
             "current_page": current_page,
@@ -5553,134 +5937,6 @@ def loyalty_points_redeem(vendor_id, customer_id, master_order_id, is_wordpress,
             return is_redeemed
 
 
-class DiscountCouponModelViewSet(viewsets.ModelViewSet):
-    queryset = Order_Discount.objects.all().order_by('-pk')
-    serializer_class = DiscountCouponModelSerializer
-    filter_class = DiscountCouponFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ("discountName", "discountCode", "value")
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Order_Discount.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Station.objects.all().order_by('-pk')
-    serializer_class = StationModelSerializer
-    filter_class = StationFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ('station_name',)
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Station.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class ChefModelViewSet(viewsets.ModelViewSet):
-    queryset = Staff.objects.all().order_by('-pk')
-    serializer_class = ChefModelSerializer
-    filter_class = ChefFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ('first_name', 'last_name',)
-    pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId', None)
-
-        if vendor_id:
-            return Staff.objects.filter(vendorId=vendor_id).order_by("-pk")
-        
-        return Staff.objects.none()
-
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-
-class BannerModelViewSet(viewsets.ModelViewSet):
-    queryset = Banner.objects.all().order_by('-pk')
-    serializer_class = BannerModelSerializer
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
-        vendor_id = self.request.GET.get('vendorId')
-
-        if vendor_id:
-            platform_type = self.request.GET.get('platform_type')
-            
-            if platform_type:
-                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
-            
-            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
-        
-        return Banner.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        data = {"banners": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
-
-
 @api_view(["GET"])
 def top_selling_products_report(request):
     vendor_id = request.GET.get("vendorId")
@@ -5861,23 +6117,23 @@ def top_selling_products_report(request):
             sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
 
         else:
-            sort_by = sort_by_locale_for_report_excel[sort_by]
+            sort_by = language_localization[sort_by]
 
-            order_type = order_type_locale_for_excel[order_type]
+            order_type = language_localization[order_type]
 
-            sheet.append([excel_headers_locale["Start Date"], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale["End Date"], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale["Order Type"], f'{order_type}'])
-            sheet.append([excel_headers_locale["Top"], f'{top_number}'])
-            sheet.append([excel_headers_locale["Sorted by"], f'{sort_by}'])
-            sheet.append([excel_headers_locale["Total records"], f'{len(top_selling_items)}'])
+            sheet.append([language_localization["Start Date"], f'{formatted_start_date}'])
+            sheet.append([language_localization["End Date"], f'{formatted_end_date}'])
+            sheet.append([language_localization["Order Type"], f'{order_type}'])
+            sheet.append([language_localization["Top"], f'{top_number}'])
+            sheet.append([language_localization["Sorted by"], f'{sort_by}'])
+            sheet.append([language_localization["Total records"], f'{len(top_selling_items)}'])
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale['Product Name'],
-                excel_headers_locale['Quantity Sold'],
-                excel_headers_locale['Unit Price'],
-                excel_headers_locale['Total Sale']
+                language_localization['Product Name'],
+                language_localization['Quantity Sold'],
+                language_localization['Unit Price'],
+                language_localization['Total Sale']
             ])
 
         if order_items.exists():    
@@ -6244,15 +6500,15 @@ def most_repeating_customers_report(request):
             sheet.append([''])
 
         else:
-            order_type = order_type_locale_for_excel[order_type]
-            sort_by = sort_by_locale_for_report_excel[sort_by]
+            order_type = language_localization[order_type]
+            sort_by = language_localization[sort_by]
 
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
-            sheet.append([excel_headers_locale['Top'], f'{top_number}'])
-            sheet.append([excel_headers_locale['Sorted by'], f'{sort_by}'])
-            sheet.append([excel_headers_locale['Total records'], f'{len(top_customers)}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Top'], f'{top_number}'])
+            sheet.append([language_localization['Sorted by'], f'{sort_by}'])
+            sheet.append([language_localization['Total records'], f'{len(top_customers)}'])
             sheet.append([''])
         
         if platform:
@@ -6275,19 +6531,19 @@ def most_repeating_customers_report(request):
 
             else:
                 sheet.append([
-                    excel_headers_locale['Customer Name'],
-                    excel_headers_locale['Phone Number'],
-                    excel_headers_locale['Email ID'],
-                    excel_headers_locale['Address'],
-                    excel_headers_locale['Total Points Credited'],
-                    excel_headers_locale['Total Points Redeemed'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Online Orders'],
-                    excel_headers_locale['Total Offline Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Most Ordered Items']
+                    language_localization['Customer Name'],
+                    language_localization['Phone Number'],
+                    language_localization['Email ID'],
+                    language_localization['Address'],
+                    language_localization['Total Points Credited'],
+                    language_localization['Total Points Redeemed'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Online Orders'],
+                    language_localization['Total Offline Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Most Ordered Items']
                 ])
 
         else:
@@ -6308,17 +6564,17 @@ def most_repeating_customers_report(request):
 
             else:
                 sheet.append([
-                    excel_headers_locale['Customer Name'],
-                    excel_headers_locale['Phone Number'],
-                    excel_headers_locale['Email ID'],
-                    excel_headers_locale['Address'],
-                    excel_headers_locale['Total Points Credited'],
-                    excel_headers_locale['Total Points Redeemed'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Most Ordered Items']
+                    language_localization['Customer Name'],
+                    language_localization['Phone Number'],
+                    language_localization['Email ID'],
+                    language_localization['Address'],
+                    language_localization['Total Points Credited'],
+                    language_localization['Total Points Redeemed'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Most Ordered Items']
                 ])
 
         for customer in top_customers:
@@ -7076,15 +7332,15 @@ def finance_report(request):
             sheet.append(['Category', 'Total Orders', 'Tax Collected', 'Revenue Generated'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
             sheet.append([''])
         
             sheet.append([
-                excel_headers_locale['Category'],
-                excel_headers_locale['Total Orders'],
-                excel_headers_locale['Tax Collected'],
-                excel_headers_locale['Revenue Generated']
+                language_localization['Category'],
+                language_localization['Total Orders'],
+                language_localization['Tax Collected'],
+                language_localization['Revenue Generated']
             ])
 
         if language == "English":
@@ -7093,7 +7349,7 @@ def finance_report(request):
 
         else:
             for key, value in report_data.items():
-                sheet.append([excel_headers_locale[key], value["orders"], value["tax"], value["revenue"]])
+                sheet.append([language_localization[key], value["orders"], value["tax"], value["revenue"]])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
         os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
@@ -7433,9 +7689,9 @@ def footfall_revenue_report(request):
             sheet.append(['Filtered by', f'{filter_by}'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Filtered by'], f'{filter_by}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Filtered by'], f'{filter_by}'])
 
         sheet.append([''])
 
@@ -7457,19 +7713,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Order Count Data']])
+                sheet.append([language_localization['Order Count Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Total Offline Orders'],
-                    excel_headers_locale['Total Online Orders'],
-                    excel_headers_locale['Cash Payment Orders'],
-                    excel_headers_locale['Online Payment Orders'],
-                    excel_headers_locale['Card Payment Orders'],
+                    language_localization['Instance'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Total Offline Orders'],
+                    language_localization['Total Online Orders'],
+                    language_localization['Cash Payment Orders'],
+                    language_localization['Online Payment Orders'],
+                    language_localization['Card Payment Orders'],
                 ])
 
             for data in filtered_data:
@@ -7505,19 +7761,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Tax Collection Data']])
+                sheet.append([language_localization['Tax Collection Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Tax Collected'],
-                    excel_headers_locale['Tax Collection from Delivery'],
-                    excel_headers_locale['Tax Collection from Pickup'],
-                    excel_headers_locale['Tax Collection from DineIn'],
-                    excel_headers_locale['Tax Collection from Offline Orders'],
-                    excel_headers_locale['Tax Collection from Online Orders'],
-                    excel_headers_locale['Tax Collection from Cash Payment'],
-                    excel_headers_locale['Tax Collection from Online Payment'],
-                    excel_headers_locale['Tax Collection from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Tax Collected'],
+                    language_localization['Tax Collection from Delivery'],
+                    language_localization['Tax Collection from Pickup'],
+                    language_localization['Tax Collection from DineIn'],
+                    language_localization['Tax Collection from Offline Orders'],
+                    language_localization['Tax Collection from Online Orders'],
+                    language_localization['Tax Collection from Cash Payment'],
+                    language_localization['Tax Collection from Online Payment'],
+                    language_localization['Tax Collection from Card Payment'],
                 ])
 
 
@@ -7554,19 +7810,19 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Revenue Generation Data']])
+                sheet.append([language_localization['Revenue Generation Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Revenue Generated'],
-                    excel_headers_locale['Revenue from Delivery'],
-                    excel_headers_locale['Revenue from Pickup'],
-                    excel_headers_locale['Revenue from DineIn'],
-                    excel_headers_locale['Revenue from Offline Orders'],
-                    excel_headers_locale['Revenue from Online Orders'],
-                    excel_headers_locale['Revenue from Cash Payment'],
-                    excel_headers_locale['Revenue from Online Payment'],
-                    excel_headers_locale['Revenue from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Revenue Generated'],
+                    language_localization['Revenue from Delivery'],
+                    language_localization['Revenue from Pickup'],
+                    language_localization['Revenue from DineIn'],
+                    language_localization['Revenue from Offline Orders'],
+                    language_localization['Revenue from Online Orders'],
+                    language_localization['Revenue from Cash Payment'],
+                    language_localization['Revenue from Online Payment'],
+                    language_localization['Revenue from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -7599,17 +7855,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Order Count Data']])
+                sheet.append([language_localization['Order Count Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Orders'],
-                    excel_headers_locale['Total Delivery Orders'],
-                    excel_headers_locale['Total Pickup Orders'],
-                    excel_headers_locale['Total DineIn Orders'],
-                    excel_headers_locale['Cash Payment Orders'],
-                    excel_headers_locale['Online Payment Orders'],
-                    excel_headers_locale['Card Payment Orders'],
+                    language_localization['Instance'],
+                    language_localization['Total Orders'],
+                    language_localization['Total Delivery Orders'],
+                    language_localization['Total Pickup Orders'],
+                    language_localization['Total DineIn Orders'],
+                    language_localization['Cash Payment Orders'],
+                    language_localization['Online Payment Orders'],
+                    language_localization['Card Payment Orders'],
                 ])
 
             for data in filtered_data:
@@ -7641,17 +7897,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Tax Collection Data']])
+                sheet.append([language_localization['Tax Collection Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Tax Collected'],
-                    excel_headers_locale['Tax Collection from Delivery'],
-                    excel_headers_locale['Tax Collection from Pickup'],
-                    excel_headers_locale['Tax Collection from DineIn'],
-                    excel_headers_locale['Tax Collection from Cash Payment'],
-                    excel_headers_locale['Tax Collection from Online Payment'],
-                    excel_headers_locale['Tax Collection from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Tax Collected'],
+                    language_localization['Tax Collection from Delivery'],
+                    language_localization['Tax Collection from Pickup'],
+                    language_localization['Tax Collection from DineIn'],
+                    language_localization['Tax Collection from Cash Payment'],
+                    language_localization['Tax Collection from Online Payment'],
+                    language_localization['Tax Collection from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -7683,17 +7939,17 @@ def footfall_revenue_report(request):
                 ])
 
             else:
-                sheet.append([excel_headers_locale['Revenue Generation Data']])
+                sheet.append([language_localization['Revenue Generation Data']])
 
                 sheet.append([
-                    excel_headers_locale['Instance'],
-                    excel_headers_locale['Total Revenue Generated'],
-                    excel_headers_locale['Revenue from Delivery'],
-                    excel_headers_locale['Revenue from Pickup'],
-                    excel_headers_locale['Revenue from DineIn'],
-                    excel_headers_locale['Revenue from Cash Payment'],
-                    excel_headers_locale['Revenue from Online Payment'],
-                    excel_headers_locale['Revenue from Card Payment'],
+                    language_localization['Instance'],
+                    language_localization['Total Revenue Generated'],
+                    language_localization['Revenue from Delivery'],
+                    language_localization['Revenue from Pickup'],
+                    language_localization['Revenue from DineIn'],
+                    language_localization['Revenue from Cash Payment'],
+                    language_localization['Revenue from Online Payment'],
+                    language_localization['Revenue from Card Payment'],
                 ])
 
             for data in filtered_data:
@@ -7799,8 +8055,8 @@ def order_report(request):
             sheet.append(['End Date', f'{formatted_end_date}'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
 
         sheet.append([''])
 
@@ -7809,11 +8065,11 @@ def order_report(request):
         
         else:
             sheet.append([
-                excel_headers_locale["Category"],
-                excel_headers_locale["Total Orders"],
-                excel_headers_locale["Complete Orders"],
-                excel_headers_locale["Cancelled Orders"],
-                excel_headers_locale["Processing Orders"]
+                language_localization["Category"],
+                language_localization["Total Orders"],
+                language_localization["Complete Orders"],
+                language_localization["Cancelled Orders"],
+                language_localization["Processing Orders"]
             ])
 
         for category, orders_info in order_count_details.items():
@@ -8031,27 +8287,27 @@ def cancel_order_report(request):
             sheet.append(['Product Name', 'Quantity Cancelled', 'Unit Price', 'Estimated Revenue'])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
             sheet.append([''])
 
-            sheet.append([excel_headers_locale["Cancelled Orders"], excel_headers_locale["Cancelled Products"], excel_headers_locale["Loss Made"]])
+            sheet.append([language_localization["Cancelled Orders"], language_localization["Cancelled Products"], language_localization["Loss Made"]])
             sheet.append([cancelled_orders_count, cancelled_products_count, estimated_revenue_from_cancelled_orders])
 
             sheet.append([''])
 
-            sheet.append([excel_headers_locale['Cancelled Product Details']])
-            sheet.append([excel_headers_locale['Top'], top_number])
-            sheet.append([excel_headers_locale['Sorted by'], sort_by])
+            sheet.append([language_localization['Cancelled Product Details']])
+            sheet.append([language_localization['Top'], top_number])
+            sheet.append([language_localization['Sorted by'], sort_by])
 
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale['Product Name'],
-                excel_headers_locale['Quantity Cancelled'],
-                excel_headers_locale['Unit Price'],
-                excel_headers_locale['Estimated Revenue']
+                language_localization['Product Name'],
+                language_localization['Quantity Cancelled'],
+                language_localization['Unit Price'],
+                language_localization['Estimated Revenue']
             ])
 
         for product_detail in cancelled_product_details:
@@ -8266,17 +8522,17 @@ def pincode_report(request):
             sheet.append(["Pincode", "Locality", "Orders", "Revenue", "Most Ordered Products"])
 
         else:
-            sheet.append([excel_headers_locale['Start Date'], f'{formatted_start_date}'])
-            sheet.append([excel_headers_locale['End Date'], f'{formatted_end_date}'])
-            sheet.append([excel_headers_locale['Order Type'], f'{order_type}'])
+            sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
+            sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
+            sheet.append([language_localization['Order Type'], f'{order_type}'])
             sheet.append([''])
 
             sheet.append([
-                excel_headers_locale["Pincode"],
-                excel_headers_locale["Locality"],
-                excel_headers_locale["Orders"],
-                excel_headers_locale["Revenue"],
-                excel_headers_locale["Most Ordered Products"]
+                language_localization["Pincode"],
+                language_localization["Locality"],
+                language_localization["Orders"],
+                language_localization["Revenue"],
+                language_localization["Most Ordered Products"]
             ])
         
         for info in pincode_list:
@@ -8808,201 +9064,3 @@ def get_pos_menu(request):
             "is_sop_active": pos_menu.is_sop_active,
         }, status=status.HTTP_400_BAD_REQUEST
     )
-
-
-
-class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUserCategory.objects.all().order_by('-pk')
-    serializer_class = CoreUserCategoryModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
-        
-        return CoreUserCategory.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-
-        serializer_data = serializer.data
-        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'vendor': 1})
-        
-        return JsonResponse({"user_categories": serializer_data})
-
-    def create(self, request, *args, **kwargs):
-        try:
-            name = request.data.get('name')
-            vendor_id = request.data.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            core_user_category = CoreUserCategory(name=f"{name}_{vendor_id}", vendor_id=vendor_id)
-            core_user_category.save()
-
-            serializer = self.get_serializer(core_user_category)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
-        
-    def update(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            name = request.data.get('name')
-            vendor_id = request.GET.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-                
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & ~Q(pk=instance.pk) & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            instance.name = f"{name}_{vendor_id}"
-            instance.save()
-
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-    
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
-
-
-class CoreUserModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUser.objects.all().order_by('-pk')
-    serializer_class = CoreUserModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('first_name', 'last_name', 'email')
-    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
-    ordering_fields = ('id', 'first_name', 'last_name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-        group_id = self.request.GET.get('group')
-
-        if vendor_id:
-            if not group_id:
-                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
-
-            elif group_id=='0':
-                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
-            
-            else:
-                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
-        
-        return CoreUser.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"users": serializer.data})
-    
-    def perform_create(self, serializer):
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=make_password(password))
-        else:
-            serializer.save()
-
-    def perform_update(self, serializer):
-        password = self.request.data.get('password')
-        if password:
-            serializer.save(password=make_password(password))
-        else:
-            serializer.save()
-
-
-class DepartmentModelViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all().order_by('-pk')
-    serializer_class = DepartmentModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
-        
-        return Department.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"departments": serializer.data})
-    
-    def create(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.data.get('vendor')
-
-        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
-
-        if existing_department.exists():
-            return Response(
-                {"error": "Department with this name already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.GET.get('vendor')
-
-        instance = self.get_object()
-
-        if name:
-            existing_department = Department.objects.filter(
-                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
-            )
-
-            if existing_department.exists():
-                return Response(
-                    {"error": "Department with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
