@@ -64,29 +64,21 @@ payment_type_locale = {
     3: 'بطاقة'
 }
 
-all_platform_locale = {'All': 'الجميع'}
-
 platform_locale = (
     ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
 
-sort_by_locale_for_report_excel = {
-    "ascending": "تصاعدي",
-    "descending": "تنازلي"
-}
-
-order_type_locale_for_excel = {
+language_localization = {
     "All": "الجميع",
     "all": "الجميع",
     "delivery": "توصيل",
     "pickup": "يلتقط",
     "dinein": "تناول الطعام في",
     "online": "متصل",
-    "offline": "غير متصل على الانترنت"
-}
-
-language_localization = {
+    "offline": "غير متصل على الانترنت",
+    "ascending": "تصاعدي",
+    "descending": "تنازلي",
     "Order ID": "رقم الطلب",
     "Platform": "منصة",
     "Start Date": "تاريخ البدء",

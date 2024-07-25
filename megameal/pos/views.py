@@ -65,7 +65,7 @@ from inventory.utils import (
 )
 from pos.language import(
     get_key_value, check_key_exists, table_created_locale, table_deleted_locale,
-    all_platform_locale, weekdays_locale, order_type_locale_for_excel, sort_by_locale_for_report_excel, 
+    weekdays_locale, 
     language_localization, payment_type_locale
 )
 import pytz
@@ -2685,7 +2685,7 @@ def platform_list(request):
     else:
         platform_details.append({
             "id": "",
-            "name": all_platform_locale["All"]
+            "name": language_localization["All"]
         })
     
     platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
@@ -6121,9 +6121,9 @@ def top_selling_products_report(request):
             sheet.append(['Product Name', 'Quantity Sold', 'Unit Price', 'Total Sale'])
 
         else:
-            sort_by = sort_by_locale_for_report_excel[sort_by]
+            sort_by = language_localization[sort_by]
 
-            order_type = order_type_locale_for_excel[order_type]
+            order_type = language_localization[order_type]
 
             sheet.append([language_localization["Start Date"], f'{formatted_start_date}'])
             sheet.append([language_localization["End Date"], f'{formatted_end_date}'])
@@ -6504,8 +6504,8 @@ def most_repeating_customers_report(request):
             sheet.append([''])
 
         else:
-            order_type = order_type_locale_for_excel[order_type]
-            sort_by = sort_by_locale_for_report_excel[sort_by]
+            order_type = language_localization[order_type]
+            sort_by = language_localization[sort_by]
 
             sheet.append([language_localization['Start Date'], f'{formatted_start_date}'])
             sheet.append([language_localization['End Date'], f'{formatted_end_date}'])
