@@ -67,6 +67,7 @@ from pos.language import (
     check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
     payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
 )
+from googletrans import Translator
 import pandas
 import pytz
 import re
@@ -9099,3 +9100,103 @@ def get_pos_menu(request):
             "is_sop_active": pos_menu.is_sop_active,
         }, status=status.HTTP_400_BAD_REQUEST
     )
+
+
+@api_view(["POST"])
+def generate_language_translation_excel(request):
+    try:
+        uploaded_file = request.FILES.get('excel_file')
+        language = request.GET.get("language")
+
+        if not uploaded_file:
+            return JsonResponse({"message": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not language:
+            return JsonResponse({"message": "No language specified"}, status=status.HTTP_400_BAD_REQUEST)
+
+        directory = os.path.join(settings.MEDIA_ROOT, 'Language Translation Excel')
+        
+        os.makedirs(directory, exist_ok=True)
+        
+        file_name = uploaded_file.name
+
+        relative_file_path = os.path.join('Language Translation Excel', file_name)
+
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_file_path)
+
+        with default_storage.open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        workbook = openpyxl.load_workbook(file_path)
+
+        sheet_name = workbook.active.title
+
+        if not os.path.exists(file_path):
+            return JsonResponse({"message": "File does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file_path.lower().endswith(".xlsx"):
+            return JsonResponse({"message": "File format is not .xlsx"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if sheet_name != "Sheet1":
+            return JsonResponse({"message": "Sheet name should be 'Sheet1'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            data = pandas.read_excel(file_path, sheet_name=sheet_name)
+
+        except ValueError as e:
+            return JsonResponse({"message": "Wrong file format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        existing_column = data.columns.tolist()[0]
+
+        if existing_column != "English":
+            return JsonResponse({"message": "Column name should be 'English'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        translator = Translator()
+
+        translations = []
+
+        for string in data['English']:
+            translation = translator.translate(string, dest=language).text
+
+            translations.append(translation)
+            
+        data['Translation'] = translations
+
+        translated_file_name = f"translated_{file_name}"
+
+        translated_relative_file_path = os.path.join('Language Translation Excel', translated_file_name)
+
+        translated_file_path = os.path.join(settings.MEDIA_ROOT, translated_relative_file_path)
+
+        data.to_excel(translated_file_path, index=False)
+
+        translations_dict = {}
+
+        for _, row in data.iterrows():
+            english_text = row['English']
+            translated_text = row['Translation']
+
+            translations_dict[english_text] = translated_text
+
+        json_data = {'language': translations_dict}
+
+        json_file_name = f"translations_{file_name.split('.')[0]}.json"
+
+        json_relative_file_path = os.path.join('Language Translation Excel', json_file_name)
+
+        json_file_path = os.path.join(settings.MEDIA_ROOT, json_relative_file_path)
+        
+        with open(json_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(json_data, json_file, ensure_ascii=False, indent=4)
+
+        response_excel_path = os.path.join('/media', translated_relative_file_path).replace('\\', '/')
+        response_json_path = os.path.join('/media', json_relative_file_path).replace('\\', '/')
+
+        return JsonResponse({
+            "excel_file_path": response_excel_path,
+            "json_file_path": response_json_path
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
