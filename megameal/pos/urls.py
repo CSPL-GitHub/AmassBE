@@ -88,6 +88,7 @@ urlpatterns = [
    path('reports/cancel_order/', views.cancel_order_report, name='cancel_order_report'),
    path('reports/pincode/', views.pincode_report, name='pincode_report'),
    path('is_platform/', views.is_platform, name='is_platform'),
+   path('translate_excel/', views.generate_language_translation_excel, name='translate_excel')
 ]
 
 
