@@ -67,6 +67,7 @@ from pos.language import (
     check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
     payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
 )
+import pandas
 import pytz
 import re
 import openpyxl
@@ -2521,7 +2522,7 @@ def createOrder(request):
     
         platform = Platform.objects.filter(Name=request.data.get('platform'), VendorId=vendor_id).first()
 
-        if platform.isActive == False:
+        if (not platform) or (platform.isActive == False):
             return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
         
         orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S")
