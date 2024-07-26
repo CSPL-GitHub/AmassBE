@@ -148,6 +148,16 @@ class TaxAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'order', 'customer', 'created_at', 'sender', 'receiver', 'subject', 'email_body_type', 'email_body', 'status')
+    
+    list_display = ('order', 'customer', 'receiver', 'created_at', 'vendor',)
+    list_filter = ('vendor',)
+    search_fields = ('customer', 'receiver',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(VendorSocialMedia)
 class VendorSocialMediaAdmin(admin.ModelAdmin):
     
