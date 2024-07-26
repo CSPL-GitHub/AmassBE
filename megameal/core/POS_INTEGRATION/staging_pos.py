@@ -267,35 +267,35 @@ class StagingIntegration():
 
                     counter = counter + 1
 
-                local_ips = []
+                # local_ips = []
 
-                host_name = socket.gethostname()
+                # host_name = socket.gethostname()
 
-                host_ip_info = socket.gethostbyname_ex(host_name)
+                # host_ip_info = socket.gethostbyname_ex(host_name)
 
-                for ip in host_ip_info[2]:
-                    if not ip.startswith("127."):
-                        local_ips.append(ip)
+                # for ip in host_ip_info[2]:
+                #     if not ip.startswith("127."):
+                #         local_ips.append(ip)
 
-                external_ip = None
+                # external_ip = None
 
-                external_ip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                # external_ip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
-                port = request.META.get("SERVER_PORT")
+                # port = request.META.get("SERVER_PORT")
 
-                try:
-                    external_ip_socket.connect(('8.8.8.8', 53))
+                # try:
+                #     external_ip_socket.connect(('8.8.8.8', 53))
 
-                    external_ip = external_ip_socket.getsockname()[0]
+                #     external_ip = external_ip_socket.getsockname()[0]
 
-                finally:
-                    external_ip_socket.close()
+                # finally:
+                #     external_ip_socket.close()
 
-                if local_ips:
-                    server_ip = local_ips[0]
+                # if local_ips:
+                #     server_ip = local_ips[0]
 
-                else:
-                    server_ip = external_ip
+                # else:
+                #     server_ip = external_ip
                 
                 sender = EMAIL_HOST_USER
                 receiver = coreCustomer.Email
@@ -317,7 +317,7 @@ class StagingIntegration():
                     "delivery_charge": round(order.delivery_charge, 2),
                     "tax_details": tax_details,
                     "total_amount": round(order.TotalAmount, 2),
-                    "logo_url": f"http://{server_ip}:{port}{vendor_instance.logo.url}"
+                    "logo_url": f"{vendor_instance.logo.url}"
                 }
                 
                 email_body = render_to_string('email.html', context)
