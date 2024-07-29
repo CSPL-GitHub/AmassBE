@@ -1934,13 +1934,13 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         
     order_details = {}
 
-    sd=s_date if s_date is not  None else ""
-    ed=e_date if e_date is not None else ""
-    se=search if search != 'All' else ""
-    pl=platform if platform!="All" else ''
-    pn=page_number if page_number!="All" else ""
-    os=order_status if order_status!="All" else ''
-    oe=order_type if order_type!="All" else ''
+    sd = s_date if s_date is not  None else ""
+    ed = e_date if e_date is not None else ""
+    se = search if search != 'All' else ""
+    pl = platform if platform!="All" else ''
+    pn = page_number if page_number!="All" else ""
+    os = order_status if order_status!="All" else ''
+    oe = order_type if order_type!="All" else ''
     current_date = datetime.today().strftime("%Y-%m-%d")
     
     if e_date is not None and s_date is not None:
@@ -1969,13 +1969,17 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         order_data = order_data.filter(order_type=order_type)
 
     if platform != "All":
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        
-        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-        order_data = order_data.filter(platform=platform)
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
+        if is_dashboard == 1:
+            order_data = order_data.filter(master_order__platform=platform)
 
-        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
+        else:
+            online_platform_ids = Platform.objects.filter(Name__in=("Website", "Mobile App")).values_list("pk", flat=True)
+
+            if platform in online_platform_ids:
+                order_data = order_data.filter(master_order__platform__Name__in=("Website", "Mobile App"))
+
+            else:
+                order_data = order_data.filter(master_order__platform=platform)
 
     if search != 'All':
         expression = r'\d+'
@@ -1986,25 +1990,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
             order_data = order_data.filter(master_order__pk__icontains=master_order_id)
             
-            if order_data:    
-                if order_status != "All":
-                    order_data = order_data.filter(order_status=order_status)
-
-                if order_type != "All":
-                    order_data = order_data.filter(order_type=order_type)
-
-                if platform != "All":
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                    order_data = order_data.filter(platform=platform)
-
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-            
-            else:
+            if not order_data:
                 response_data = {
                     'page_number': 0,
                     'total_pages': 0,
@@ -2027,29 +2013,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     Q(master_order__customerId__LastName__icontains=customer_name)
                 )
                 
-                external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-                
-                if order_data:    
-                    if order_status != "All":
-                        order_data = order_data.filter(order_status=order_status)
-
-                    if order_type != "All":
-                        order_data = order_data.filter(order_type=order_type)
-
-                    if platform != "All":
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                        order_data = order_data.filter(platform=platform)
-
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-
-                else:
+                if not order_data:
                     response_data = {
                         'page_number': 0,
                         'total_pages': 0,
@@ -2071,7 +2035,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
         
         try:
-            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
             
@@ -2117,7 +2081,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         single_order['payment'] = payment_details
 
         try:
-            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
 
             platform_name = ""
             
@@ -2210,8 +2174,11 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         'order_details': order_details,
     }
     
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
+    webSocketPush(
+        message=response_data,
+        room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}",
+        username="CORE",
+    )
     
     return response_data
 
