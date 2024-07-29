@@ -316,9 +316,16 @@ def assign_waiter_to_table(request):
             
             webSocketPush(
                 message = {"result": result, "UPDATE": "REMOVE",},
-                room_name = f"WOMS{old_waiter_id}------{language}-{str(vendor_id)}",
-                username="CORE",
+                room_name = f"WOMS{old_waiter_id}------English-{str(vendor_id)}",
+                username = "CORE",
             )#remove table from old waiter
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": result, "UPDATE": "REMOVE",},
+                    room_name = f"WOMS{old_waiter_id}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
         
         table_instance.waiterId = waiter_instance
         table_instance.save()
@@ -326,25 +333,45 @@ def assign_waiter_to_table(request):
         table_data = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
 
         webSocketPush(
-            message={"result": table_data, "UPDATE": "UPDATE"},
-            room_name=f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMS{str(waiter_id)}------English-{str(vendor_id)}",
+            username = "CORE",
         )
         
         webSocketPush(
-            message={"result": table_data, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------English-{str(vendor_id)}",
+            username = "CORE",
         )
+        
+        if vendor_instance.secondary_language and (language != "English"):
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+                username = "CORE",
+            )
+            
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+                username = "CORE",
+            )
         
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
         
         for waiter_head in waiter_heads:
             webSocketPush(
-                message={"result": table_data, "UPDATE": "UPDATE"},
-                room_name=f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
-                username="CORE",
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendor_id)}",
+                username = "CORE",
             )
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
         
         return JsonResponse(table_data, safe=False)
     
@@ -400,9 +427,16 @@ def update_table_status(request):
         
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
-            room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+            room_name = f"WOMS{str(waiter_id)}------English-{str(vendor_id)}",
             username = "CORE",
         )
+        
+        if vendor_instance.secondary_language and (language != "English"):
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+                username = "CORE",
+            )
 
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -415,9 +449,16 @@ def update_table_status(request):
         for waiter_head in waiter_heads:
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendor_id)}",
                 username = "CORE",
             )
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
 
         return JsonResponse(table_data, safe=False)
     
