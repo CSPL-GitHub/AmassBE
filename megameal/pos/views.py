@@ -445,6 +445,8 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username = "CORE",
         )
 
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
@@ -466,12 +468,19 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                         stn = [f'WOMS{head.pk}'],
                         vendorId = vendor_id
                     )
-        
+
                 webSocketPush(
                     message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    room_name = f"WOMS{str(head.pk)}------English-{str(vendor_id)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                        username = "CORE",
+                    )
 
     def perform_destroy(self, instance):
         instance.delete()
@@ -506,6 +515,8 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username = "CORE",
         )
         
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
@@ -530,9 +541,16 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
                 webSocketPush(
                     message = {"result": all_tables_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    room_name = f"WOMS{str(head.pk)}------English-{str(vendor_id)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                        username = "CORE",
+                    )
   
 
 class ProductCategoryViewSet(viewsets.ModelViewSet):
@@ -3042,9 +3060,16 @@ def updatePaymentDetails(request):
             
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
                 username = "CORE",
             )
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                    username = "CORE",
+                )
             
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -3057,9 +3082,16 @@ def updatePaymentDetails(request):
             for waiter_head in waiter_heads:
                 webSocketPush(
                     message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                    room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendorId)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
         order.order_status = 10
