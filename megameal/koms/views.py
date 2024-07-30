@@ -1206,7 +1206,7 @@ def getOrder(ticketId, vendorId, language="English"):
     mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["deliveryIsAsap"] = singleOrder.deliveryIsAsap
-    mapOfSingleOrder["note"] = singleOrder.order_note
+    mapOfSingleOrder["note"] = singleOrder.order_note if singleOrder.order_note else ""
     mapOfSingleOrder["remake"] = False
     mapOfSingleOrder["customerName"] = ""
     mapOfSingleOrder["status"] = singleOrder.order_status
@@ -1286,7 +1286,7 @@ def getOrder(ticketId, vendorId, language="English"):
             mapOfSingleContent["chefId"] = 0
 
         mapOfSingleContent["quantityStatus"] = singleContent.quantityStatus
-        mapOfSingleContent["itemRemark"] = singleContent.note if singleContent.note and singleContent.note!="" and singleContent.note is not None  else "NONE"
+        mapOfSingleContent["itemRemark"] = singleContent.note if singleContent.note and singleContent.note!="" and singleContent.note is not None  else ""
 
         orderContentModifierList = Order_modifer.objects.filter(contentID=singleContent.pk, status="1")
 
