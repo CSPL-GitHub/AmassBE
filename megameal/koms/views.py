@@ -9,11 +9,11 @@ from rest_framework.response import Response
 from rest_framework import viewsets
 from koms.serializers.order_point_serializer import Order_point_serializer
 from koms.serializers.order_content_serializer import Order_content_serializer
-from koms.serializers.order_modifer_serializer import (Order_modifer_serializer, OrderModifierWriterSerializer,)
-from koms.serializers.order_serializer import (Order_serializer,OrderSerializerWriterSerializer,)
+from koms.serializers.order_modifer_serializer import Order_modifer_serializer, OrderModifierWriterSerializer
+from koms.serializers.order_serializer import Order_serializer, OrderSerializerWriterSerializer
 from koms.serializers.user_settings_serializer import UserSettingReaderSerializer
-from koms.serializers.stations_serializer import (Stations_serializer, StationsReadSerializer,)
-from koms.serializers.staff_serializer import (StaffReaderSerializer,StaffWriterSerializer,)
+from koms.serializers.stations_serializer import Stations_serializer, StationsReadSerializer
+from koms.serializers.staff_serializer import StaffReaderSerializer,StaffWriterSerializer
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
@@ -1211,7 +1211,7 @@ def getOrder(ticketId, vendorId, language="English"):
     mapOfSingleOrder["customerName"] = ""
     mapOfSingleOrder["status"] = singleOrder.order_status
     mapOfSingleOrder["guest"] = singleOrder.guest
-    mapOfSingleOrder["server"] = singleOrder.server
+    mapOfSingleOrder["server"] = singleOrder.server if singleOrder.server else ""
 
     try:
         orderTables = Order_tables.objects.filter(orderId_id=singleOrder.pk)
@@ -1490,31 +1490,6 @@ def stationdata(id,vendorId):
     ###++++Here we are shifting high priority orders to the start            
     for i in stationWise:
         stationWise[i]= dict(sorted(stationWise[i].items(), key=lambda x: not x[1]["isHigh"]))
-    return stationWise
-
-
-def waiterdata(id,filter,search,vendorId):
-    stationWise={}
-    tableOfWaiter=HotelTable.objects.filter(vendorId=vendorId) if Waiter.objects.get(pk =id,vendorId=vendorId).is_waiter_head  else HotelTable.objects.filter(waiterId = id,vendorId=vendorId)
-    tableIds=[str(i.pk) for i in tableOfWaiter ]
-    date = datetime.today().strftime("20%y-%m-%d")
-    
-    tableData=Order_tables.objects.filter(tableId_id__in=tableIds)
-    orderIds=[str(i.orderId.pk) for i in tableData ]
-    data=Order.objects.filter(arrival_time__contains=date, id__in=orderIds,vendorId=vendorId)
-    print("Data Count ,",data.count())
-
-    data=data if filter == 'All' else  data.filter(order_status=filter) if filter!="7" else data.filter(isHigh=True)
-    orderId=[]
-    if search!='All':
-        orderId=Order_tables.objects.filter(tableId__in=HotelTable.objects.filter(tableNumber=search,vendorId=vendorId).values_list('pk', flat=True)).values_list('orderId', flat=True)
-    data=data if search == 'All' else data.filter(id__in=orderId) #tableNumber__contains=str(search)
-    print("Content count , ", Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).count())
-    for single_content in Order_content.objects.filter(orderId__in=data.values_list('pk', flat=True)).order_by("-orderId"):
-        for singleOrder in Order.objects.filter(pk=single_content.orderId.pk,vendorId=vendorId):
-            mapOfSingleOrder = getOrder(ticketId=singleOrder.pk,vendorId=vendorId)
-            mapOfSingleOrder['TotalAmount'] = coreOrder.objects.filter(pk=singleOrder.master_order.pk).first().TotalAmount
-            stationWise[singleOrder.externalOrderId] = mapOfSingleOrder
     return stationWise
 
 
