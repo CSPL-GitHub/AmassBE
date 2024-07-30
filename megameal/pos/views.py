@@ -2170,6 +2170,12 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             room_name = f"POS{order_status_parameter}-{search_text_parameter}-{platform_parameter}-{order_type_parameter}-{page_number_parameter}-{start_date_parameter}-{end_date_parameter}-{is_dashboard}-{language}-{str(vendor_id)}",
             username = "CORE",
         )
+
+        webSocketPush(
+            message = response_data,
+            room_name = f"POS{order_status_parameter}-{search_text_parameter}-{platform_parameter}-{order_type_parameter}--{start_date_parameter}-{end_date_parameter}-{is_dashboard}-{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
         
         return response_data
     
