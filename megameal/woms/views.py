@@ -138,16 +138,16 @@ def filter_tables(waiterId, filter, search, status, waiter, floor, vendorId, lan
         return []
 
 
-def get_orders_of_waiter(id, filter, search, vendorId, language="English"):
+def get_orders_of_waiter(waiter_id, filter, search, vendor_id, language="English"):
     station_wise_data = {}
 
-    waiter_instance = Waiter.objects.filter(pk=id, vendorId=vendorId).first()
+    waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
 
     if waiter_instance.is_waiter_head == True:
-        waiter_tables = HotelTable.objects.filter(vendorId=vendorId)
+        waiter_tables = HotelTable.objects.filter(vendorId=vendor_id)
 
     else:
-        waiter_tables = HotelTable.objects.filter(waiterId=id, vendorId=vendorId)
+        waiter_tables = HotelTable.objects.filter(waiterId=waiter_id, vendorId=vendor_id)
 
     table_ids = []
     order_ids = []
@@ -162,7 +162,7 @@ def get_orders_of_waiter(id, filter, search, vendorId, language="English"):
 
     date = datetime.today().strftime("20%y-%m-%d")
 
-    orders = Order.objects.filter(id__in=order_ids, arrival_time__contains=date, vendorId=vendorId)
+    orders = Order.objects.filter(id__in=order_ids, arrival_time__contains=date, vendorId=vendor_id)
 
     if filter == 'All':
         pass
@@ -177,7 +177,7 @@ def get_orders_of_waiter(id, filter, search, vendorId, language="English"):
         order_ids = []
         table_ids = []
 
-        table_ids = HotelTable.objects.filter(tableNumber=search, vendorId=vendorId).values_list('pk', flat=True)
+        table_ids = HotelTable.objects.filter(tableNumber=search, vendorId=vendor_id).values_list('pk', flat=True)
 
         order_ids = Order_tables.objects.filter(tableId__in = table_ids).values_list('orderId', flat=True)
 
@@ -188,9 +188,9 @@ def get_orders_of_waiter(id, filter, search, vendorId, language="English"):
     order_content = Order_content.objects.filter(orderId__in = koms_order_ids).order_by("-orderId")
     
     for single_content in order_content:
-        order_instance = Order.objects.filter(pk = single_content.orderId.pk, vendorId = vendorId).first()
+        order_instance = Order.objects.filter(pk = single_content.orderId.pk, vendorId = vendor_id).first()
 
-        single_order_info = getOrder(ticketId=order_instance.pk, language=language, vendorId=vendorId)
+        single_order_info = getOrder(ticketId=order_instance.pk, language=language, vendorId=vendor_id)
         
         single_order_info['TotalAmount'] = order_instance.master_order.TotalAmount
         

@@ -209,7 +209,7 @@ class ChatConsumer(WebsocketConsumer):
                     language = data[3]
                     vendor_id = data[4]
 
-                    result = get_orders_of_waiter(id=waiter_id, filter=filter, search=search, language=language, vendorId=vendor_id)
+                    result = get_orders_of_waiter(waiter_id=waiter_id, filter=filter, search=search, language=language, vendor_id=vendor_id)
                 
                 else:
                     if str(self.user)=="AnonymousUser":
