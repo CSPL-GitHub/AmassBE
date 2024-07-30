@@ -196,15 +196,7 @@ class ChatConsumer(WebsocketConsumer):
                     result = allStationData()
             
             elif str(self.room_name).__contains__(STATION):
-                stationId=str(self.room_name).replace(STATION, '')
-                ###Query param
-                try:
-                    query_string = self.scope['query_string'].decode('utf-8')
-                    query_params = dict(qc.split("=") for qc in query_string.split("&"))
-                    vendorId = query_params.get('vendorId')
-
-                except:
-                    print("Unable to parse query_string")
+                stationId = str(self.room_name).replace(STATION, '')
 
                 if str(stationId).__contains__(WOMS):
                     id = str(stationId).replace(WOMS, '')
