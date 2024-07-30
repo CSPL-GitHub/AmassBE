@@ -7,8 +7,9 @@ from woms.models import *
 from woms.serializer import *
 from static.order_status_const import *
 from core.models import Product, ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint
-from koms.models import Order,Order_content,Order_modifer, Order_tables
-from koms.views import webSocketPush
+from koms.models import Order, Order_content, Order_modifer, Order_tables
+from koms.views import webSocketPush, getOrder
+from datetime import datetime
 import secrets
 import socket
 
@@ -135,6 +136,68 @@ def filter_tables(waiterId, filter, search, status, waiter, floor, vendorId, lan
     except Exception as e:
         print(e)
         return []
+
+
+def get_orders_of_waiter(id, filter, search, vendorId, language="English"):
+    station_wise_data = {}
+
+    waiter_instance = Waiter.objects.filter(pk=id, vendorId=vendorId).first()
+
+    if waiter_instance.is_waiter_head == True:
+        waiter_tables = HotelTable.objects.filter(vendorId=vendorId)
+
+    else:
+        waiter_tables = HotelTable.objects.filter(waiterId=id, vendorId=vendorId)
+
+    table_ids = []
+    order_ids = []
+
+    for table in waiter_tables:
+        table_ids.append(str(table.pk))
+    
+    tables_of_order = Order_tables.objects.filter(tableId_id__in=table_ids)
+
+    for instance in tables_of_order:
+        order_ids.append(str(instance.orderId.pk))
+
+    date = datetime.today().strftime("20%y-%m-%d")
+
+    orders = Order.objects.filter(id__in=order_ids, arrival_time__contains=date, vendorId=vendorId)
+
+    if filter == 'All':
+        pass
+
+    elif filter == "7":
+        orders = orders.filter(isHigh=True)
+
+    else:
+        orders = orders.filter(order_status=filter)
+
+    if search != 'All':
+        order_ids = []
+        table_ids = []
+
+        table_ids = HotelTable.objects.filter(tableNumber=search, vendorId=vendorId).values_list('pk', flat=True)
+
+        order_ids = Order_tables.objects.filter(tableId__in = table_ids).values_list('orderId', flat=True)
+
+        orders = orders.filter(id__in = order_ids)
+
+    koms_order_ids = orders.values_list('pk', flat=True)
+    
+    order_content = Order_content.objects.filter(orderId__in = koms_order_ids).order_by("-orderId")
+    
+    for single_content in order_content:
+        order_instance = Order.objects.filter(pk = single_content.orderId.pk, vendorId = vendorId).first()
+
+        single_order_info = getOrder(ticketId=order_instance.pk, language=language, vendorId=vendorId)
+        
+        single_order_info['TotalAmount'] = order_instance.master_order.TotalAmount
+        
+        station_wise_data[order_instance.externalOrderId] = single_order_info
+    
+    return station_wise_data
+
 
 
 @api_view(["POST"])
