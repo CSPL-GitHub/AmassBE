@@ -8848,7 +8848,7 @@ def download_product_data_excel(request):
         if not vendor_instance.secondary_language:
             sheet.append([
                 "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Modifier Price", "Is Product Active (yes/no)", "Product Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
                 "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
