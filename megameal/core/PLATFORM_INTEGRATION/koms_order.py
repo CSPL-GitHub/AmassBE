@@ -35,7 +35,7 @@ class KomsEcom():
                 "status": 1,
                 "server": ', '.join(str(item['waiterName']) if item.get('waiterName') else 'none'  for item in data['tables']) if data.get('tables') else '',
                 "isHigh": True if "priority" in  data else False,
-                "note": data["note"] if data["note"] else "None",
+                "note": data["note"] if data["note"] else None,
                 "vendorId": vendor_id 
             }
 
