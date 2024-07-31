@@ -608,9 +608,14 @@ def get_modifiers_of_product(request):
                 if not modifier_image:
                     modifier_image = "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
                 
+                modifier_name = modifier_info.modifier.modifierName
+
+                if language != "English":
+                    modifier_name = modifier_info.modifier.modifierName_locale
+                
                 modifier_list.append({
                     "modifierId": modifier_info.modifier.pk,
-                    "name": modifier_info.modifier.modifierName,
+                    "name": modifier_name,
                     "plu": modifier_info.modifier.modifierPLU,
                     "image": modifier_image,
                     "cost": modifier_info.modifier.modifierPrice,
@@ -618,8 +623,13 @@ def get_modifiers_of_product(request):
                     "status": status_of_modifier,
                 })
 
+            modifier_group_name = modifier_group_info.modifierGroup.name
+
+            if language != "English":
+                modifier_group_name = modifier_group_info.modifierGroup.name_locale
+            
             modifier_group_list.append({
-                "name": modifier_group_info.modifierGroup.name,
+                "name": modifier_group_name,
                 "plu": modifier_group_info.modifierGroup.PLU,
                 "min": modifier_group_info.modifierGroup.min,
                 "max": modifier_group_info.modifierGroup.max,
@@ -627,10 +637,15 @@ def get_modifiers_of_product(request):
                 "count": count,
                 "modifiers": modifier_list
             })
+
+        product_name = product.productName
                     
+        if language != "English":
+            product_name = product.productName_locale
+
         product_info = {
             "productId": product.pk,
-            "text": product.productName,
+            "text": product_name,
             "plu": product.PLU,
             "quantity": order_content.quantity,
             "modifiersGroup": modifier_group_list,
