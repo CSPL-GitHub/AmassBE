@@ -537,54 +537,85 @@ def update_table_status(request):
 
 
 @api_view(["GET"])
-def singleProdMod(request,prod=None,order=None):
+def get_modifiers_of_product(request):
     try:
-        vendorId=request.GET.get("vendorId")
-        # product = Order_content.objects.get(pk=prod)
-        content=Order_content.objects.get(pk=prod)
-        product = Product.objects.filter(PLU=content.SKU).first()
-        # content=Order_content.objects.get(orderId=order,SKU=product.PLU)
-        modifier=[i.SKU for i in Order_modifer.objects.filter(contentID=content.pk,status=1)]
-        count=[i.SKU for i in Order_modifer.objects.filter(contentID=content.pk,status=1,quantity__gt=0)]
-        print(modifier)
-        modGrp=[]
-        for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
-            mods=[]
-            for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk,modifierGroup__isDeleted=False):
-                mods.append(
-                    {
-                        "cost":mod.modifier.modifierPrice,
-                        "modifierId": mod.modifier.pk,
-                        "name":mod.modifier.modifierName,
-                        "description": mod.modifier.modifierDesc,
-                        "quantity": Order_modifer.objects.get(contentID=content.pk,SKU=mod.modifier.modifierPLU).quantity if mod.modifier.modifierPLU in modifier else 0,
-                        "plu": mod.modifier.modifierPLU,
-                        "status":True if mod.modifier.modifierPLU in modifier else False,
-                        "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
-                    }                    
-                )
-            modGrp.append(
-                {
-                    "name":prdModGrpJnt.modifierGroup.name,
-                    "plu":prdModGrpJnt.modifierGroup.PLU,
-                    "min":prdModGrpJnt.modifierGroup.min,
-                    "max":prdModGrpJnt.modifierGroup.max,
-                    "type":prdModGrpJnt.modifierGroup.modGrptype,
-                    "count":len(count),
-                    "modifiers":mods
-                }
-            )
-                    
-                    
-        listOfProducts={
-                    "productId": product.pk,
-                    "text":product.productName,
-                    "plu":product.PLU,
-                    "quantity":content.quantity,
-                    "modifiersGroup":modGrp,
-                    "note":content.note
-                }
+        content_id = request.GET.get("content")
+        vendor_id = request.GET.get("vendor")
+        language = request.GET.get("language", "English")
 
-        return JsonResponse(listOfProducts)
+        order_content = Order_content.objects.filter(pk=content_id, orderId__vendorId=vendor_id).first()
+
+        if not order_content:
+            return JsonResponse({"message": "Invalid Content ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = Product.objects.filter(PLU=order_content.SKU, vendorId=vendor_id).first()
+
+        modifier_plu_list = []
+        count = 0
+
+        order_modifiers = Order_modifer.objects.filter(contentID=order_content.pk, status=1)
+
+        for instance in order_modifiers:
+            modifier_plu_list.append(instance.SKU)
+
+            if instance.quantity > 0:
+                count = count + 1
+        
+        modifier_group_list = []
+
+        product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
+
+        for modifier_group_info in product_and_modifier_group_joint:
+            modifier_list = []
+
+            modifier_and_modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(
+                modifierGroup = modifier_group_info.modifierGroup.pk,
+                modifierGroup__isDeleted = False,
+                vendor = vendor_id
+            )
+            
+            for modifier_info in modifier_and_modifier_group_joint:
+                if modifier_info.modifier.modifierPLU in modifier_plu_list:
+                    quantity = Order_modifer.objects.get(contentID=order_content.pk, SKU=modifier_info.modifier.modifierPLU).quantity
+                    
+                    status_of_modifier = True
+                
+                else:
+                    quantity = 0
+
+                    status_of_modifier = False
+                
+                modifier_list.append({
+                    "cost": modifier_info.modifier.modifierPrice,
+                    "modifierId": modifier_info.modifier.pk,
+                    "name": modifier_info.modifier.modifierName,
+                    "description": modifier_info.modifier.modifierDesc,
+                    "quantity": quantity,
+                    "plu": modifier_info.modifier.modifierPLU,
+                    "status": status_of_modifier,
+                    "image": modifier_info.modifier.modifierImg if modifier_info.modifier.modifierImg else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
+                })
+
+            modifier_group_list.append({
+                "name": modifier_group_info.modifierGroup.name,
+                "plu": modifier_group_info.modifierGroup.PLU,
+                "min": modifier_group_info.modifierGroup.min,
+                "max": modifier_group_info.modifierGroup.max,
+                "type": modifier_group_info.modifierGroup.modGrptype,
+                "count": count,
+                "modifiers": modifier_list
+            })
+                    
+        product_info = {
+            "productId": product.pk,
+            "text": product.productName,
+            "plu": product.PLU,
+            "quantity": order_content.quantity,
+            "modifiersGroup": modifier_group_list,
+            "note": order_content.note
+        }
+
+        return JsonResponse(product_info)
+    
     except Exception as e:
-        return JsonResponse({"error":str(e)},status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
