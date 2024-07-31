@@ -1,6 +1,6 @@
 from order import order_helper
 from core.utils import API_Messages, UpdatePoint, OrderType
-from core.models import Product, ProductImage,Platform,ProductModifier,Tax,ProductModifierGroup,ProductCategory
+from core.models import Product, ProductImage, Platform, ProductModifier, Tax, ProductModifierGroup, ProductCategory, Vendor
 from woms.models import HotelTable, Waiter
 from django.db.models import Count, Sum
 from rest_framework.views import APIView
@@ -626,107 +626,63 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
         master_order = coreOrder.objects.filter(Q(externalOrderId=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
-        try:
-            payment_type = OrderPayment.objects.filter(orderId=master_order.pk).last()
+        payment_type = OrderPayment.objects.filter(orderId=master_order.pk).last()
+        
+        if payment_type:
+            payment_mode = payment_type_english[payment_type.type]
             
-            if payment_type:
-                payment_mode = payment_type_english[payment_type.type]
-                
-                if language != "English":
-                    payment_mode = language_localization[payment_type_english[payment_type.type]]
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[payment_type.type]]
 
-            else:
-                payment_mode = payment_type_english[1]
-                
-                if language != "English":
-                    payment_mode = language_localization[payment_type_english[1]]
+        else:
+            payment_mode = payment_type_english[1]
             
-            payment_details = {
-                "total": master_order.TotalAmount,
-                "subtotal": master_order.subtotal,
-                "tax": master_order.tax,
-                "delivery_charge": master_order.delivery_charge,
-                "discount": master_order.discount,
-                "tip": master_order.tip,
-                "paymentKey": payment_type.paymentKey,
-                "platform": payment_type.platform,
-                "status": payment_type.status,
-                "mode": payment_mode
-            }
-                
-        except Exception as e:
-            if language == "English":
-                payment_mode = payment_type_english[1]
-
-            else:
+            if language != "English":
                 payment_mode = language_localization[payment_type_english[1]]
-
-            payment_details = {
-                "total": 0.0,
-                "subtotal": 0.0,
-                "tax": 0.0,
-                "delivery_charge": 0.0,
-                "discount": 0.0,
-                "tip" :0.0,
-                "paymentKey": "",
-                "platform": "",
-                "status": False,
-                "mode": payment_mode
-            }
-
-            print("Error", e)
+        
+        payment_details = {
+            "total": master_order.TotalAmount,
+            "subtotal": master_order.subtotal,
+            "tax": master_order.tax,
+            "delivery_charge": master_order.delivery_charge,
+            "discount": master_order.discount,
+            "tip": master_order.tip,
+            "paymentKey": payment_type.paymentKey,
+            "platform": payment_type.platform,
+            "status": payment_type.status,
+            "mode": payment_mode
+        }
 
         data['payment'] = payment_details
 
-        try:
-            platform_details = {
-                "id": master_order.platform.pk,
-                "name": master_order.platform.Name
-            }
-        
-        except Exception as e:
-            platform_details = {
-                "id": 0,
-                "name": ""
-            }
-
-            print(e)
+        platform_details = {
+            "id": master_order.platform.pk,
+            "name": master_order.platform.Name
+        }
 
         data["platform_details"] = platform_details
 
-        try:
-            address = Address.objects.filter(customer=master_order.customerId.pk, is_selected=True, type="shipping_address").first()
-            
-            customer_address = ""
+        address = Address.objects.filter(customer=master_order.customerId.pk, is_selected=True, type="shipping_address").first()
+        
+        customer_address = ""
 
-            if address:
-                address_line_1 = address.address_line1 if address.address_line1 else ""
-                address_line_2 = address.address_line2 if address.address_line2 else ""
-                city = address.city if address.city else ""
-                state = address.state if address.state else ""
-                country = address.country if address.country else ""
-                zipcode = address.zipcode if address.zipcode else ""
-                
-                customer_address = address_line_1 + ", " + address_line_2 + ", " + city + ", " + state + ", " + country + ", " + zipcode
+        if address:
+            address_line_1 = address.address_line1 if address.address_line1 else ""
+            address_line_2 = address.address_line2 if address.address_line2 else ""
+            city = address.city if address.city else ""
+            state = address.state if address.state else ""
+            country = address.country if address.country else ""
+            zipcode = address.zipcode if address.zipcode else ""
             
-            customer_details = {
-                "id": master_order.customerId.pk,
-                "name": master_order.customerId.FirstName + " " + master_order.customerId.LastName,
-                "mobile": master_order.customerId.Phone_Number,
-                "email": master_order.customerId.Email,
-                "shipping_address": customer_address
-            }
-            
-        except Exception as e:
-            customer_details = {
-                "id": 0,
-                "name":"",
-                "mobile": "",
-                "email": "",
-                "shipping_address": ""
-            }
-
-            print(e)
+            customer_address = address_line_1 + ", " + address_line_2 + ", " + city + ", " + state + ", " + country + ", " + zipcode
+        
+        customer_details = {
+            "id": master_order.customerId.pk,
+            "name": master_order.customerId.FirstName + " " + master_order.customerId.LastName,
+            "mobile": master_order.customerId.Phone_Number,
+            "email": master_order.customerId.Email,
+            "shipping_address": customer_address
+        }
 
         data["customer_details"] = customer_details
 
@@ -764,6 +720,8 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
         waiters = set(waiters) - set(waiter_heads)
 
+        vendor_instance = Vendor.objects.filter(pk=vendorId).first()
+
         if data['orderType'] == OrderType.DINEIN:
             for waiter_id in waiters:
                 webSocketPush(
@@ -772,7 +730,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                     username = "CORE",
                 )
 
-                if language != "English":
+                if vendor_instance.secondary_language and (language != "English"):
                     webSocketPush(
                         message = {"result": data, "UPDATE": "UPDATE"},
                         room_name = f"STATIONWOMS{str(waiter_id)}---{language}-{str(vendorId)}",
@@ -786,7 +744,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                     username = "CORE",
                 )
 
-                if language != "English":
+                if vendor_instance.secondary_language and (language != "English"):
                     webSocketPush(
                         message = {"result": data, "UPDATE": "UPDATE"},
                         room_name = f"STATIONWOMS{str(waiter_head_id)}---{language}-{str(vendorId)}",
@@ -817,27 +775,11 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "floorName": hotelTable.floor.name
             }
     
-            try:
-                test=Order_tables.objects.filter(tableId_id=hotelTable.pk).values_list("orderId_id",flat=True)
-                latest_order = Order.objects.filter(id__in=test,vendorId=vendorId).order_by('-arrival_time').first()
-                
-                table_data["order"]=latest_order.externalOrderId if latest_order else 0
-                table_data["total_amount"] = latest_order.master_order.subtotal
-
-            except Order_tables.DoesNotExist:
-                table_data["order"]=0
-                table_data["total_amount"] = 0.0
-                print("Table not found")
-
-            except Order.DoesNotExist:
-                table_data["order"]=0
-                table_data["total_amount"] = 0.0
-                print("Order not found")
-
-            except Exception as e:
-                table_data["order"]=0
-                table_data["total_amount"] = 0.0
-                print(f"Unexpected {e=}, {type(e)=}")
+            test = Order_tables.objects.filter(tableId_id = hotelTable.pk).values_list("orderId_id",flat=True)
+            latest_order = Order.objects.filter(id__in = test, vendorId = vendorId).order_by('-arrival_time').first()
+            
+            table_data["order"]=latest_order.externalOrderId if latest_order else 0
+            table_data["total_amount"] = latest_order.master_order.subtotal
             
             webSocketPush(
                 message={"result":table_data, "UPDATE": "UPDATE"},
@@ -845,14 +787,14 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 username="CORE",
             )
         
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------0-{language}-{str(vendorId)}", username="CORE",)
-        webSocketPush(message={"result":data,"UPDATE": "UPDATE"}, room_name=f"POS-------1-{language}-{str(vendorId)}", username="CORE",)
+        webSocketPush(message={"result": data,"UPDATE": "UPDATE"}, room_name=f"POS-------0-{language}-{str(vendorId)}", username="CORE",)
+        webSocketPush(message={"result": data,"UPDATE": "UPDATE"}, room_name=f"POS-------1-{language}-{str(vendorId)}", username="CORE",)
 
-        webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]),username= "CORE")
+        webSocketPush(message=data, room_name=str(vendorId)+"-"+ str(data["status"]), username= "CORE")
 
         webSocketPush(message=stationQueueCount(vendorId=vendorId), room_name=WHEELSTATS+str(vendorId), username="CORE")  # wheel man left side
         webSocketPush(message=statuscount(vendorId=vendorId), room_name=STATUSCOUNT+str(vendorId), username="CORE")  # wheel man status count
-        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username= "CORE")
+        webSocketPush(message=CategoryWise(vendorId=vendorId), room_name=STATIONSIDEBAR, username="CORE")
     
     except Exception as e:
         print(f"Unexpected {e=}, {type(e)=}")
