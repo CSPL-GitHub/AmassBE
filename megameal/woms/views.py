@@ -543,10 +543,25 @@ def get_modifiers_of_product(request):
         vendor_id = request.GET.get("vendor")
         language = request.GET.get("language", "English")
 
+        if (not content_id) or (not vendor_id):
+            return JsonResponse({"message": "Invalid Content ID or Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vendor_id = int(vendor_id)
+            content_id = int(content_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid Content ID or Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        
         order_content = Order_content.objects.filter(pk=content_id, orderId__vendorId=vendor_id).first()
 
         if not order_content:
-            return JsonResponse({"message": "Invalid Content ID"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"message": "Content does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
         product = Product.objects.filter(PLU=order_content.SKU, vendorId=vendor_id).first()
 
@@ -576,7 +591,10 @@ def get_modifiers_of_product(request):
             
             for modifier_info in modifier_and_modifier_group_joint:
                 if modifier_info.modifier.modifierPLU in modifier_plu_list:
-                    quantity = Order_modifer.objects.get(contentID=order_content.pk, SKU=modifier_info.modifier.modifierPLU).quantity
+                    quantity = Order_modifer.objects.get(
+                        contentID=order_content.pk,
+                        SKU=modifier_info.modifier.modifierPLU
+                    ).quantity
                     
                     status_of_modifier = True
                 
@@ -585,15 +603,19 @@ def get_modifiers_of_product(request):
 
                     status_of_modifier = False
                 
+                modifier_image = modifier_info.modifier.modifierImg
+
+                if not modifier_image:
+                    modifier_image = "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
+                
                 modifier_list.append({
-                    "cost": modifier_info.modifier.modifierPrice,
                     "modifierId": modifier_info.modifier.pk,
                     "name": modifier_info.modifier.modifierName,
-                    "description": modifier_info.modifier.modifierDesc,
-                    "quantity": quantity,
                     "plu": modifier_info.modifier.modifierPLU,
+                    "image": modifier_image,
+                    "cost": modifier_info.modifier.modifierPrice,
+                    "quantity": quantity,
                     "status": status_of_modifier,
-                    "image": modifier_info.modifier.modifierImg if modifier_info.modifier.modifierImg else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
                 })
 
             modifier_group_list.append({
@@ -612,7 +634,7 @@ def get_modifiers_of_product(request):
             "plu": product.PLU,
             "quantity": order_content.quantity,
             "modifiersGroup": modifier_group_list,
-            "note": order_content.note
+            "note": order_content.note if order_content.note else ""
         }
 
         return JsonResponse(product_info)
