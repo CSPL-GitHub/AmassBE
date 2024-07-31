@@ -760,12 +760,38 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             for order in listOrder:
                 waiters.append(order.tableId.waiterId.pk)
 
+        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+
+        waiters = set(waiters) - set(waiter_heads)
+
         if data['orderType'] == OrderType.DINEIN:
-            for i in waiters:
-                webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i)+"---"+str(vendorId),username="CORE",)
+            for waiter_id in waiters:
+                webSocketPush(
+                    message = {"result": data, "UPDATE": "UPDATE"},
+                    room_name = f"STATIONWOMS{str(waiter_id)}---English-{str(vendorId)}",
+                    username = "CORE",
+                )
+
+                if language != "English":
+                    webSocketPush(
+                        message = {"result": data, "UPDATE": "UPDATE"},
+                        room_name = f"STATIONWOMS{str(waiter_id)}---{language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
             
-            for i in Waiter.objects.filter(is_waiter_head=True):
-                webSocketPush(message={"result":data,"UPDATE": "UPDATE"},room_name=STATION+WOMS+str(i.pk)+"---"+str(vendorId),username="CORE",)
+            for waiter_head_id in waiter_heads:
+                webSocketPush(
+                    message = {"result": data, "UPDATE": "UPDATE"},
+                    room_name = f"STATIONWOMS{str(waiter_head_id)}---English-{str(vendorId)}",
+                    username = "CORE",
+                )
+
+                if language != "English":
+                    webSocketPush(
+                        message = {"result": data, "UPDATE": "UPDATE"},
+                        room_name = f"STATIONWOMS{str(waiter_head_id)}---{language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
         
         for table in listOrder:
             waiter_name = ""
