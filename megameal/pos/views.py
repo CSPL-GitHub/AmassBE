@@ -1290,6 +1290,8 @@ def productByCategory(request, id=0):
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
+        platform = request.GET.get("platform")
+        product_tag = request.GET.get("tag")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
@@ -1301,7 +1303,11 @@ def productByCategory(request, id=0):
             data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
 
         if search_text:
-            products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
+            if ((platform == "Website") or (platform == "Mobile App")) and (product_tag == "veg"):
+                products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+
+            else:
+                products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
 
             products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
 
