@@ -782,9 +782,9 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             table_data["total_amount"] = latest_order.master_order.subtotal
             
             webSocketPush(
-                message={"result":table_data, "UPDATE": "UPDATE"},
-                room_name=WOMS + f"POS------{language}-{str(vendorId)}",
-                username="CORE",
+                message = {"result":table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{language}-{str(vendorId)}",
+                username = "CORE",
             )
         
         webSocketPush(message={"result": data,"UPDATE": "UPDATE"}, room_name=f"POS-------0-{language}-{str(vendorId)}", username="CORE",)
