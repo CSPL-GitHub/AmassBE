@@ -4,13 +4,7 @@ from pos.model_choices import platform_choices
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import ValidationError
 
-
-
-def validate_phone_number_length(value):
-    if len(str(value)) != 10:
-        raise ValidationError("Phone number must be exactly 10 digits.")
 
 
 class POSMenu(models.Model):
@@ -77,11 +71,16 @@ class CoreUserCategory(Group):
 
 
 class CoreUser(User):
-    phone_number = models.PositiveBigIntegerField(unique=True, validators=(validate_phone_number_length,))
-    current_address = models.TextField(max_length=2000)
-    permanent_address = models.TextField(max_length=2000)
-    profile_picture = models.ImageField(upload_to="user_profile", max_length=500, blank=True, null=True)
+    phone_number = models.PositiveBigIntegerField()
+    current_address = models.TextField(max_length=2000, null=True, blank=True)
+    permanent_address = models.TextField(max_length=2000, null=True, blank=True)
+    profile_picture = models.ImageField(upload_to="user", max_length=500, null=True, blank=True)
+    document_1 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
+    document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
+
+    class Meta:
+        unique_together = ('phone_number', 'vendor')
 
 
 class Department(models.Model):
