@@ -12,7 +12,17 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
-admin.site.register(CoreUser)
+@admin.register(CoreUser)
+class CoreUserAdmin(admin.ModelAdmin):
+    fields = (
+        'vendor', 'is_active', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
+        'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2', 'groups',
+    )
+
+    list_display = ('first_name', 'last_name', 'username', 'is_active', 'vendor',)
+    list_filter = ('vendor', 'groups',)
+    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
+    # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(POSSetting)
