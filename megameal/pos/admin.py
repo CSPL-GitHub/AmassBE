@@ -21,7 +21,7 @@ class CoreUserAdmin(admin.ModelAdmin):
 
     list_display = ('first_name', 'last_name', 'username', 'is_active', 'vendor',)
     list_filter = ('vendor', 'groups',)
-    search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
+    search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
