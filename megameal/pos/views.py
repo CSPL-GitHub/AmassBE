@@ -3202,6 +3202,9 @@ def update_order_koms(request):
             koms_order_id = koms_order.pk
 
             koms_order.order_note = data.get('order_info').get('customerNote')
+
+            koms_order.is_edited = True
+
             koms_order.save()
 
             koms_order_content = Order_content.objects.filter(orderId=koms_order_id)

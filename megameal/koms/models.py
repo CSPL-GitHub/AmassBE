@@ -46,19 +46,21 @@ class Station(models.Model):
 
 
 class Order(models.Model):
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE,related_name='orderVendor')
+    master_order = models.ForeignKey(MasterOrder, on_delete=models.CASCADE, related_name="master_order_id")
     externalOrderId = models.IntegerField(unique=True)
-    pickupTime = models.DateTimeField(auto_now=False)
-    deliveryIsAsap = models.BooleanField(default=False)
-    arrival_time = models.DateTimeField(auto_now=False)
     order_status = models.IntegerField()
-    order_note = models.CharField(max_length=100,null=True,blank=True)
+    order_note = models.CharField(max_length=100, null=True, blank=True)
     order_type = models.IntegerField()
+    pickupTime = models.DateTimeField(auto_now=False)
+    arrival_time = models.DateTimeField(auto_now=False)
+    deliveryIsAsap = models.BooleanField(default=False)
+    tableNo = models.CharField(max_length=50, null=True, blank=True)
     guest = models.IntegerField(default=1)
-    server = models.CharField(max_length=50,null=True,blank=True)
-    tableNo = models.CharField(max_length=50,null=True,blank=True)
-    isHigh=models.BooleanField(default=False)
-    master_order = models.ForeignKey(MasterOrder, on_delete= models.CASCADE, related_name="master_order_id")
+    server = models.CharField(max_length=50, null=True, blank=True)
+    isHigh = models.BooleanField(default=False)
+    is_edited = models.BooleanField(default=False)
+    edited_at = models.DateTimeField(auto_now=True)
+    vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name='orderVendor')
 
 
 class Order_content(models.Model):
