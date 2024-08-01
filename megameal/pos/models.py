@@ -91,6 +91,16 @@ class Department(models.Model):
         unique_together = ('name', 'vendor')
 
 
+class CashRegister(models.Model):
+    balance_while_store_opening = models.FloatField()
+    balance_while_store_closing = models.FloatField()
+    created_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="opening_cash_entered_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
+    edited_at = models.DateTimeField(auto_now=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_cash_register")
+
+
 
 @receiver(post_save, sender=Vendor)
 def deactivate_related_users(sender, instance, **kwargs):
