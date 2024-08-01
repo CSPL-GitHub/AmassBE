@@ -1,5 +1,6 @@
 from django.db import models
 from core.utils import TaxLevel, OrderAction
+from pos.model_choices import platform_choices
 from pos.language import platform_locale
 from django.utils.text import slugify
 import string
@@ -341,10 +342,7 @@ class POS_Settings(models.Model):
 
 
 class Platform(models.Model):
-    Name = models.CharField(max_length=20, choices=(
-        ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
-        ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
-    ))
+    Name = models.CharField(max_length=20, choices=platform_choices)
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
     orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
     baseUrl = models.CharField(max_length=122, blank=True)
