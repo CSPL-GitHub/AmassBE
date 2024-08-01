@@ -1,5 +1,6 @@
 from django.db import models
-from core.models import Vendor,Platform
+from core.models import Vendor, Platform
+from pos.model_choices import platform_choices
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import Group, User
@@ -71,6 +72,7 @@ class POSSetting(models.Model):
 
 
 class CoreUserCategory(Group):
+    platform = models.CharField(max_length=20, choices=platform_choices)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 

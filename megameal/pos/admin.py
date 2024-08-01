@@ -2,7 +2,16 @@ from django.contrib import admin
 from pos.models import *
 
 
-admin.site.register(CoreUserCategory)
+@admin.register(CoreUserCategory)
+class CoreUserCategoryAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'platform', 'name', 'permissions',)
+
+    list_display = ('name', 'platform', 'vendor',)
+    list_filter = ('vendor', 'platform',)
+    search_fields = ('name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 admin.site.register(CoreUser)
 
 
