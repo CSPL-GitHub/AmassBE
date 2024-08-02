@@ -56,6 +56,7 @@ from core.excel_file_upload import process_excel
 from rest_framework.pagination import PageNumberPagination
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
+from django.core.validators import URLValidator
 from koms.views import notify
 from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
@@ -604,6 +605,17 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 
             if existing_category:
                 return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                image_url = request.data.get('categoryImageUrl')
+
+                if image_url:
+                    validator = URLValidator()
+
+                    validator(image_url)
+
+            except Exception as e:
+                return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
             
             with transaction.atomic():
                 serializer = self.get_serializer(data=request.data)
@@ -641,6 +653,17 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 
                     if existing_category:
                         return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                try:
+                    image_url = request.data.get('categoryImageUrl')
+
+                    if image_url:
+                        validator = URLValidator()
+
+                        validator(image_url)
+
+                except Exception as e:
+                    return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
 
                 serializer = self.get_serializer(instance, data=request.data, partial=partial)
                 serializer.is_valid(raise_exception=True)
