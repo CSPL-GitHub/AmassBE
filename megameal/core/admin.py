@@ -62,7 +62,7 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     fields = (
         'vendorId', 'active', 'productName', 'productName_locale', 'PLU', 'productDesc', 'productDesc_locale',
-        'productPrice', 'tag', 'preparationTime', 'is_displayed_online', 'is_todays_special', 'is_in_recommendations',
+        'productPrice', 'tag', 'preparationTime', 'recipe_video_url', 'is_displayed_online', 'is_todays_special', 'is_in_recommendations',
     )
     
     list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)

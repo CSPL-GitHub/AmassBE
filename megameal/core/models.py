@@ -103,6 +103,7 @@ class Product(models.Model):
     productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None, null=True, blank=True)
     productPrice = models.FloatField()
     preparationTime = models.IntegerField(default=0)
+    recipe_video_url = models.URLField(max_length=1000, null=True, blank=True)
     productType = models.CharField(max_length=50)## Regular ,Variant
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
