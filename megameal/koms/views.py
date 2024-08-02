@@ -1235,17 +1235,24 @@ def getOrder(ticketId, vendorId, language="English"):
         mapOfSingleContent["isRecall"] = singleContent.isrecall
         mapOfSingleContent["isEdited"] = singleContent.isEdited
 
-        try:
-            mapOfSingleContent["image"] = ProductImage.objects.filter(product=Product.objects.get(PLU=singleContent.SKU,vendorId=vendorId).pk).first().url
+        product_image = ""
+        product_price = 0.0
+        recipe_video_url = ""
         
-        except:
-            mapOfSingleContent["image"] = ''
-        
-        try:
-            mapOfSingleContent["price"] = Product.objects.filter(PLU=singleContent.SKU,vendorId=vendorId).last().productPrice
-        
-        except Exception as e:
-            mapOfSingleContent["price"] = 0
+        product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
+
+        if product_instance:
+            product_price = product_instance.productPrice
+            recipe_video_url = product_instance.recipe_video_url if product_instance.recipe_video_url else ""
+
+            product_image_instance = ProductImage.objects.filter(product=product_instance.pk).first()
+
+            if product_image_instance:
+                product_image = product_image_instance.url
+
+        mapOfSingleContent["image"] = product_image
+        mapOfSingleContent["price"] = product_price
+        mapOfSingleContent["recipe_video_url"] = recipe_video_url
         
         try:
             conAssign = Content_assign.objects.get(contentID=singleContent.pk)
