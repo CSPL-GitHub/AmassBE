@@ -46,6 +46,7 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
+from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
 from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu
 from pos.forms import PosUserForm
@@ -1692,78 +1693,36 @@ def top_selling_product_details(request):
 
     product_price = product_instance.productPrice
 
-    if start_date == end_date:
-        current_start_date = datetime.now().date()
-        current_end_date = datetime.now().date()
+    if start_date != end_date:
+        orders = orders.annotate(order_date=TruncDate('orderId__master_order__OrderDate'))\
+            .values('order_date').annotate(total_quantity=Sum('quantity')).order_by('order_date')
 
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-    
-        if not store_timing:
-            return Response("Store timing not set", status=status.HTTP_400_BAD_REQUEST)
-        
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-        
-        if (start_date == current_start_date) and (end_date == current_end_date):
-            current_datetime = datetime.now()
+        for summary in orders:
+            order_date = summary['order_date']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
 
-            end_datetime = current_datetime + timedelta(minutes=59, seconds=59)
+            order_summary.append({
+                "order_date": order_date.strftime("%Y-%m-%d"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
 
-            current_time = start_datetime
-
-        elif (start_date != current_start_date) and (end_date != current_end_date):
-            if end_date == datetime.now().date():
-                end_datetime = datetime.combine(start_date, store_timing.open_time)
-            
-            else:
-                end_datetime = datetime.combine(start_date, store_timing.close_time)
-
-            current_time = start_datetime
-
-        while current_time <= end_datetime:
-            next_time = current_time + timedelta(hours=1)
-
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=start_date).aggregate(
-                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
-            )['sum']
-
-            if quantity_sold != 0:
-                total_sale = quantity_sold * product_price
-                    
-                order_summary.append({
-                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                    "quantity_sold": quantity_sold,
-                    "total_sale": total_sale
-                })
-
-            current_time = next_time
-    
     else:
-        unique_order_dates = set(orders.values_list('orderId__master_order__OrderDate__date', flat=True))
+        orders = orders.annotate(
+            order_hour = TruncHour('orderId__master_order__OrderDate')) \
+                .values('order_hour').annotate(total_quantity=Sum('quantity')).order_by('order_hour')
 
-        date_strings = []
+        for summary in orders:
+            order_hour = summary['order_hour']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
 
-        for date in unique_order_dates:
-            date_strings.append(str(date))
-
-        date_strings.sort(reverse=True)
-
-        unique_order_dates = date_strings
-        
-        for unique_date in unique_order_dates:
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
-                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
-            )['sum']
-
-            if quantity_sold != 0:
-                total_sale = quantity_sold * product_price
-                    
-                order_summary.append({
-                    "order_date": unique_date,
-                    "quantity_sold": quantity_sold,
-                    "total_sale": total_sale
-                })
-
-    order_summary = sorted(order_summary, key=date_sort_top_selling_products, reverse=True)
+            order_summary.append({
+                "order_date": order_hour.strftime("%Y-%m-%d %H:00"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
         
     paginator = Paginator(order_summary, page_limit)
     page = paginator.get_page(page_number) 
