@@ -92,8 +92,8 @@ class Department(models.Model):
 
 
 class CashRegister(models.Model):
-    balance_while_store_opening = models.FloatField()
-    balance_while_store_closing = models.FloatField()
+    balance_while_store_opening = models.IntegerField()
+    balance_while_store_closing = models.IntegerField(default=0)
     created_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="opening_cash_entered_by")
     created_at = models.DateTimeField(auto_now_add=True)
     edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
