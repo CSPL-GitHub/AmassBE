@@ -4522,6 +4522,17 @@ def create_modifier(request):
     if existing_modifier:
         return JsonResponse({'error':'Modifier with this PLU already exists'}, status=status.HTTP_400_BAD_REQUEST)
             
+    try:
+        image_url = request.data.get('modifierImg')
+
+        if image_url:
+            validator = URLValidator()
+
+            validator(image_url)
+
+    except Exception as e:
+        return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+    
     modifier_serializer = ModifierSerializer(data=request.data)
 
     if modifier_serializer.is_valid():
@@ -4589,6 +4600,17 @@ def update_modifier(request, modifier_id):
 
     if not modifier_instance:
         return Response("Modifier does not exist", status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        image_url = request.data.get('modifierImg')
+
+        if image_url:
+            validator = URLValidator()
+
+            validator(image_url)
+
+    except Exception as e:
+        return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
     
     modifier_serializer = ModifierSerializer(modifier_instance, data=request.data)
 
