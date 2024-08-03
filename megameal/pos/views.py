@@ -4167,6 +4167,14 @@ def create_product(request):
                         pass
 
                     else:
+                        try:
+                            validator = URLValidator()
+
+                            validator(image_path)
+
+                        except Exception as e:
+                            return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+                        
                         images_data.append({'url': image_path, 'is_url_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
             
             else:
@@ -4289,6 +4297,14 @@ def update_product(request, product_id):
                                 pass
 
                             else:
+                                try:
+                                    validator = URLValidator()
+
+                                    validator(image_path)
+
+                                except Exception as e:
+                                    return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+                                
                                 images_data.append({"product":updated_product.pk, "url":image_path, "is_url_selected":is_image_selected, "vendorId":vendor_id})
 
                     else:
