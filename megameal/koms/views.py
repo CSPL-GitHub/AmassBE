@@ -1170,13 +1170,23 @@ def getOrder(ticketId, vendorId, language="English"):
     if pickupTime == singleOrder.arrival_time:
         pickupTime += timedelta(minutes=30)
 
+    if singleOrder.order_note:
+        order_note = singleOrder.order_note
+
+    else:
+        if language == "English":
+            order_note = "None"
+
+        else:
+            order_note = language_localization["None"]
+
     mapOfSingleOrder["pickupTime"] =  pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["is_edited"] = singleOrder.is_edited
     mapOfSingleOrder["edited_at"] = singleOrder.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["deliveryIsAsap"] = singleOrder.deliveryIsAsap
-    mapOfSingleOrder["note"] = singleOrder.order_note if singleOrder.order_note else ""
+    mapOfSingleOrder["note"] = order_note
     mapOfSingleOrder["remake"] = False
     mapOfSingleOrder["customerName"] = ""
     mapOfSingleOrder["status"] = singleOrder.order_status

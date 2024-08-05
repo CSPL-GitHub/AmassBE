@@ -77,6 +77,7 @@ language_localization = {
     "Monday": "الاثنين",
     "Most Ordered Items": "العناصر الأكثر طلبًا",
     "Most Ordered Products": "المنتجات الأكثر طلبا",
+    "None" : "لا أحد",
     "offline": "غير متصل على الانترنت",
     "Offline Orders": "الطلبات دون اتصال بالإنترنت",
     "Onhold": "في الانتظار",
