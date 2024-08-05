@@ -6655,6 +6655,8 @@ def most_repeating_customers_report(request):
                 ])
 
         for customer in top_customers:
+            order_items = None
+
             if order_type == "all":
                 order_items = Order_content.objects.filter(
                     orderId__order_status=10,
@@ -6718,15 +6720,15 @@ def most_repeating_customers_report(request):
                     orderId__master_order__vendorId=vendor_id,
                     orderId__vendorId=vendor_id,
                 ).exclude(status=5, orderId__master_order__platform=platform.pk)
-
-            top_selling_items = order_items.values('SKU').distinct() \
-                .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
-                .filter(quantity_sold__gt=0) \
-                .order_by('-quantity_sold')[:10]
             
             list_of_items = ''
             
-            if order_items.exists():
+            if (order_items != None) and order_items.exists():
+                top_selling_items = order_items.values('SKU').distinct() \
+                    .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
+                    .filter(quantity_sold__gt=0) \
+                    .order_by('-quantity_sold')[:10]
+
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
