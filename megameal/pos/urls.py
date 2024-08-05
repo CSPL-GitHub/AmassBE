@@ -78,6 +78,8 @@ urlpatterns = [
    path('setting/product_excel_upload/', views.product_excel_upload_for_pos, name='product_excel_upload_for_pos'),
    path('setting/product_excel_template_download/', views.download_product_excel_upload_template, name='download_product_excel_upload_template'),
    path('setting/product_data_excel_download/', views.download_product_data_excel, name='download_product_data_excel'),
+   path('setting/register_cash/', views.register_cash, name='register_cash'),
+   path('setting/cash_register_history/', views.get_cash_register_history, name='cash_register_history'),
    path('redeem_loyalty_points/', views.redeem_loyalty_points, name='redeem_loyalty_points'),
    path('reports/top_selling_products/', views.top_selling_products_report, name='top_selling_products_report'),
    path('reports/most_repeating_customers/', views.most_repeating_customers_report, name='most_repeating_customers_report'),
@@ -88,7 +90,7 @@ urlpatterns = [
    path('reports/cancel_order/', views.cancel_order_report, name='cancel_order_report'),
    path('reports/pincode/', views.pincode_report, name='pincode_report'),
    path('is_platform/', views.is_platform, name='is_platform'),
-   path('translate_excel/', views.generate_language_translation_excel, name='translate_excel')
+   path('translate_excel/', views.generate_language_translation_excel, name='translate_excel'),
 ]
 
 
