@@ -48,7 +48,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu, CashRegister
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -5210,6 +5210,8 @@ def get_orders_of_customer(request):
     if not all((vendor_instance, customer_instance)):
         return Response("Vendor or Customer does not exist", status=status.HTTP_404_NOT_FOUND)
     
+    loyalty_settings = LoyaltyProgramSettings.objects.get(vendor=vendor_instance.pk)
+    
     orders = Order.objects.filter(customerId=customer_id, vendorId=vendor_id).order_by("-arrivalTime")
 
     if orders:
@@ -5340,7 +5342,11 @@ def get_orders_of_customer(request):
 
                     table_numbers_list = table_numbers_list[:-1]
 
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
+                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                    order = order.pk,
+                    customer = customer_id,
+                    vendor = vendor_id
+                )
 
                 if loyalty_points_redeem_history:
                     total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
@@ -5355,6 +5361,30 @@ def get_orders_of_customer(request):
 
                 if language != "English":
                     platform_name = order.platform.Name_locale
+
+                credit_points = 0
+                
+                loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(
+                    order = order.pk,
+                    customer = customer_id,
+                    vendor = vendor_id
+                ).first()
+                
+                if loyalty_settings.is_active == True:
+                    if (koms_order.order_status == 10) and (payment_details.status == True):
+                        if loyalty_points_credit_history:
+                            credit_points = loyalty_points_credit_history.points_credited
+
+                    else:
+                        if loyalty_settings.redeem_limit_applied_on == "subtotal":
+                            credit_points = round(order.subtotal / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+
+                        elif loyalty_settings.redeem_limit_applied_on == "final_total":
+                            credit_points = round(order.TotalAmount / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+
+                else:
+                    if loyalty_points_credit_history:
+                        credit_points = loyalty_points_credit_history.points_credited
                 
                 order_data = {
                     "orderId": order.pk,
@@ -5375,7 +5405,8 @@ def get_orders_of_customer(request):
                     "table_numbers": table_numbers_list,
                     "items": order_items,
                     "payment": payment_data,
-                    "total_points_redeemed": total_points_redeemed
+                    "total_points_redeemed": total_points_redeemed,
+                    "points_earned": credit_points # Key required for NextJS Webiste to show points immediately after placing order
                 }
 
                 order_list.append(order_data)
