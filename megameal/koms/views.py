@@ -2140,128 +2140,137 @@ def makeunique(request,msg_type='',msg='',desc='',stn='',vendorId=3):
 
 @api_view(['POST'])
 def editContent(request):
-    data=dict(JSONParser().parse(request))
-    print(data)
-
-    vendor_id = request.GET.get("vendorId")
-
-    order=Order.objects.get(pk=data['orderId'],vendorId=vendor_id)
-    content=Order_content.objects.get(orderId=order.pk,SKU=data['plu'])
-    oldContent=content
-
-    item={}
-    mods = []
-
-    for i in data['modifiersGroup']:
-        for mod in i['modifiers']:
-            mod["group"]=ProductModifierGroup.objects.filter(PLU=i['plu'],vendorId=vendor_id).first().pk
-            mods.append(mod)
-    # mods=[mod for i in data['modifiersGroup'] for mod in i['modifiers']]
-            
     try:
-        # if content.quantity != data['quantity']:
-        #     contdata={
-        #         "ContentId":content.pk,
-        #         "update_time":datetime.today().strftime("20%y-%m-%d"),
-        #         "quantity":content.quantity,
-        #         "unit":"qty"
-        #     }
-            # cont=Content_history_serializer(data=contdata, partial=True)
-            # if cont.is_valid():
-            #     cont.save()
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get('language', 'English')
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        data = dict(JSONParser().parse(request))
+        
+        order = Order.objects.get(pk=data['orderId'], vendorId=vendor_id)
+
+        content = Order_content.objects.get(orderId=order.pk, SKU=data['plu'])
+
+        old_status = content.status
+
+        item = {}
+        modifier_list = []
+
+        for modifier_group in data['modifiersGroup']:
+            for modifier in modifier_group['modifiers']:
+                modifier["group"] = ProductModifierGroup.objects.filter(PLU=modifier_group['plu'], vendorId=vendor_id).first().pk
+                
+                modifier_list.append(modifier)
 
         if (content.quantity != data['quantity']) or (content.note != data['note']):
             item["isEdited"]= True 
 
         item["orderId"] = order.pk
         item["quantity"] = data['quantity']
-        item["note"]=data["note"]
+        item["note"] = data["note"]
 
         single_product_serializer = Order_content_serializer(instance=content, data=item, partial=True)
 
         if single_product_serializer.is_valid():
             single_product_data = single_product_serializer.save()
 
-        for mod in mods:
+        for single_modifier in modifier_list:
             try:
-                moddata={
-                    "quantity": mod['quantity'],
-                    "quantityStatus": 1 if mod['status'] else 0,
-                    "status": 1 if mod['status'] else 0,
+                modifier_data = {
+                    "quantity": single_modifier['quantity'],
+                    "quantityStatus": 1 if single_modifier['status'] else 0,
+                    "status": 1 if single_modifier['status'] else 0,
                 }
 
-                old_modifier_instance = Order_modifer.objects.get(contentID=content.pk, SKU=mod['plu'])
+                old_modifier_instance = Order_modifer.objects.get(contentID=content.pk, SKU=single_modifier['plu'])
 
-                # if mod['status']:
                 single_modifier_serializer = OrderModifierWriterSerializer(
-                    instance=old_modifier_instance,
-                    data=moddata,
-                    partial=True
+                    instance = old_modifier_instance,
+                    data = modifier_data,
+                    partial = True
                 )
                 
                 if single_modifier_serializer.is_valid():
                     single_modifier_serializer.save()
 
-                    if old_modifier_instance.quantity != mod['quantity']:
+                    if old_modifier_instance.quantity != single_modifier['quantity']:
                         single_product_data.isEdited == True
                         single_product_data.save()
 
             except Order_modifer.DoesNotExist:
-                moddata={
-                    "name":mod['name'],
-                    "SKU":mod['plu'],
-                    "quantityStatus":1 if mod['status'] else 0,
-                    "quantity":mod['quantity'],
-                    "unit":"qty",
-                    "status":1 if mod['status'] else 0,
-                    "contentID":content.pk,
-                    "group":mod["group"]
+                modifier_data = {
+                    "name": single_modifier['name'],
+                    "SKU": single_modifier['plu'],
+                    "quantityStatus": 1 if single_modifier['status'] else 0,
+                    "quantity": single_modifier['quantity'],
+                    "unit": "qty",
+                    "status": 1 if single_modifier['status'] else 0,
+                    "contentID": content.pk,
+                    "group": single_modifier["group"]
                 }
                 
-                single_modifier_serializer = OrderModifierWriterSerializer(data=moddata, partial=True)
+                single_modifier_serializer = OrderModifierWriterSerializer(data=modifier_data, partial=True)
                 
                 if single_modifier_serializer.is_valid():
                     single_modifier_serializer.save()
 
         subtotal = 0
 
-        for cont in Order_content.objects.filter(orderId=order.pk):
-            prodData = Product.objects.filter(PLU=cont.SKU, vendorId_id=vendor_id).first()
-            subtotal = subtotal + (prodData.productPrice * cont.quantity)
+        for content_info in Order_content.objects.filter(orderId=order.pk):
+            product_instance = Product.objects.filter(PLU=content_info.SKU, vendorId_id=vendor_id).first()
+
+            subtotal = subtotal + (product_instance.productPrice * content_info.quantity)
             
-            for mod in Order_modifer.objects.filter(contentID=cont.pk):
-                modifierData = ProductModifier.objects.filter(modifierPLU=mod.SKU, vendorId=vendor_id).first()
-                subtotal = subtotal + (modifierData.modifierPrice * mod.quantity)
+            for modifier_instance in Order_modifer.objects.filter(contentID=content_info.pk):
+                modifierData = ProductModifier.objects.filter(modifierPLU=modifier_instance.SKU, vendorId=vendor_id).first()
+                subtotal = subtotal + (modifierData.modifierPrice * modifier_instance.quantity)
 
         master_order_instance = coreOrder.objects.filter(pk=order.master_order.pk).first()
         master_order_instance.subtotal = subtotal
 
         tax_total = 0
 
-        for tax in Tax.objects.filter(vendorId=vendor_id):
+        taxes = Tax.objects.filter(vendorId=vendor_id)
+        
+        for tax in taxes:
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
+
+        tax_total = round(tax_total, 2)
 
         master_order_instance.tax = tax_total
         master_order_instance.TotalAmount = master_order_instance.subtotal + tax_total
         master_order_instance.save()
 
-        old_status = oldContent.status
         current_status = Order_content.objects.get(pk=content.pk).status
         
         processStation(
-            oldStatus=old_status,
-            currentStatus=current_status,
-            orderId=content.orderId.pk,
-            station=content.stationId,
-            vendorId=vendor_id
+            oldStatus = old_status,
+            currentStatus = current_status,
+            orderId = content.orderId.pk,
+            station = content.stationId,
+            vendorId = vendor_id
         )
         
+        waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendor_id)
+        
         allStationWiseRemove(id=order.pk, old=str(old_status), current=str(current_status), vendorId=vendor_id)
-        allStationWiseSingle(id=order.pk,vendorId=vendor_id)
-        waiteOrderUpdate(orderid=order.pk, vendorId=vendor_id)
+        allStationWiseSingle(id=order.pk, vendorId=vendor_id)
         allStationWiseCategory(vendorId=vendor_id)
         
-        return Response({"G": "G"})
+        return Response({"message": ""})
     
     except Exception as e:
-        return Response({"G": e})
+        return Response({"message": str(e)})
