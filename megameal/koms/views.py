@@ -1897,70 +1897,111 @@ def massages(request, start, end):
 
 @api_view(["POST"])
 def additem(request):
-    newitems = dict(request.data)
-    vendorId = request.GET.get("vendorId")
-    order = Order.objects.get(pk=newitems['orderId'], vendorId=vendorId)
-    oldStatus = order.order_status
-
-    subtotal = 0
-    
     try:
-        # for value in newitems["items"]:
-        for singleProduct in newitems["products"]:
-                # mods=[mod for i in singleProduct['modifiersGroup'] for mod in i['modifiers']]
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
 
-                mods = []
-                for i in singleProduct['modifiersGroup']:
-                    for mod in i['modifiers']:
-                        mod["group"]=ProductModifierGroup.objects.filter(PLU=i['plu'],vendorId=vendorId).first().pk
-                        mods.append(mod)
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
 
-                prodData = Product.objects.get(pk=singleProduct['productId'], vendorId=vendorId)
+        except ValueError:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-                singleProduct["orderId"] = newitems['orderId']
-                singleProduct['name'] = prodData.productName
-                singleProduct["quantityStatus"] = 1  # quantityStatus
-                singleProduct["stationId"] = Station.objects.filter(vendorId=vendorId).first().pk
-                singleProduct['unit'] = "qty"
-                singleProduct["stationName"] = Station.objects.filter(vendorId=vendorId).first().station_name
-                singleProduct["chefId"] = 0
-                singleProduct["note"] = singleProduct['note'] if singleProduct['note'] else "NONE"
-                singleProduct["SKU"] = singleProduct["plu"]
-                singleProduct["status"] = 1 if order.order_status==1 else 8  # assign
-                singleProduct["quantity"] = singleProduct["quantity"] 
-                singleProduct["categoryName"] = singleProduct['categoryName']
-                single_product_serializer = Order_content_serializer(data=singleProduct, partial=True)
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        new_items = dict(request.data)
+
+        order = Order.objects.get(pk=new_items['orderId'], vendorId=vendor_id)
+
+        old_status = order.order_status
+        
+        station_instance = Station.objects.filter(vendorId=vendor_id).first()
+
+        subtotal = 0
+
+        for single_product in new_items["products"]:
+            modifier_list = []
+            
+            for modifier_group in single_product['modifiersGroup']:
+                for modifier in modifier_group['modifiers']:
+                    modifier["group"] = ProductModifierGroup.objects.filter(PLU=modifier_group['plu'], vendorId=vendor_id).first().pk
+                    modifier_list.append(modifier)
+
+            product_instance = Product.objects.filter(pk=single_product['productId'], vendorId=vendor_id).first()
+
+            order_status = 8
+
+            if order.order_status == 1:
+                order_status = 1
+
+            product_note = None
+
+            if single_product['note']:
+                product_note = single_product['note']
+
+            category_instance = ProductCategory.objects.filter(pk=single_product['categoryId'], vendorId=vendor_id).first()
+
+            if category_instance:
+                station_instance = category_instance.categoryStation
+
+            single_product["orderId"] = new_items['orderId']
+            single_product['name'] = product_instance.productName
+            single_product["quantityStatus"] = 1
+            single_product["stationId"] = station_instance.pk
+            single_product['unit'] = "qty"
+            single_product["stationName"] = station_instance.station_name
+            single_product["chefId"] = 0
+            single_product["note"] = product_note
+            single_product["SKU"] = single_product["plu"]
+            single_product["status"] = order_status
+            
+            single_product_serializer = Order_content_serializer(data=single_product, partial=True)
+            
+            subtotal = subtotal + (product_instance.productPrice * single_product["quantity"])
+            
+            if single_product_serializer.is_valid():
+                single_product_data = single_product_serializer.save()
+                single_product["id"] = single_product_data.id
                 
-                subtotal = subtotal + (prodData.productPrice * singleProduct["quantity"])
-                
-                if single_product_serializer.is_valid():
-                    single_product_data = single_product_serializer.save()
-                    singleProduct["id"] = single_product_data.id  # id
+                for single_modifier in modifier_list:
+                    modifier_details = ProductModifier.objects.filter(modifierPLU=single_modifier['plu'], vendorId=vendor_id).first()
+
+                    modifier_quantity_status = 0
+                    modifier_status = 0
+
+                    if single_modifier['status']:
+                        modifier_quantity_status = 1
+
+                    if single_modifier['status']:
+                        modifier_status = 1
                     
-                    #  modifier section
-                    for mod in mods:
-                        modifier_details = ProductModifier.objects.filter(modifierPLU=mod['plu'], vendorId=vendorId).first()
+                    modifier_info = {
+                        "name": single_modifier['name'],
+                        "SKU": single_modifier['plu'],
+                        "quantityStatus": modifier_quantity_status,
+                        "quantity": single_modifier['quantity'],
+                        "unit": "qty",
+                        "status": modifier_status,
+                        "contentID": single_product_data.pk,
+                        "group": single_modifier["group"]
+                    }
 
-                        moddata={
-                            "name": mod['name'],
-                            "SKU": mod['plu'],
-                            "quantityStatus": 1 if mod['status'] else 0,
-                            "quantity": mod['quantity'],
-                            "note": "NONE",
-                            "unit": "qty",
-                            "status": 1 if mod['status'] else 0,
-                            "contentID": single_product_data.pk,
-                            "group":mod["group"]
-                        }
-
-                        subtotal = subtotal + (modifier_details.modifierPrice * mod['quantity'])
-                        if mod['status']:
-                            single_modifier_serializer = OrderModifierWriterSerializer(data=moddata, partial=True)
-                        
+                    subtotal = subtotal + (modifier_details.modifierPrice * single_modifier['quantity'])
+                    
+                    if single_modifier['status']:
+                        single_modifier_serializer = OrderModifierWriterSerializer(data=modifier_info, partial=True)
+                    
                         if single_modifier_serializer.is_valid():
                             single_modifier_serializer.save()
+                        
                         else:
-                            print("error ",single_product_serializer.errors)
+                            print("error ", single_product_serializer.errors)
         
         if order.order_status != 1:
             order.order_status = 8
@@ -1970,39 +2011,49 @@ def additem(request):
         master_order_instance = coreOrder.objects.filter(pk=order.master_order.pk).first()
 
         master_order_instance.subtotal = subtotal + master_order_instance.subtotal
+
         tax_total = 0
-        for tax in Tax.objects.filter(vendorId=vendorId):
+
+        vendor_taxes = Tax.objects.filter(vendorId=vendor_id)
+
+        for tax in vendor_taxes:
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
-        master_order_instance.tax = tax_total
-        master_order_instance.TotalAmount =  master_order_instance.subtotal + tax_total
+
+        master_order_instance.tax = round(tax_total, 2)
+
+        master_order_instance.TotalAmount = master_order_instance.subtotal + tax_total
+
         master_order_instance.save()
-        webSocketPush(message={"id": order.pk,"orderId": order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendorId)+'-'+str(oldStatus),username="CORE",)
+
+        webSocketPush(
+            message = {"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
+            room_name = f"{str(vendor_id)}-{str(old_status)}",
+            username = "CORE",
+        )
+        
         processStation(
-            oldStatus=oldStatus,
-            currentStatus=order.order_status,
-            orderId=order.pk,
-            station=Station.objects.filter(vendorId=vendorId).first(),
-            vendorId=vendorId
+            oldStatus = old_status,
+            currentStatus = order.order_status,
+            orderId = order.pk,
+            station = station_instance,
+            vendorId = vendor_id
         )
         
-        allStationWiseRemove(id=order.pk, old=str(oldStatus), current=str(order.order_status), vendorId=vendorId)
-        allStationWiseSingle(id=order.pk,vendorId=vendorId)
-        waiteOrderUpdate(orderid=order.pk, vendorId=vendorId)
-        allStationWiseCategory(vendorId=vendorId)
+        waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendor_id)
+
+        allStationWiseRemove(id=order.pk, old=str(old_status), current=str(order.order_status), vendorId=vendor_id)
+        allStationWiseSingle(id=order.pk, vendorId=vendor_id)
+        allStationWiseCategory(vendorId=vendor_id)
         
-        return JsonResponse(
-            {
-                "id":newitems['orderId'],
-                "oldstatus":oldStatus,
-                "current_status":order.order_status
-            }, status=status.HTTP_201_CREATED
-        )
+        return JsonResponse({
+            "id": new_items['orderId'],
+            "oldstatus": old_status,
+            "current_status": order.order_status
+        }, status=status.HTTP_201_CREATED)
     
     except Exception as e:
         print(e)
-        return JsonResponse(
-            {"msg": "Something went wrong"}, status=status.HTTP_400_BAD_REQUEST
-        )
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
