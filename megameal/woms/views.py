@@ -312,8 +312,7 @@ def get_tables(request):
 def get_waiters(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "English")
-
+        
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -321,18 +320,11 @@ def get_waiters(request):
         
         waiter_list = []
 
-        waiter_name = ""
-        
         for waiter in waiters:
-            if language == "English":
-                waiter_name = waiter.name
-
-            else:
-                waiter_name = waiter.name_locale
-
             waiter_info = {
                 "id": waiter.pk,
-                "name": waiter_name,
+                "name": waiter.name,
+                "name_locale": waiter.name_locale,
                 "is_waiter_head": waiter.is_waiter_head
             }
 
