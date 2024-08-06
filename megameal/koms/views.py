@@ -2051,7 +2051,9 @@ def additem(request):
         for tax in vendor_taxes:
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
 
-        master_order_instance.tax = round(tax_total, 2)
+        tax_total = round(tax_total, 2)
+
+        master_order_instance.tax = tax_total
 
         master_order_instance.TotalAmount = master_order_instance.subtotal + tax_total
 
