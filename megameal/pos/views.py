@@ -3045,7 +3045,7 @@ def updatePaymentDetails(request):
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            table_data = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
+            table_data = get_table_data(hotelTable=table.tableId, language=language, vendorId=vendorId)
 
             waiter_id = 0
 
