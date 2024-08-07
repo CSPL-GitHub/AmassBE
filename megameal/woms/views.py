@@ -338,54 +338,58 @@ def get_waiters(request):
  
 @api_view(["post"])
 def assign_waiter_to_table(request):
-    requestJson = JSONParser().parse(request)
-
-    table_id = requestJson.get('tableId')
-    waiter_id = requestJson.get('waiterId')
-    vendor_id = request.GET.get("vendorId")
-    language = request.GET.get("language", "English")
-
-    if not all((table_id, waiter_id, vendor_id)):
-        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        table_id = int(table_id)
-        waiter_id = int(waiter_id)
-        vendor_id = int(vendor_id)
+        requestJson = JSONParser().parse(request)
+
+        table_id = requestJson.get('tableId')
+        waiter_id = requestJson.get('waiterId')
+        vendor_id = request.GET.get("vendorId")
+
+        if not all((table_id, waiter_id, vendor_id)):
+            return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
-    except ValueError:
-        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        try:
+            table_id = int(table_id)
+            waiter_id = int(waiter_id)
+            vendor_id = int(vendor_id)
+            
+        except ValueError:
+            return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        table_instance = HotelTable.objects.filter(pk=table_id, vendorId=vendor_id).first()
+        waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not all((vendor_instance, table_instance, waiter_instance)):
+            return Response("Table, Waiter or Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+        secondary_language = vendor_instance.secondary_language
     
-    table_instance = HotelTable.objects.filter(pk=table_id, vendorId=vendor_id).first()
-    waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    if not all((vendor_instance, table_instance, waiter_instance)):
-        return Response("Table, Waiter or Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-
-    try:
         if table_instance.waiterId != None:
-            result = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
-
             old_waiter_id = str(table_instance.waiterId.pk)
+
+            result = get_table_data(hotelTable=table_instance, language="English", vendorId=vendor_id)
             
             webSocketPush(
                 message = {"result": result, "UPDATE": "REMOVE",},
                 room_name = f"WOMS{old_waiter_id}------English-{str(vendor_id)}",
                 username = "CORE",
-            )#remove table from old waiter
+            )
             
-            if vendor_instance.secondary_language and (language != "English"):
+            if secondary_language:
+                result_locale = get_table_data(hotelTable=table_instance, language=secondary_language, vendorId=vendor_id)
+
                 webSocketPush(
-                    message = {"result": result, "UPDATE": "REMOVE",},
-                    room_name = f"WOMS{old_waiter_id}------{language}-{str(vendor_id)}",
+                    message = {"result": result_locale, "UPDATE": "REMOVE",},
+                    room_name = f"WOMS{old_waiter_id}------{secondary_language}-{str(vendor_id)}",
                     username = "CORE",
                 )
         
         table_instance.waiterId = waiter_instance
         table_instance.save()
 
-        table_data = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
+        table_data = get_table_data(hotelTable=table_instance, language="English", vendorId=vendor_id)
+        table_data_locale = get_table_data(hotelTable=table_instance, language=secondary_language, vendorId=vendor_id)
 
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -399,16 +403,16 @@ def assign_waiter_to_table(request):
             username = "CORE",
         )
         
-        if vendor_instance.secondary_language and (language != "English"):
+        if secondary_language:
             webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendor_id)}",
                 username = "CORE",
             )
             
             webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{secondary_language}-{str(vendor_id)}",
                 username = "CORE",
             )
         
@@ -421,10 +425,10 @@ def assign_waiter_to_table(request):
                 username = "CORE",
             )
             
-            if vendor_instance.secondary_language and (language != "English"):
+            if secondary_language:
                 webSocketPush(
-                    message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{secondary_language}-{str(vendor_id)}",
                     username = "CORE",
                 )
         
