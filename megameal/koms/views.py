@@ -1212,6 +1212,28 @@ def getOrder(ticketId, vendorId, language="English"):
         else:
             order_note = language_localization["None"]
 
+    waiters = ""
+    waiter_names = []
+
+    if singleOrder.server:
+        waiter_ids_string = singleOrder.server
+
+        waiter_id_list = waiter_ids_string.split(',')
+
+        if language == "English":
+            for waiter_id in waiter_id_list:
+                waiter_instance = Waiter.objects.filter(pk=int(waiter_id), vendorId=vendorId).first()
+                
+                waiter_names.append(waiter_instance.name)
+
+        else:
+            for waiter_id in waiter_id_list:
+                waiter_instance = Waiter.objects.filter(pk=int(waiter_id), vendorId=vendorId).first()
+
+                waiter_names.append(waiter_instance.name_locale)
+
+        waiters = waiters = ', '.join(waiter_names)
+
     mapOfSingleOrder["pickupTime"] =  pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
@@ -1223,7 +1245,7 @@ def getOrder(ticketId, vendorId, language="English"):
     mapOfSingleOrder["customerName"] = ""
     mapOfSingleOrder["status"] = singleOrder.order_status
     mapOfSingleOrder["guest"] = singleOrder.guest
-    mapOfSingleOrder["server"] = singleOrder.server if singleOrder.server else ""
+    mapOfSingleOrder["server"] = waiters
 
     try:
         orderTables = Order_tables.objects.filter(orderId_id=singleOrder.pk)
