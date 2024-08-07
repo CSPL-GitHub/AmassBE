@@ -19,6 +19,17 @@ class KomsEcom():
 
             language = data.get("language", "English")
 
+            waiter_ids = ""
+            
+            if data.get('tables'):
+                waiter_id_list = []
+
+                for item in data['tables']:
+                    if item.get('waiterId'):
+                        waiter_id_list.append(str(item['waiterId']))
+
+                waiter_ids = ','.join(waiter_id_list)
+
             res = {
                 "language": language,
                 "orderId": data.get('internalOrderId') ,
@@ -33,9 +44,9 @@ class KomsEcom():
                 "remake": data['remake'] if 'remake' in data else False,
                 "customerName": f"{data['customer']['fname']} {data['customer']['lname']}",
                 "status": 1,
-                "server": ', '.join(str(item['waiterName']) if item.get('waiterName') else 'none'  for item in data['tables']) if data.get('tables') else '',
+                "server": waiter_ids,
                 "isHigh": True if "priority" in  data else False,
-                "note": data["note"] if data["note"] else "None",
+                "note": data["note"] if data["note"] else None,
                 "vendorId": vendor_id 
             }
 

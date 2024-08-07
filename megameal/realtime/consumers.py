@@ -1,8 +1,8 @@
-from koms.views import stationCategoryWise,CategoryWise,statuscount, waiterdata,webSocketPush,allStationData,stationdata,notify
+from koms.views import stationCategoryWise, CategoryWise,statuscount, allStationData, stationdata
 from static.order_status_const import WHEELSTATS, STATION, STATIONSIDEBAR, STATUSCOUNT,MESSAGE, WOMS
-from woms.views import gettable, filter_tables
+from woms.views import gettable, filter_tables, get_orders_of_waiter
 from koms.views import getOrder, stationQueueCount
-from pos.views import order_data, order_data_start_thread
+from pos.views import order_data_start_thread
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
 from koms.models import Order
@@ -10,6 +10,7 @@ from woms.models import Floor
 from datetime import datetime
 import json
 import re
+
 
 
 class ChatConsumer(WebsocketConsumer):
@@ -102,6 +103,7 @@ class ChatConsumer(WebsocketConsumer):
 
         elif str(self.room_name) == STATIONSIDEBAR:
             result=CategoryWise()
+
         elif str(self.room_name).__contains__(STATIONSIDEBAR):
             print(STATIONSIDEBAR)
             stationId=str(self.room_name).replace(STATIONSIDEBAR, '')
@@ -111,9 +113,11 @@ class ChatConsumer(WebsocketConsumer):
             query_params = dict(qc.split("=") for qc in query_string.split("&"))
             vendorId = query_params.get('vendorId')
             result ={} if str(self.user)=="AnonymousUser" else stationCategoryWise(id=stationId,vendorId=vendorId)
+        
         elif str(self.room_name).__contains__(STATUSCOUNT):
             vendorId= str(self.room_name).replace(STATUSCOUNT,'')
             result=statuscount(vendorId=vendorId)
+        
         elif str(self.room_name) == MESSAGE:
             result={
                     "type": "chat_message",
@@ -149,6 +153,7 @@ class ChatConsumer(WebsocketConsumer):
             else:
                 print("No match foundfor ",self.room_name)
                 result={}
+        
         elif str(self.room_name).__contains__(WOMS) and not str(self.room_name).__contains__("STATION"):
             id= str(self.room_name).replace(WOMS,'')
             
@@ -182,51 +187,58 @@ class ChatConsumer(WebsocketConsumer):
 
         else:
             date = datetime.today().strftime("20%y-%m-%d")
+            
             if str(self.room_name) == STATION:
                 if str(self.user)=="AnonymousUser":
                     result={}
 
                 else:
                     result = allStationData()
+            
             elif str(self.room_name).__contains__(STATION):
-                stationId=str(self.room_name).replace(STATION, '')
-                ###Query param
-                try:
-                    query_string = self.scope['query_string'].decode('utf-8')
-                    query_params = dict(qc.split("=") for qc in query_string.split("&"))
-                    vendorId = query_params.get('vendorId')
-                except:
-                    print("Unable to parse query_string")
+                stationId = str(self.room_name).replace(STATION, '')
 
                 if str(stationId).__contains__(WOMS):
-                    id=str(stationId).replace(WOMS, '')
-                    data=id.split("-")
-                    waiterId=data[0]
-                    filter=data[1] or "All"
-                    search=data[2] or "All"
-                    vendorId=data[3]
-                    result=waiterdata(id=waiterId,filter=filter,search=search,vendorId=vendorId)
+                    id = str(stationId).replace(WOMS, '')
+
+                    data = id.split("-")
+
+                    waiter_id = data[0]
+                    filter = data[1] or "All"
+                    search = data[2] or "All"
+                    language = data[3]
+                    vendor_id = data[4]
+
+                    result = get_orders_of_waiter(waiter_id=waiter_id, filter=filter, search=search, language=language, vendor_id=vendor_id)
+                
                 else:
                     if str(self.user)=="AnonymousUser":
                         result={}
+
                     else:
                         result = stationdata(id=stationId, vendorId=vendorId)
+            
             else:
                 pattern = r"^(\d+)-(\d+)$"
                 match = re.match(pattern, self.room_name)
+                
                 if match:
                     vendorId=int(match.group(1))
                     orderStatus=int(match.group(2))
+                
                 else:
                     vendorId=-1
                     orderStatus=-1
                     print("Match notfound")
+                
                 orderList = Order.objects.filter(order_status=orderStatus, arrival_time__contains=date,vendorId=vendorId)
                 
                 for singleOrder in orderList:
                     mapOfSingleOrder = getOrder(ticketId=singleOrder.pk,vendorId=vendorId)
                     result[singleOrder.externalOrderId] = mapOfSingleOrder
+                
                 result=dict(sorted(result.items(), key=lambda x: not x[1]["isHigh"]))  # puts tickets with isHigh=True at the begining
+        
         self.accept()
         self.send(text_data=json.dumps(result))
 

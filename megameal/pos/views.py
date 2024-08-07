@@ -46,8 +46,9 @@ from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
+from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu, CashRegister
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -56,6 +57,7 @@ from core.excel_file_upload import process_excel
 from rest_framework.pagination import PageNumberPagination
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
+from django.core.validators import URLValidator
 from koms.views import notify
 from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
 from inventory.utils import (
@@ -63,7 +65,12 @@ from inventory.utils import (
     delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
-from pos.language import get_key_value, check_key_exists, table_created_locale, table_deleted_locale, language_localization
+from pos.language import (
+    check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
+    payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
+)
+from googletrans import Translator
+import pandas
 import pytz
 import re
 import openpyxl
@@ -440,6 +447,8 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username = "CORE",
         )
 
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
@@ -461,12 +470,19 @@ class HotelTableViewSet(viewsets.ModelViewSet):
                         stn = [f'WOMS{head.pk}'],
                         vendorId = vendor_id
                     )
-        
+
                 webSocketPush(
                     message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    room_name = f"WOMS{str(head.pk)}------English-{str(vendor_id)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                        username = "CORE",
+                    )
 
     def perform_destroy(self, instance):
         instance.delete()
@@ -501,6 +517,8 @@ class HotelTableViewSet(viewsets.ModelViewSet):
             username = "CORE",
         )
         
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
 
         if waiter_heads:
@@ -525,9 +543,16 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 
                 webSocketPush(
                     message = {"result": all_tables_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                    room_name = f"WOMS{str(head.pk)}------English-{str(vendor_id)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": all_tables_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(head.pk)}------{language}-{str(vendor_id)}",
+                        username = "CORE",
+                    )
   
 
 class ProductCategoryViewSet(viewsets.ModelViewSet):
@@ -581,6 +606,17 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 
             if existing_category:
                 return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                image_url = request.data.get('categoryImageUrl')
+
+                if image_url:
+                    validator = URLValidator()
+
+                    validator(image_url)
+
+            except Exception as e:
+                return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
             
             with transaction.atomic():
                 serializer = self.get_serializer(data=request.data)
@@ -618,6 +654,17 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 
                     if existing_category:
                         return Response({'error': 'Category with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+                    
+                try:
+                    image_url = request.data.get('categoryImageUrl')
+
+                    if image_url:
+                        validator = URLValidator()
+
+                        validator(image_url)
+
+                except Exception as e:
+                    return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
 
                 serializer = self.get_serializer(instance, data=request.data, partial=partial)
                 serializer.is_valid(raise_exception=True)
@@ -1267,6 +1314,8 @@ def productByCategory(request, id=0):
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
         search_text = request.GET.get("search")
+        platform = request.GET.get("platform")
+        product_tag = request.GET.get("tag")
 
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
@@ -1278,7 +1327,11 @@ def productByCategory(request, id=0):
             data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
 
         if search_text:
-            products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
+            if ((platform == "Website") or (platform == "Mobile App")) and (product_tag == "veg"):
+                products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+
+            else:
+                products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
 
             products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
 
@@ -1640,78 +1693,36 @@ def top_selling_product_details(request):
 
     product_price = product_instance.productPrice
 
-    if start_date == end_date:
-        current_start_date = datetime.now().date()
-        current_end_date = datetime.now().date()
+    if start_date != end_date:
+        orders = orders.annotate(order_date=TruncDate('orderId__master_order__OrderDate'))\
+            .values('order_date').annotate(total_quantity=Sum('quantity')).order_by('order_date')
 
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-    
-        if not store_timing:
-            return Response("Store timing not set", status=status.HTTP_400_BAD_REQUEST)
-        
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-        
-        if (start_date == current_start_date) and (end_date == current_end_date):
-            current_datetime = datetime.now()
+        for summary in orders:
+            order_date = summary['order_date']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
 
-            end_datetime = current_datetime + timedelta(minutes=59, seconds=59)
+            order_summary.append({
+                "order_date": order_date.strftime("%Y-%m-%d"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
 
-            current_time = start_datetime
-
-        elif (start_date != current_start_date) and (end_date != current_end_date):
-            if end_date == datetime.now().date():
-                end_datetime = datetime.combine(start_date, store_timing.open_time)
-            
-            else:
-                end_datetime = datetime.combine(start_date, store_timing.close_time)
-
-            current_time = start_datetime
-
-        while current_time <= end_datetime:
-            next_time = current_time + timedelta(hours=1)
-
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=start_date).aggregate(
-                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
-            )['sum']
-
-            if quantity_sold != 0:
-                total_sale = quantity_sold * product_price
-                    
-                order_summary.append({
-                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                    "quantity_sold": quantity_sold,
-                    "total_sale": total_sale
-                })
-
-            current_time = next_time
-    
     else:
-        unique_order_dates = set(orders.values_list('orderId__master_order__OrderDate__date', flat=True))
+        orders = orders.annotate(
+            order_hour = TruncHour('orderId__master_order__OrderDate')) \
+                .values('order_hour').annotate(total_quantity=Sum('quantity')).order_by('order_hour')
 
-        date_strings = []
+        for summary in orders:
+            order_hour = summary['order_hour']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
 
-        for date in unique_order_dates:
-            date_strings.append(str(date))
-
-        date_strings.sort(reverse=True)
-
-        unique_order_dates = date_strings
-        
-        for unique_date in unique_order_dates:
-            quantity_sold = orders.filter(orderId__master_order__OrderDate__icontains=unique_date).aggregate(
-                sum=Coalesce(Cast(Sum('quantity'), IntegerField()), Value(0))
-            )['sum']
-
-            if quantity_sold != 0:
-                total_sale = quantity_sold * product_price
-                    
-                order_summary.append({
-                    "order_date": unique_date,
-                    "quantity_sold": quantity_sold,
-                    "total_sale": total_sale
-                })
-
-    order_summary = sorted(order_summary, key=date_sort_top_selling_products, reverse=True)
+            order_summary.append({
+                "order_date": order_hour.strftime("%Y-%m-%d %H:00"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
         
     paginator = Paginator(order_summary, page_limit)
     page = paginator.get_page(page_number) 
@@ -1923,128 +1934,71 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
 
 
 def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
-    if vendor_id == None:
-        error_message = "Vendor ID cannot be empty"
-        return error_message
-        
-    order_details = {}
+    try:
+        if vendor_id == None:
+            error_message = "Vendor ID cannot be empty"
 
-    sd=s_date if s_date is not  None else ""
-    ed=e_date if e_date is not None else ""
-    se=search if search != 'All' else ""
-    pl=platform if platform!="All" else ''
-    pn=page_number if page_number!="All" else ""
-    os=order_status if order_status!="All" else ''
-    oe=order_type if order_type!="All" else ''
-    current_date = datetime.today().strftime("%Y-%m-%d")
-    
-    if e_date is not None and s_date is not None:
-        s_date = str(s_date).replace("T","-")+" 00:00:00.000000"
-        e_date = str(e_date).replace("T","-") + " 23:59:59.000000"
-
-        order_data = KOMSOrder.objects.filter(arrival_time__range=(s_date, e_date), vendorId=vendor_id)
-    
-    else:
-        order_data = KOMSOrder.objects.filter(arrival_time__date=current_date, vendorId=vendor_id)
-    
-    if order_status != "All":
-        if is_dashboard == 0:
-            order_data = order_data.filter(order_status=order_status)
-        elif is_dashboard == 1:
-            if order_status == 10 :
-                order_data = order_data.filter(order_status__in=[5,10])
-            else:
-                order_data = order_data.filter(order_status=order_status)
-
-    else:
-        if is_dashboard == 1:
-            order_data = order_data.filter(order_status__in=[2, 3, 4, 6, 7, 8, 9])
-
-    if order_type != "All":
-        order_data = order_data.filter(order_type=order_type)
-
-    if platform != "All":
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-        
-        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-        order_data = order_data.filter(platform=platform)
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-
-    if search != 'All':
-        expression = r'\d+'
-        output = re.search(expression, search)
-
-        if output:
-            master_order_id = output.group()
-
-            order_data = order_data.filter(master_order__pk__icontains=master_order_id)
+            return error_message
             
-            if order_data:    
-                if order_status != "All":
+        order_details = {}
+
+        start_date_parameter = s_date if s_date is not  None else ""
+        end_date_parameter = e_date if e_date is not None else ""
+        search_text_parameter = search if search != "All" else ""
+        platform_parameter = platform if platform != "All" else ""
+        page_number_parameter = page_number if page_number != "All" else 1
+        order_status_parameter = order_status if order_status != "All" else ""
+        order_type_parameter = order_type if order_type != "All" else ""
+        current_date = datetime.today().strftime("%Y-%m-%d")
+        
+        if e_date is not None and s_date is not None:
+            s_date = str(s_date).replace("T", "-") + " 00:00:00.000000"
+            e_date = str(e_date).replace("T", "-") + " 23:59:59.000000"
+
+            order_data = KOMSOrder.objects.filter(arrival_time__range=(s_date, e_date), vendorId=vendor_id)
+        
+        else:
+            order_data = KOMSOrder.objects.filter(arrival_time__date=current_date, vendorId=vendor_id)
+        
+        if order_status != "All":
+            if is_dashboard == 0:
+                order_data = order_data.filter(order_status=order_status)
+            elif is_dashboard == 1:
+                if order_status == 10 :
+                    order_data = order_data.filter(order_status__in = [5,10])
+                else:
                     order_data = order_data.filter(order_status=order_status)
 
-                if order_type != "All":
-                    order_data = order_data.filter(order_type=order_type)
-
-                if platform != "All":
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                    order_data = order_data.filter(platform=platform)
-
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-            
-            else:
-                response_data = {
-                    'page_number': 0,
-                    'total_pages': 0,
-                    'data_count': 0,
-                    'order_details': {},
-                }
-                
-                return response_data
-
         else:
-            expression = r'[A-Za-z ]+'
+            if is_dashboard == 1:
+                order_data = order_data.filter(order_status__in = [2, 3, 4, 6, 7, 8, 9])
 
+        if order_type != "All":
+            order_data = order_data.filter(order_type = order_type)
+
+        if platform != "All":
+            if is_dashboard == 1:
+                order_data = order_data.filter(master_order__platform = platform)
+
+            else:
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
+
+                if platform in online_platform_ids:
+                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
+
+                else:
+                    order_data = order_data.filter(master_order__platform = platform)
+
+        if search != 'All':
+            expression = r'\d+'
             output = re.search(expression, search)
 
             if output:
-                customer_name = output.group()
+                master_order_id = output.group()
 
-                order_data = order_data.filter(
-                    Q(master_order__customerId__FirstName__icontains=customer_name) | \
-                    Q(master_order__customerId__LastName__icontains=customer_name)
-                )
+                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
                 
-                external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-                
-                if order_data:    
-                    if order_status != "All":
-                        order_data = order_data.filter(order_status=order_status)
-
-                    if order_type != "All":
-                        order_data = order_data.filter(order_type=order_type)
-
-                    if platform != "All":
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                        order_data = order_data.filter(platform=platform)
-
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-
-                else:
+                if not order_data:
                     response_data = {
                         'page_number': 0,
                         'total_pages': 0,
@@ -2053,99 +2007,106 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     }
                     
                     return response_data
-    
-    order_data = order_data.order_by("-master_order__OrderDate")
-    
-    paginator = Paginator(order_data, 10)
-
-    page_obj = paginator.get_page(page_number)
-
-    orders_for_page = page_obj.object_list
-
-    for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
-        
-        try:
-            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-            
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
-            
-            payment_mode = get_key_value(language, "payment_type", payment_type.type)
-            
-            payment_details = {
-                "total": payment_details_order.TotalAmount,
-                "subtotal": payment_details_order.subtotal,
-                "tax": payment_details_order.tax,
-                "delivery_charge": payment_details_order.delivery_charge,
-                "discount": payment_details_order.discount,
-                "tip": payment_details_order.tip,
-                "paymentKey": payment_type.paymentKey,
-                "platform": payment_type.platform,
-                "status": payment_type.status,
-                "mode": payment_mode
-            }
-            
-        except Exception as e:
-            print("Error", e)
-
-            payment_mode = get_key_value(language, "payment_type", 1)
-
-            payment_details = {
-                "total": 0.0,
-                "subtotal": 0.0,
-                "tax": 0.0,
-                "delivery_charge": 0.0,
-                "discount": 0.0,
-                "tip": 0.0,
-                "paymentKey": "",
-                "platform": "",
-                "status": False,
-                "mode": payment_mode
-            }
-            
-        single_order['payment'] = payment_details
-
-        try:
-            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-
-            platform_name = ""
-            
-            if language == "English":
-                platform_name = platform.platform.Name
 
             else:
-                platform_name = platform.platform.Name_locale
+                expression = r'[A-Za-z ]+'
+
+                output = re.search(expression, search)
+
+                if output:
+                    customer_name = output.group()
+
+                    order_data = order_data.filter(
+                        Q(master_order__customerId__FirstName__icontains = customer_name) | \
+                        Q(master_order__customerId__LastName__icontains = customer_name)
+                    )
+                    
+                    if not order_data:
+                        response_data = {
+                            'page_number': 0,
+                            'total_pages': 0,
+                            'data_count': 0,
+                            'order_details': {},
+                        }
+                        
+                        return response_data
+        
+        order_data = order_data.order_by("-master_order__OrderDate")
+        
+        paginator = Paginator(order_data, 10)
+
+        page_obj = paginator.get_page(page_number)
+
+        orders_for_page = page_obj.object_list
+
+        for order in orders_for_page:
+            single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
+
+            master_order_instance = order.master_order
+
+            order_payment_instance = OrderPayment.objects.filter(orderId=master_order_instance.pk).last()
+
+            if order_payment_instance:
+                payment_mode = payment_type_english[order_payment_instance.type]
+                
+                if language != "English":
+                    payment_mode = language_localization[payment_type_english[order_payment_instance.type]]
+                
+                payment_details = {
+                    "total": master_order_instance.TotalAmount,
+                    "subtotal": master_order_instance.subtotal,
+                    "tax": master_order_instance.tax,
+                    "delivery_charge": master_order_instance.delivery_charge,
+                    "discount": master_order_instance.discount,
+                    "tip": master_order_instance.tip,
+                    "paymentKey": order_payment_instance.paymentKey,
+                    "platform": order_payment_instance.platform,
+                    "status": order_payment_instance.status,
+                    "mode": payment_mode
+                }
+
+            else:
+                payment_mode = payment_type_english[1]
+                
+                if language == "English":
+                    payment_mode = language_localization[payment_type_english[1]]
+
+                payment_details = {
+                    "total": 0.0,
+                    "subtotal": 0.0,
+                    "tax": 0.0,
+                    "delivery_charge": 0.0,
+                    "discount": 0.0,
+                    "tip": 0.0,
+                    "paymentKey": "",
+                    "platform": "",
+                    "status": False,
+                    "mode": payment_mode
+                }
+                
+            single_order['payment'] = payment_details
+
+            platform_name = master_order_instance.platform.Name
+            
+            if language != "English":
+                platform_name = master_order_instance.platform.Name_locale
             
             platform_details = {
-                "id": platform.platform.pk,
+                "id": master_order_instance.platform.pk,
                 "name": platform_name
             }
 
-        except Exception as e:
-            print(e)
-            platform_details = {
-                "id": 0,
-                "name": ""
-            }
+            single_order["platform_details"] = platform_details
 
-        single_order["platform_details"] = platform_details
+            first_name = master_order_instance.customerId.FirstName
+            last_name = master_order_instance.customerId.LastName
 
-        try:
-            customer = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
+            customer_name = first_name
             
-            if customer:
-                first_name = customer.customerId.FirstName
-                last_name = customer.customerId.LastName
+            if last_name:
+                customer_name = first_name + " " + last_name
 
-                customer_name = first_name
-                
-                if last_name:
-                    customer_name = first_name + " " + last_name
-            
-            else:
-                customer_name = ""
-
-            address = Address.objects.filter(customer=customer.customerId.pk, is_selected=True, type="shipping_address").first()
+            address = Address.objects.filter(customer=master_order_instance.customerId.pk, is_selected=True, type="shipping_address").first()
 
             if address:
                 if address.address_line2:
@@ -2158,51 +2119,56 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 shipping_address = ""
 
             customer_details = {
-                "id": customer.customerId.pk,
+                "id": master_order_instance.customerId.pk,
                 "name": customer_name,
-                "mobile": customer.customerId.Phone_Number,
-                "email": customer.customerId.Email if customer.customerId.Email else "",
+                "mobile": master_order_instance.customerId.Phone_Number,
+                "email": master_order_instance.customerId.Email if master_order_instance.customerId.Email else "",
                 "shipping_address": shipping_address
             }
 
-        except Exception as e:
-            print(e)
-            customer_details = {
-                "id": 0,
-                "name": "",
-                "mobile": "",
-                "email": "",
-                "shipping_address": ""
-            }
+            single_order["customer_details"] = customer_details
 
-        single_order["customer_details"] = customer_details
+            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                customer = master_order_instance.customerId.pk,
+                order = order.master_order.pk
+            )
 
-        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer.customerId.pk, order=order.master_order.pk)
+            if loyalty_points_redeem_history.exists():
+                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
 
-        if loyalty_points_redeem_history.exists():
-            total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+                if not total_points_redeemed:
+                    total_points_redeemed = 0
 
-            if not total_points_redeemed:
+            else:
                 total_points_redeemed = 0
 
-        else:
-            total_points_redeemed = 0
+            single_order["total_points_redeemed"] = total_points_redeemed
 
-        single_order["total_points_redeemed"] = total_points_redeemed
+            order_details[order.pk] = single_order
 
-        order_details[order.pk]=single_order
+        response_data = {
+            'page_number': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'data_count': paginator.count,
+            'order_details': order_details,
+        }
+        
+        webSocketPush(
+            message = response_data,
+            room_name = f"POS{order_status_parameter}-{search_text_parameter}-{platform_parameter}-{order_type_parameter}-{page_number_parameter}-{start_date_parameter}-{end_date_parameter}-{is_dashboard}-{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
 
-    response_data = {
-        'page_number': page_obj.number,
-        'total_pages': paginator.num_pages,
-        'data_count': paginator.count,
-        'order_details': order_details,
-    }
+        webSocketPush(
+            message = response_data,
+            room_name = f"POS{order_status_parameter}-{search_text_parameter}-{platform_parameter}-{order_type_parameter}--{start_date_parameter}-{end_date_parameter}-{is_dashboard}-{language}-{str(vendor_id)}",
+            username = "CORE",
+        )
+        
+        return response_data
     
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}-{pn}-{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
-    webSocketPush(message=response_data,room_name=f"POS{os}-{se}-{pl}-{oe}--{sd}-{ed}-{is_dashboard}-{language}-{str(vendor_id)}", username="CORE",)
-    
-    return response_data
+    except Exception as e:
+        return str(e)
 
 
 # for order_data socket testing purpose
@@ -2363,7 +2329,10 @@ def order_data_socket(request):
             
             payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
 
-            payment_mode = get_key_value(language, "payment_type", payment_type.type)
+            payment_mode = payment_type_english[payment_type.type]
+                
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[payment_type.type]]
             
             payment_details ={
                 "total": payment_details_order.TotalAmount,
@@ -2381,7 +2350,10 @@ def order_data_socket(request):
         except Exception as e:
             print("Error", e)
 
-            payment_mode = get_key_value(language, "payment_type", 1)
+            payment_mode = payment_type_english[1]
+                
+            if language != "English":
+                payment_mode = language_localization[payment_type_english[1]]
 
             payment_details ={
                 "total": 0.0,
@@ -2506,7 +2478,7 @@ def createOrder(request):
     
         platform = Platform.objects.filter(Name=request.data.get('platform'), VendorId=vendor_id).first()
 
-        if platform.isActive == False:
+        if (not platform) or (platform.isActive == False):
             return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
         
         orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S")
@@ -3073,7 +3045,7 @@ def updatePaymentDetails(request):
             table.tableId.guestCount = 0
             table.tableId.save()
 
-            table_data = get_table_data(hotelTable=table.tableId, vendorId=vendorId)
+            table_data = get_table_data(hotelTable=table.tableId, language=language, vendorId=vendorId)
 
             waiter_id = 0
 
@@ -3082,9 +3054,16 @@ def updatePaymentDetails(request):
             
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
                 username = "CORE",
             )
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendorId)}",
+                    username = "CORE",
+                )
             
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -3097,9 +3076,16 @@ def updatePaymentDetails(request):
             for waiter_head in waiter_heads:
                 webSocketPush(
                     message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                    room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendorId)}",
                     username = "CORE",
                 )
+                
+                if vendor_instance.secondary_language and (language != "English"):
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
         order.order_status = 10
@@ -3198,6 +3184,9 @@ def update_order_koms(request):
             koms_order_id = koms_order.pk
 
             koms_order.order_note = data.get('order_info').get('customerNote')
+
+            koms_order.is_edited = True
+
             koms_order.save()
 
             koms_order_content = Order_content.objects.filter(orderId=koms_order_id)
@@ -3544,31 +3533,33 @@ def excel_download_for_dashboard(request):
     if order_status != "All":
         order_status = int(order_status)
     
-    if check_key_exists(language, "order_type", order_type) == False:
+    if check_key_exists("order_type", order_type) == False:
         return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
-    if check_key_exists(language, "koms_order_status", order_status) == False:
+    if check_key_exists("koms_order_status", order_status) == False:
         return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
     
-    order_type_parameter = get_key_value(language, "order_type", order_type)
-    order_status_parameter = get_key_value(language, "koms_order_status", order_status)
+    order_type_parameter = order_type_english[order_type]
+    order_status_parameter = koms_order_status_english[order_status]
+                
+    if language != "English":
+        order_type_parameter = language_localization[order_type_english[order_type]]
+        order_status_parameter = language_localization[koms_order_status_english[order_status]]
 
     if platform_id == "All":
-        if language == "English":
-            platform_parameter = "All"
+        platform_parameter = "All"
 
-        else:
-            platform_parameter = "الجميع"
+        if language != "English":
+            platform_parameter = language_localization["All"]
         
     else:
-        platform_parameter = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
+        platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
         
         if platform_parameter:
-            if language == "English":
-                platform_parameter = platform_parameter.Name
+            platform_parameter = platform_instance.Name
 
-            else:
-                platform_parameter = platform_parameter.Name_locale
+            if language != "English":
+                platform_parameter = platform_instance.Name_locale
 
         else:
             return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
@@ -3632,32 +3623,51 @@ def excel_download_for_dashboard(request):
                 for order in koms_orders:
                     order_id = order.externalOrderId
                     
-                    order_detail = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
+                    order_detail = Order.objects.filter(
+                        Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))
+                    ).last()
                     
                     payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
 
                     if order_detail:
                         order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
 
-                        order_type = get_key_value(language, "order_type", order_detail.orderType)
-
-                        order_status = get_key_value(language, "koms_order_status", order.order_status)
+                        order_type = order_type_english[order_detail.orderType]
+                        order_status = koms_order_status_english[order.order_status]
+                
+                        if language != "English":
+                            order_type = language_localization[order_type_english[order_detail.orderType]]
+                            order_status = language_localization[koms_order_status_english[order.order_status]]
                         
                         if payment_detail:
                             if payment_detail.status == True:
-                                payment_status = get_key_value(language, "payment_status", "True")
+                                payment_status = payment_status_english["True"]
+                
+                                if language != "English":
+                                    payment_status = language_localization[payment_status_english["True"]]
                             
                             else:
-                                payment_status = get_key_value(language, "payment_status", "False")
+                                payment_status = payment_status_english["False"]
+                
+                                if language != "English":
+                                    payment_status = language_localization[payment_status_english["False"]]
                             
                             amount_paid = payment_detail.paid
                             transaction_id = payment_detail.paymentKey
-                            payment_type = get_key_value(language, "payment_type", payment_detail.type)
+
+                            payment_type = payment_type_english[payment_detail.type]
+                
+                            if language != "English":
+                                payment_type = language_localization[payment_type_english[payment_detail.type]]
                             
                         else:
                             transaction_id = ""
-                            payment_status = get_key_value(language, "payment_status", "Unknown")
                             payment_type = ""
+
+                            payment_status = payment_status_english["Unknown"]
+                
+                            if language != "English":
+                                payment_status = language_localization[payment_status_english["Unknown"]]
                             
                         platform_name = ""
 
@@ -3687,8 +3697,6 @@ def excel_download_for_dashboard(request):
     except Exception as e:
         print(e)
         return JsonResponse({"error": str(e)}, status=500)
-
-    # order_details = OrderedDict(sorted(order_details.items(), key=lambda x: (x[1]["order_time"], int(x[0])) if x[1]["order_time"] else ("", int(x[0]))))
 
     new_order_details = OrderedDict()
     sorted_items = []
@@ -4159,6 +4167,14 @@ def create_product(request):
                         pass
 
                     else:
+                        try:
+                            validator = URLValidator()
+
+                            validator(image_path)
+
+                        except Exception as e:
+                            return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+                        
                         images_data.append({'url': image_path, 'is_url_selected':is_image_selected, 'product': product.pk, 'vendorId': vendor_id})
             
             else:
@@ -4281,6 +4297,14 @@ def update_product(request, product_id):
                                 pass
 
                             else:
+                                try:
+                                    validator = URLValidator()
+
+                                    validator(image_path)
+
+                                except Exception as e:
+                                    return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+                                
                                 images_data.append({"product":updated_product.pk, "url":image_path, "is_url_selected":is_image_selected, "vendorId":vendor_id})
 
                     else:
@@ -4498,6 +4522,17 @@ def create_modifier(request):
     if existing_modifier:
         return JsonResponse({'error':'Modifier with this PLU already exists'}, status=status.HTTP_400_BAD_REQUEST)
             
+    try:
+        image_url = request.data.get('modifierImg')
+
+        if image_url:
+            validator = URLValidator()
+
+            validator(image_url)
+
+    except Exception as e:
+        return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
+    
     modifier_serializer = ModifierSerializer(data=request.data)
 
     if modifier_serializer.is_valid():
@@ -4565,6 +4600,17 @@ def update_modifier(request, modifier_id):
 
     if not modifier_instance:
         return Response("Modifier does not exist", status=status.HTTP_404_NOT_FOUND)
+    
+    try:
+        image_url = request.data.get('modifierImg')
+
+        if image_url:
+            validator = URLValidator()
+
+            validator(image_url)
+
+    except Exception as e:
+        return Response({'error': 'Invalid Image URL'}, status=status.HTTP_400_BAD_REQUEST)
     
     modifier_serializer = ModifierSerializer(modifier_instance, data=request.data)
 
@@ -5164,6 +5210,8 @@ def get_orders_of_customer(request):
     if not all((vendor_instance, customer_instance)):
         return Response("Vendor or Customer does not exist", status=status.HTTP_404_NOT_FOUND)
     
+    loyalty_settings = LoyaltyProgramSettings.objects.get(vendor=vendor_instance.pk)
+    
     orders = Order.objects.filter(customerId=customer_id, vendorId=vendor_id).order_by("-arrivalTime")
 
     if orders:
@@ -5256,26 +5304,26 @@ def get_orders_of_customer(request):
                     if PaymentType.get_payment_str(payment_details.type) == 'CASH':
                         payment_data['paymentKey'] = ''
                         payment_data['platform'] = ''
-                        payment_data["mode"] = PaymentType.get_payment_str(PaymentType.CASH)
+                        payment_data["mode"] = payment_type_english[1]
 
                         if language != "English":
-                            payment_data["mode"] = get_key_value(language, "payment_type", 1)
+                            payment_data["mode"] = language_localization[payment_type_english[1]]
 
                     else:
                         payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
                         payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                        payment_data["mode"] = PaymentType.get_payment_str(payment_details.type)
+                        payment_data["mode"] = payment_type_english[payment_details.type]
 
                         if language != "English":
-                            payment_data["mode"] = get_key_value(language, "payment_type", payment_details.type)
+                            payment_data["mode"] = language_localization[payment_type_english[payment_details.type]]
                     
                     payment_data["status"] = payment_details.status
 
                 else:
-                    payment_mode = PaymentType.get_payment_str(PaymentType.CASH)
+                    payment_mode = payment_type_english[1]
 
                     if language != "English":
-                        payment_mode = get_key_value(language, "payment_type", 1)
+                        payment_mode = language_localization[payment_type_english[1]]
 
                     payment_data = {
                         "paymentKey": "",
@@ -5294,7 +5342,11 @@ def get_orders_of_customer(request):
 
                     table_numbers_list = table_numbers_list[:-1]
 
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id, order=order.pk)
+                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                    order = order.pk,
+                    customer = customer_id,
+                    vendor = vendor_id
+                )
 
                 if loyalty_points_redeem_history:
                     total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
@@ -5309,6 +5361,30 @@ def get_orders_of_customer(request):
 
                 if language != "English":
                     platform_name = order.platform.Name_locale
+
+                credit_points = 0
+                
+                loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(
+                    order = order.pk,
+                    customer = customer_id,
+                    vendor = vendor_id
+                ).first()
+                
+                if loyalty_settings.is_active == True:
+                    if (koms_order.order_status == 10) and (payment_details.status == True):
+                        if loyalty_points_credit_history:
+                            credit_points = loyalty_points_credit_history.points_credited
+
+                    else:
+                        if loyalty_settings.redeem_limit_applied_on == "subtotal":
+                            credit_points = round(order.subtotal / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+
+                        elif loyalty_settings.redeem_limit_applied_on == "final_total":
+                            credit_points = round(order.TotalAmount / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+
+                else:
+                    if loyalty_points_credit_history:
+                        credit_points = loyalty_points_credit_history.points_credited
                 
                 order_data = {
                     "orderId": order.pk,
@@ -5329,7 +5405,8 @@ def get_orders_of_customer(request):
                     "table_numbers": table_numbers_list,
                     "items": order_items,
                     "payment": payment_data,
-                    "total_points_redeemed": total_points_redeemed
+                    "total_points_redeemed": total_points_redeemed,
+                    "points_earned": credit_points # Key required for NextJS Webiste to show points immediately after placing order
                 }
 
                 order_list.append(order_data)
@@ -6578,6 +6655,8 @@ def most_repeating_customers_report(request):
                 ])
 
         for customer in top_customers:
+            order_items = None
+
             if order_type == "all":
                 order_items = Order_content.objects.filter(
                     orderId__order_status=10,
@@ -6641,15 +6720,15 @@ def most_repeating_customers_report(request):
                     orderId__master_order__vendorId=vendor_id,
                     orderId__vendorId=vendor_id,
                 ).exclude(status=5, orderId__master_order__platform=platform.pk)
-
-            top_selling_items = order_items.values('SKU').distinct() \
-                .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
-                .filter(quantity_sold__gt=0) \
-                .order_by('-quantity_sold')[:10]
             
             list_of_items = ''
             
-            if order_items.exists():
+            if (order_items != None) and order_items.exists():
+                top_selling_items = order_items.values('SKU').distinct() \
+                    .annotate(quantity_sold=ExpressionWrapper(Sum('quantity'), output_field=IntegerField())) \
+                    .filter(quantity_sold__gt=0) \
+                    .order_by('-quantity_sold')[:10]
+
                 for item in top_selling_items:
                     product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
 
@@ -8837,7 +8916,7 @@ def download_product_data_excel(request):
         if not vendor_instance.secondary_language:
             sheet.append([
                 "Category Station", "Category Name", "Category SKU", "Category Description", "Is Category Active (yes/no)", "Category Image",
-                "Product Name", "Product SKU", "Product Description", "Tag", "Modifier Price", "Is Product Active (yes/no)", "Product Image",
+                "Product Name", "Product SKU", "Product Description", "Tag", "Product Price", "Is Product Active (yes/no)", "Product Image",
                 "Modifier Group Name", "Modifier Group SKU", "Modifier Group Description", "Modifier Group Min", "Modifier Group Max", "Is Modifier Group Active (yes/no)",
                 "Modifier Name", "Modifier SKU", "Modifier Description", "Modifier Price", "Modifier Active (yes/no)", "Modifier Image"
             ])
@@ -9064,3 +9143,195 @@ def get_pos_menu(request):
             "is_sop_active": pos_menu.is_sop_active,
         }, status=status.HTTP_400_BAD_REQUEST
     )
+
+
+@api_view(["POST"])
+def generate_language_translation_excel(request):
+    try:
+        uploaded_file = request.FILES.get('excel_file')
+        language = request.GET.get("language")
+
+        if not uploaded_file:
+            return JsonResponse({"message": "No file uploaded"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not language:
+            return JsonResponse({"message": "No language specified"}, status=status.HTTP_400_BAD_REQUEST)
+
+        directory = os.path.join(settings.MEDIA_ROOT, 'Language Translation Excel')
+        
+        os.makedirs(directory, exist_ok=True)
+        
+        file_name = uploaded_file.name
+
+        relative_file_path = os.path.join('Language Translation Excel', file_name)
+
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_file_path)
+
+        with default_storage.open(file_path, 'wb+') as destination:
+            for chunk in uploaded_file.chunks():
+                destination.write(chunk)
+
+        workbook = openpyxl.load_workbook(file_path)
+
+        sheet_name = workbook.active.title
+
+        if not os.path.exists(file_path):
+            return JsonResponse({"message": "File does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not file_path.lower().endswith(".xlsx"):
+            return JsonResponse({"message": "File format is not .xlsx"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if sheet_name != "Sheet1":
+            return JsonResponse({"message": "Sheet name should be 'Sheet1'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            data = pandas.read_excel(file_path, sheet_name=sheet_name)
+
+        except ValueError as e:
+            return JsonResponse({"message": "Wrong file format"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        existing_column = data.columns.tolist()[0]
+
+        if existing_column != "English":
+            return JsonResponse({"message": "Column name should be 'English'"}, status=status.HTTP_400_BAD_REQUEST)
+
+        translator = Translator()
+
+        translations = []
+
+        for string in data['English']:
+            translation = translator.translate(string, dest=language).text
+
+            translations.append(translation)
+            
+        data['Translation'] = translations
+
+        translated_file_name = f"translated_{file_name}"
+
+        translated_relative_file_path = os.path.join('Language Translation Excel', translated_file_name)
+
+        translated_file_path = os.path.join(settings.MEDIA_ROOT, translated_relative_file_path)
+
+        data.to_excel(translated_file_path, index=False)
+
+        translations_dict = {}
+
+        for _, row in data.iterrows():
+            english_text = row['English']
+            translated_text = row['Translation']
+
+            translations_dict[english_text] = translated_text
+
+        json_data = {'language': translations_dict}
+
+        json_file_name = f"translations_{file_name.split('.')[0]}.json"
+
+        json_relative_file_path = os.path.join('Language Translation Excel', json_file_name)
+
+        json_file_path = os.path.join(settings.MEDIA_ROOT, json_relative_file_path)
+        
+        with open(json_file_path, 'w', encoding='utf-8') as json_file:
+            json.dump(json_data, json_file, ensure_ascii=False, indent=4)
+
+        response_excel_path = os.path.join('/media', translated_relative_file_path).replace('\\', '/')
+        response_json_path = os.path.join('/media', json_relative_file_path).replace('\\', '/')
+
+        return JsonResponse({
+            "excel_file_path": response_excel_path,
+            "json_file_path": response_json_path
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["GET"])
+def get_cash_register_history(request):
+    vendor_id = request.GET.get("vendor")
+
+    cash_register_history = CashRegister.objects.filter(vendor=vendor_id)
+
+    if not vendor_id:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    cash_register_history_list = []
+
+    for instance in cash_register_history:
+        cash_register_history_list.append({
+            "balance_while_store_opening": instance.balance_while_store_opening,
+            "balance_while_store_closing": instance.balance_while_store_closing,
+            "created_by": instance.created_by,
+            "created_at": instance.created_at,
+            "edited_by": instance.edited_by,
+            "edited_at": instance.edited_at,
+        })
+
+    return JsonResponse({"message": "", "history": cash_register_history_list})
+
+
+@api_view(["POST", "PATCH"])
+def register_cash(request):
+    balance = request.GET.get("balance")
+    user_id = request.GET.get("user_id")
+    vendor_id = request.GET.get("vendor_id")
+
+    if not all((balance, user_id, vendor_id)):
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        balance = int(balance)
+        user_id = int(user_id)
+        vendor_id = int(vendor_id)
+
+    except ValueError:
+        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+    
+    user_instance = CoreUser.objects.filter(pk=user_id, vendor=vendor_id).first()
+    
+    if not user_instance:
+        return JsonResponse({"message": "User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == "POST":
+        cash_register_instance = CashRegister.objects.create(
+            balance_while_store_opening = balance,
+            created_by = user_instance,
+            edited_by = user_instance,
+            vendor = vendor_instance
+        )
+
+    elif request.method == "PATCH":
+        cash_register_instance = CashRegister.objects.filter(
+            created_at__date = datetime.now().date(),
+            vendor = vendor_id
+        ).first()
+
+        cash_register_instance.balance_while_store_closing = balance
+        cash_register_instance.edited_by = user_instance
+
+        cash_register_instance = cash_register_instance.save()
+
+    return JsonResponse({
+        "message": "",
+        "balance_while_store_opening": cash_register_instance.balance_while_store_opening,
+        "balance_while_store_closing": cash_register_instance.balance_while_store_closing,
+        "created_by": cash_register_instance.created_by,
+        "created_at": cash_register_instance.created_at,
+        "edited_by": cash_register_instance.edited_by,
+        "edited_at": cash_register_instance.edited_at,
+    })

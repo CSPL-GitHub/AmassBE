@@ -1,8 +1,7 @@
 from django.db import models
 from core.utils import TaxLevel, OrderAction
+from pos.model_choices import platform_choices
 from pos.language import platform_locale
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.utils.text import slugify
 import string
 import secrets
@@ -50,7 +49,6 @@ class VendorSocialMedia(models.Model):
     link = models.URLField(max_length=500,null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
-    
 
 class ProductCategory(models.Model):
     categoryStation = models.ForeignKey("koms.Station", on_delete=models.CASCADE)
@@ -105,6 +103,7 @@ class Product(models.Model):
     productThumb = models.ImageField(upload_to='static/images/product/', height_field=None, width_field=None, max_length=None, null=True, blank=True)
     productPrice = models.FloatField()
     preparationTime = models.IntegerField(default=0)
+    recipe_video_url = models.URLField(max_length=1000, null=True, blank=True)
     productType = models.CharField(max_length=50)## Regular ,Variant
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
@@ -266,9 +265,6 @@ class ProductModifierAndModifierGroupJoint(models.Model):
     class Meta:
         unique_together = ('modifier', 'modifierGroup','vendor')
 
-    # def __str__(self):
-    #     return self.modifierGroup.name+" | "+self.modifier.modifierName
-
 
 class Product_Option(models.Model):
     vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
@@ -347,10 +343,7 @@ class POS_Settings(models.Model):
 
 
 class Platform(models.Model):
-    Name = models.CharField(max_length=20, choices=(
-        ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
-        ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
-    ))
+    Name = models.CharField(max_length=20, choices=platform_choices)
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
     orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
     baseUrl = models.CharField(max_length=122, blank=True)
@@ -387,12 +380,3 @@ class EmailLog(models.Model):
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="customer_email")
     created_at = models.DateTimeField(auto_now_add=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_email_log")
-
-
-
-@receiver(post_save, sender=Vendor)
-def deactivate_related_platforms(sender, instance, **kwargs):
-    if not kwargs.get('raw', False):  # To avoid signal firing during bulk operations
-        if instance.is_active is False:  # When is_active of Vendor changes to False
-            related_platforms = Platform.objects.filter(VendorId=instance)
-            related_platforms.update(isActive=False)

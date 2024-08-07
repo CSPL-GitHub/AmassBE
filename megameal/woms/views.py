@@ -7,8 +7,9 @@ from woms.models import *
 from woms.serializer import *
 from static.order_status_const import *
 from core.models import Product, ProductAndModifierGroupJoint, ProductModifierAndModifierGroupJoint
-from koms.models import Order,Order_content,Order_modifer, Order_tables
-from koms.views import webSocketPush
+from koms.models import Order, Order_content, Order_modifer, Order_tables
+from koms.views import webSocketPush, getOrder
+from datetime import datetime
 import secrets
 import socket
 
@@ -137,6 +138,68 @@ def filter_tables(waiterId, filter, search, status, waiter, floor, vendorId, lan
         return []
 
 
+def get_orders_of_waiter(waiter_id, filter, search, vendor_id, language="English"):
+    station_wise_data = {}
+
+    waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
+
+    if waiter_instance.is_waiter_head == True:
+        waiter_tables = HotelTable.objects.filter(vendorId=vendor_id)
+
+    else:
+        waiter_tables = HotelTable.objects.filter(waiterId=waiter_id, vendorId=vendor_id)
+
+    table_ids = []
+    order_ids = []
+
+    for table in waiter_tables:
+        table_ids.append(str(table.pk))
+    
+    tables_of_order = Order_tables.objects.filter(tableId_id__in=table_ids)
+
+    for instance in tables_of_order:
+        order_ids.append(str(instance.orderId.pk))
+
+    date = datetime.today().strftime("20%y-%m-%d")
+
+    orders = Order.objects.filter(id__in=order_ids, arrival_time__contains=date, vendorId=vendor_id)
+
+    if filter == 'All':
+        pass
+
+    elif filter == "7":
+        orders = orders.filter(isHigh=True)
+
+    else:
+        orders = orders.filter(order_status=filter)
+
+    if search != 'All':
+        order_ids = []
+        table_ids = []
+
+        table_ids = HotelTable.objects.filter(tableNumber=search, vendorId=vendor_id).values_list('pk', flat=True)
+
+        order_ids = Order_tables.objects.filter(tableId__in = table_ids).values_list('orderId', flat=True)
+
+        orders = orders.filter(id__in = order_ids)
+
+    koms_order_ids = orders.values_list('pk', flat=True)
+    
+    order_content = Order_content.objects.filter(orderId__in = koms_order_ids).order_by("-orderId")
+    
+    for single_content in order_content:
+        order_instance = Order.objects.filter(pk = single_content.orderId.pk, vendorId = vendor_id).first()
+
+        single_order_info = getOrder(ticketId=order_instance.pk, language=language, vendorId=vendor_id)
+        
+        single_order_info['TotalAmount'] = order_instance.master_order.TotalAmount
+        
+        station_wise_data[order_instance.externalOrderId] = single_order_info
+    
+    return station_wise_data
+
+
+
 @api_view(["POST"])
 def waiter_login(request):
     request_data = JSONParser().parse(request)
@@ -249,8 +312,7 @@ def get_tables(request):
 def get_waiters(request):
     try:
         vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "English")
-
+        
         if not vendor_id:
             return JsonResponse({"message": "Invalid Vendor ID", "waiters": []}, status=status.HTTP_400_BAD_REQUEST)
         
@@ -258,18 +320,11 @@ def get_waiters(request):
         
         waiter_list = []
 
-        waiter_name = ""
-        
         for waiter in waiters:
-            if language == "English":
-                waiter_name = waiter.name
-
-            else:
-                waiter_name = waiter.name_locale
-
             waiter_info = {
                 "id": waiter.pk,
-                "name": waiter_name,
+                "name": waiter.name,
+                "name_locale": waiter.name_locale,
                 "is_waiter_head": waiter.is_waiter_head
             }
 
@@ -283,68 +338,99 @@ def get_waiters(request):
  
 @api_view(["post"])
 def assign_waiter_to_table(request):
-    requestJson = JSONParser().parse(request)
-
-    table_id = requestJson.get('tableId')
-    waiter_id = requestJson.get('waiterId')
-    vendor_id = request.GET.get("vendorId")
-    language = request.GET.get("language", "English")
-
-    if not all((table_id, waiter_id, vendor_id)):
-        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        table_id = int(table_id)
-        waiter_id = int(waiter_id)
-        vendor_id = int(vendor_id)
+        requestJson = JSONParser().parse(request)
+
+        table_id = requestJson.get('tableId')
+        waiter_id = requestJson.get('waiterId')
+        vendor_id = request.GET.get("vendorId")
+
+        if not all((table_id, waiter_id, vendor_id)):
+            return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
         
-    except ValueError:
-        return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        try:
+            table_id = int(table_id)
+            waiter_id = int(waiter_id)
+            vendor_id = int(vendor_id)
+            
+        except ValueError:
+            return Response("Invalid Table ID, Waiter ID or Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        
+        table_instance = HotelTable.objects.filter(pk=table_id, vendorId=vendor_id).first()
+        waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not all((vendor_instance, table_instance, waiter_instance)):
+            return Response("Table, Waiter or Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+        secondary_language = vendor_instance.secondary_language
     
-    table_instance = HotelTable.objects.filter(pk=table_id, vendorId=vendor_id).first()
-    waiter_instance = Waiter.objects.filter(pk=waiter_id, vendorId=vendor_id).first()
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    if not all((vendor_instance, table_instance, waiter_instance)):
-        return Response("Table, Waiter or Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-
-    try:
         if table_instance.waiterId != None:
-            result = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
-
             old_waiter_id = str(table_instance.waiterId.pk)
+
+            result = get_table_data(hotelTable=table_instance, language="English", vendorId=vendor_id)
             
             webSocketPush(
                 message = {"result": result, "UPDATE": "REMOVE",},
-                room_name = f"WOMS{old_waiter_id}------{language}-{str(vendor_id)}",
-                username="CORE",
-            )#remove table from old waiter
+                room_name = f"WOMS{old_waiter_id}------English-{str(vendor_id)}",
+                username = "CORE",
+            )
+            
+            if secondary_language:
+                result_locale = get_table_data(hotelTable=table_instance, language=secondary_language, vendorId=vendor_id)
+
+                webSocketPush(
+                    message = {"result": result_locale, "UPDATE": "REMOVE",},
+                    room_name = f"WOMS{old_waiter_id}------{secondary_language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
         
         table_instance.waiterId = waiter_instance
         table_instance.save()
 
-        table_data = get_table_data(hotelTable=table_instance, language=language, vendorId=vendor_id)
+        table_data = get_table_data(hotelTable=table_instance, language="English", vendorId=vendor_id)
+        table_data_locale = get_table_data(hotelTable=table_instance, language=secondary_language, vendorId=vendor_id)
 
         webSocketPush(
-            message={"result": table_data, "UPDATE": "UPDATE"},
-            room_name=f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMS{str(waiter_id)}------English-{str(vendor_id)}",
+            username = "CORE",
         )
         
         webSocketPush(
-            message={"result": table_data, "UPDATE": "UPDATE"},
-            room_name=f"WOMSPOS------{language}-{str(vendor_id)}",
-            username="CORE",
+            message = {"result": table_data, "UPDATE": "UPDATE"},
+            room_name = f"WOMSPOS------English-{str(vendor_id)}",
+            username = "CORE",
         )
+        
+        if secondary_language:
+            webSocketPush(
+                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendor_id)}",
+                username = "CORE",
+            )
+            
+            webSocketPush(
+                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{secondary_language}-{str(vendor_id)}",
+                username = "CORE",
+            )
         
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
         
         for waiter_head in waiter_heads:
             webSocketPush(
-                message={"result": table_data, "UPDATE": "UPDATE"},
-                room_name=f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
-                username="CORE",
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendor_id)}",
+                username = "CORE",
             )
+            
+            if secondary_language:
+                webSocketPush(
+                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{secondary_language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
         
         return JsonResponse(table_data, safe=False)
     
@@ -400,24 +486,44 @@ def update_table_status(request):
         
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
-            room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+            room_name = f"WOMS{str(waiter_id)}------English-{str(vendor_id)}",
             username = "CORE",
         )
 
         webSocketPush(
             message = {"result": table_data, "UPDATE": "UPDATE"},
-            room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+            room_name = f"WOMSPOS------English-{str(vendor_id)}",
             username = "CORE",
         )
+        
+        if vendor_instance.secondary_language and (language != "English"):
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMS{str(waiter_id)}------{language}-{str(vendor_id)}",
+                username = "CORE",
+            )
+
+            webSocketPush(
+                message = {"result": table_data, "UPDATE": "UPDATE"},
+                room_name = f"WOMSPOS------{language}-{str(vendor_id)}",
+                username = "CORE",
+            )
         
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendor_id)
         
         for waiter_head in waiter_heads:
             webSocketPush(
                 message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                room_name = f"WOMS{str(waiter_head.pk)}------English-{str(vendor_id)}",
                 username = "CORE",
             )
+            
+            if vendor_instance.secondary_language and (language != "English"):
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_head.pk)}------{language}-{str(vendor_id)}",
+                    username = "CORE",
+                )
 
         return JsonResponse(table_data, safe=False)
     
@@ -427,54 +533,122 @@ def update_table_status(request):
 
 
 @api_view(["GET"])
-def singleProdMod(request,prod=None,order=None):
+def get_modifiers_of_product(request):
     try:
-        vendorId=request.GET.get("vendorId")
-        # product = Order_content.objects.get(pk=prod)
-        content=Order_content.objects.get(pk=prod)
-        product = Product.objects.filter(PLU=content.SKU).first()
-        # content=Order_content.objects.get(orderId=order,SKU=product.PLU)
-        modifier=[i.SKU for i in Order_modifer.objects.filter(contentID=content.pk,status=1)]
-        count=[i.SKU for i in Order_modifer.objects.filter(contentID=content.pk,status=1,quantity__gt=0)]
-        print(modifier)
-        modGrp=[]
-        for prdModGrpJnt in ProductAndModifierGroupJoint.objects.filter(product=product.pk):
-            mods=[]
-            for mod in ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=prdModGrpJnt.modifierGroup.pk,modifierGroup__isDeleted=False):
-                mods.append(
-                    {
-                        "cost":mod.modifier.modifierPrice,
-                        "modifierId": mod.modifier.pk,
-                        "name":mod.modifier.modifierName,
-                        "description": mod.modifier.modifierDesc,
-                        "quantity": Order_modifer.objects.get(contentID=content.pk,SKU=mod.modifier.modifierPLU).quantity if mod.modifier.modifierPLU in modifier else 0,
-                        "plu": mod.modifier.modifierPLU,
-                        "status":True if mod.modifier.modifierPLU in modifier else False,
-                        "image":mod.modifier.modifierImg if mod.modifier.modifierImg  else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
-                    }                    
-                )
-            modGrp.append(
-                {
-                    "name":prdModGrpJnt.modifierGroup.name,
-                    "plu":prdModGrpJnt.modifierGroup.PLU,
-                    "min":prdModGrpJnt.modifierGroup.min,
-                    "max":prdModGrpJnt.modifierGroup.max,
-                    "type":prdModGrpJnt.modifierGroup.modGrptype,
-                    "count":len(count),
-                    "modifiers":mods
-                }
-            )
-                    
-                    
-        listOfProducts={
-                    "productId": product.pk,
-                    "text":product.productName,
-                    "plu":product.PLU,
-                    "quantity":content.quantity,
-                    "modifiersGroup":modGrp,
-                    "note":content.note
-                }
+        content_id = request.GET.get("content")
+        vendor_id = request.GET.get("vendor")
+        language = request.GET.get("language", "English")
 
-        return JsonResponse(listOfProducts)
+        if (not content_id) or (not vendor_id):
+            return JsonResponse({"message": "Invalid Content ID or Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            vendor_id = int(vendor_id)
+            content_id = int(content_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid Content ID or Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        
+        order_content = Order_content.objects.filter(pk=content_id, orderId__vendorId=vendor_id).first()
+
+        if not order_content:
+            return JsonResponse({"message": "Content does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        product = Product.objects.filter(PLU=order_content.SKU, vendorId=vendor_id).first()
+
+        modifier_plu_list = []
+        count = 0
+
+        order_modifiers = Order_modifer.objects.filter(contentID=order_content.pk, status=1)
+
+        for instance in order_modifiers:
+            modifier_plu_list.append(instance.SKU)
+
+            if instance.quantity > 0:
+                count = count + 1
+        
+        modifier_group_list = []
+
+        product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
+
+        for modifier_group_info in product_and_modifier_group_joint:
+            modifier_list = []
+
+            modifier_and_modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(
+                modifierGroup = modifier_group_info.modifierGroup.pk,
+                modifierGroup__isDeleted = False,
+                vendor = vendor_id
+            )
+            
+            for modifier_info in modifier_and_modifier_group_joint:
+                if modifier_info.modifier.modifierPLU in modifier_plu_list:
+                    quantity = Order_modifer.objects.get(
+                        contentID=order_content.pk,
+                        SKU=modifier_info.modifier.modifierPLU
+                    ).quantity
+                    
+                    status_of_modifier = True
+                
+                else:
+                    quantity = 0
+
+                    status_of_modifier = False
+                
+                modifier_image = modifier_info.modifier.modifierImg
+
+                if not modifier_image:
+                    modifier_image = "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg"
+                
+                modifier_name = modifier_info.modifier.modifierName
+
+                if language != "English":
+                    modifier_name = modifier_info.modifier.modifierName_locale
+                
+                modifier_list.append({
+                    "modifierId": modifier_info.modifier.pk,
+                    "name": modifier_name,
+                    "plu": modifier_info.modifier.modifierPLU,
+                    "image": modifier_image,
+                    "cost": modifier_info.modifier.modifierPrice,
+                    "quantity": quantity,
+                    "status": status_of_modifier,
+                })
+
+            modifier_group_name = modifier_group_info.modifierGroup.name
+
+            if language != "English":
+                modifier_group_name = modifier_group_info.modifierGroup.name_locale
+            
+            modifier_group_list.append({
+                "name": modifier_group_name,
+                "plu": modifier_group_info.modifierGroup.PLU,
+                "min": modifier_group_info.modifierGroup.min,
+                "max": modifier_group_info.modifierGroup.max,
+                "type": modifier_group_info.modifierGroup.modGrptype,
+                "count": count,
+                "modifiers": modifier_list
+            })
+
+        product_name = product.productName
+                    
+        if language != "English":
+            product_name = product.productName_locale
+
+        product_info = {
+            "productId": product.pk,
+            "text": product_name,
+            "plu": product.PLU,
+            "quantity": order_content.quantity,
+            "modifiersGroup": modifier_group_list,
+            "note": order_content.note if order_content.note else ""
+        }
+
+        return JsonResponse(product_info)
+    
     except Exception as e:
-        return JsonResponse({"error":str(e)},status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

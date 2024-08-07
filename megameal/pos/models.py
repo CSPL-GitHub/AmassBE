@@ -1,15 +1,10 @@
 from django.db import models
-from core.models import Vendor,Platform
+from core.models import Vendor, Platform
+from pos.model_choices import platform_choices
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import Group, User
-from django.core.exceptions import ValidationError
 
-
-
-def validate_phone_number_length(value):
-    if len(str(value)) != 10:
-        raise ValidationError("Phone number must be exactly 10 digits.")
 
 
 class POSMenu(models.Model):
@@ -44,7 +39,6 @@ class POSUser(models.Model):
     username = models.CharField(max_length=100, unique=True)
     password = models.CharField(max_length=100)
     name =  models.CharField(max_length=100)
-    name_locale = models.CharField(max_length=100, blank=True)
     phone_number = models.PositiveBigIntegerField()
     email = models.EmailField()
     is_active = models.BooleanField(default=False)
@@ -72,15 +66,21 @@ class POSSetting(models.Model):
 
 
 class CoreUserCategory(Group):
+    platform = models.CharField(max_length=20, choices=platform_choices)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
 class CoreUser(User):
-    phone_number = models.PositiveBigIntegerField(unique=True, validators=(validate_phone_number_length,))
-    current_address = models.TextField(max_length=2000)
-    permanent_address = models.TextField(max_length=2000)
-    profile_picture = models.ImageField(upload_to="user_profile", max_length=500, blank=True, null=True)
+    phone_number = models.PositiveBigIntegerField()
+    current_address = models.TextField(max_length=2000, null=True, blank=True)
+    permanent_address = models.TextField(max_length=2000, null=True, blank=True)
+    profile_picture = models.ImageField(upload_to="user", max_length=500, null=True, blank=True)
+    document_1 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
+    document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
+
+    class Meta:
+        unique_together = ('phone_number', 'vendor')
 
 
 class Department(models.Model):
@@ -89,6 +89,16 @@ class Department(models.Model):
 
     class Meta:
         unique_together = ('name', 'vendor')
+
+
+class CashRegister(models.Model):
+    balance_while_store_opening = models.IntegerField()
+    balance_while_store_closing = models.IntegerField(default=0)
+    created_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="opening_cash_entered_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
+    edited_at = models.DateTimeField(auto_now=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_cash_register")
 
 
 

@@ -5,13 +5,6 @@ order_type_english = {
     3: "DineIn"
 }
 
-order_type_locale = {
-    "All": "الجميع",
-    1: "يلتقط",
-    2: "توصيل",
-    3: "تناول الطعام في"
-}
-
 koms_order_status_english = {
     "All": "All",
     1: 'Pending',
@@ -26,42 +19,16 @@ koms_order_status_english = {
     10: 'Close'
 }
 
-koms_order_status_locale = {
-    "All": "الجميع",
-    1: 'قيد الانتظار',
-    2: 'يعالج',
-    3: 'مستعد',
-    4: 'في الانتظار',
-    5: 'ألغيت',
-    6: 'يتذكر',
-    7: 'عالي',
-    8: 'تعيين',
-    9: 'وارد',
-    10: 'يغلق'
-}
-
 payment_status_english = {
     'True': 'Paid',
     'False': 'Pending',
     'Unknown': 'Unknown'
 }
 
-payment_status_locale = {
-    'True': 'مدفوع',
-    'False': 'قيد الانتظار',
-    'Unknown': 'مجهول'
-}
-
 payment_type_english = {
     1: 'Cash',
     2: 'Online',
-    3: 'Card'
-}
-
-payment_type_locale = {
-    1: 'نقدي',
-    2: 'متصل',
-    3: 'بطاقة'
+    3: 'Card',
 }
 
 platform_locale = (
@@ -70,108 +37,127 @@ platform_locale = (
 )
 
 language_localization = {
-    "Monday": "الاثنين",
-    "Tuesday": "يوم الثلاثاء",
-    "Wednesday": "الأربعاء",
-    "Thursday": "يوم الخميس",
-    "Friday": "جمعة",
-    "Saturday": "السبت",
-    "Sunday": "الأحد",
-    "All": "الجميع",
+    "Address": "عنوان",
     "all": "الجميع",
-    "delivery": "توصيل",
-    "pickup": "يلتقط",
-    "dinein": "تناول الطعام في",
-    "online": "متصل",
-    "offline": "غير متصل على الانترنت",
+    "All": "الجميع",
+    "Amount": "كمية",
     "ascending": "تصاعدي",
+    "Assign": "تعيين",
+    "Card": "بطاقة",
+    "Card Payment": "بطاقه ائتمان",
+    "Card Payment Orders": "أوامر الدفع بالبطاقة",
+    "Category": "فئة",
+    "Cash": "نقدي",
+    "Cash Payment": "دفع نقدا",
+    "Cash Payment Orders": "أوامر الدفع النقدي",
+    "Canceled": "ألغيت",
+    "Cancelled Orders": "الطلبات الملغاة",
+    "Cancelled Products": "المنتجات الملغاة",
+    "Cancelled Product Details": "تفاصيل المنتج الملغاة",
+    "Close": "يغلق",
+    "Complete Orders": "أوامر كاملة",
+    "Customer Name": "اسم الزبون",
+    "delivery": "توصيل",
+    "Delivery": "توصيل",
+    "Delivery Orders": "أوامر التسليم",
     "descending": "تنازلي",
-    "Order ID": "رقم الطلب",
-    "Platform": "منصة",
-    "Start Date": "تاريخ البدء",
+    "dinein": "تناول الطعام في",
+    "DineIn": "تناول الطعام في",
+    "DineIn Orders": "طلبات داين إن",
+    "Email ID": "عنوان الايميل",
     "End Date": "تاريخ الانتهاء",
+    "Estimated Revenue": "الإيرادات المقدرة",
+    "Filtered by": "تمت التصفية بواسطة",
+    "Friday": "جمعة",
+    "High": "عالي",
+    "Incoming": "وارد",
+    "Instance": "مثال",
+    "Locality": "محلية",
+    "Loss Made": "الخسارة التي تم تحقيقها",
+    "Monday": "الاثنين",
+    "Most Ordered Items": "العناصر الأكثر طلبًا",
+    "Most Ordered Products": "المنتجات الأكثر طلبا",
+    "None" : "لا أحد",
+    "offline": "غير متصل على الانترنت",
+    "Offline Orders": "الطلبات دون اتصال بالإنترنت",
+    "Onhold": "في الانتظار",
+    "online": "متصل",
+    "Online": "متصل",
+    "Online Orders": "الطلبات عبر الإنترنت",
+    "Online Payment": "Online Payment",
+    "Online Payment Orders": "أوامر الدفع عبر الإنترنت",
+    "Order ID": "رقم الطلب",
     "Order Type": "نوع الطلب",
     "Order Status": "حالة الطلب",
     "Order Time": "وقت الطلب",
-    "Top": "قمة",
-    "Sorted by": "مرتبة حسب",
-    "Total": "المجموع",
-    "Total records": "إجمالي السجلات",
-    "Total orders": "إجمالي الطلبات",
-    "Total Orders": "إجمالي الطلبات",
-    "Total revenue": "إجمالي الإيرادات",
-    "Total Points Credited": "إجمالي النقاط المعتمدة",
-    "Total Points Redeemed": "إجمالي النقاط المستردة",
-    "Total Online Orders": "إجمالي الطلبات عبر الإنترنت",
-    "Total Offline Orders": "إجمالي الطلبات غير المتصلة بالإنترنت",
-    "Total Delivery Orders": "إجمالي طلبات التسليم",
-    "Total Pickup Orders": "إجمالي طلبات الاستلام",
-    "Total DineIn Orders": "إجمالي طلبات تناول الطعام",
-    "Total Tax Collected": "إجمالي الضريبة المحصلة",
-    "Total Revenue Generated": "إجمالي الإيرادات المتولدة",
-    "Cash Payment Orders": "أوامر الدفع النقدي",
-    "Online Payment Orders": "أوامر الدفع عبر الإنترنت",
-    "Card Payment Orders": "أوامر الدفع بالبطاقة",
-    "Quantity Sold": "الكمية المباعة",
-    "Quantity Cancelled": "تم إلغاء الكمية",
-    "Unit Price": "سعر الوحدة",
-    "Total Sale": "إجمالي البيع",
-    "Amount": "كمية",
+    "Order Count Data": "بيانات عدد الطلبات",
+    "Orders": "طلبات",
+    "Paid": "مدفوع",
     "Payment Type": "نوع الدفع",
     "Payment Status": "حالة السداد",
-    "Transaction ID": "رقم المعاملة",
-    "Customer Name": "اسم الزبون",
+    "Pending": "قيد الانتظار",
     "Phone Number": "رقم التليفون",
-    "Email ID": "عنوان الايميل",
-    "Address": "عنوان",
-    "Most Ordered Items": "العناصر الأكثر طلبًا",
-    "Complete Orders": "أوامر كاملة",
-    "Cancelled Orders": "الطلبات الملغاة",
-    "Processing Orders": "تجهيز الطلبات",
-    "Delivery Orders": "أوامر التسليم",
+    "pickup": "يلتقط",
+    "Pickup": "يلتقط",
     "Pickup Orders": "أوامر الالتقاط",
-    "DineIn Orders": "طلبات داين إن",
-    "Cancelled Products": "المنتجات الملغاة",
-    "Loss Made": "الخسارة التي تم تحقيقها",
-    "Revenue": "ربح",
-    "Estimated Revenue": "الإيرادات المقدرة",
-    "Revenue Generated": "الإيرادات المتولدة",
-    "Cancelled Product Details": "تفاصيل المنتج الملغاة",
-    "Most Ordered Products": "المنتجات الأكثر طلبا",
-    "Category": "فئة",
-    "Product Name": "اسم المنتج",
-    "Orders": "طلبات",
     "Pincode": "الرمز السري",
-    "Locality": "محلية",
-    "Tax Collected": "الضرائب المحصلة",
-    "Cash Payment": "دفع نقدا",
-    "Online Payment": "Online Payment",
-    "Card Payment": "بطاقه ائتمان",
-    "Online Orders": "الطلبات عبر الإنترنت",
-    "Offline Orders": "الطلبات دون اتصال بالإنترنت",
-    "Filtered by": "تمت التصفية بواسطة",
-    "Instance": "مثال",
-    "Order Count Data": "بيانات عدد الطلبات",
-    "Tax Collection Data": "بيانات تحصيل الضرائب",
-    "Tax Collection from Delivery": "تحصيل الضرائب من التسليم",
-    "Tax Collection from Pickup": "تحصيل الضرائب من بيك اب",
-    "Tax Collection from DineIn": "تحصيل الضرائب من داين إن",
-    "Tax Collection from Offline Orders": "تحصيل الضرائب من الطلبات غير المتصلة بالإنترنت",
-    "Tax Collection from Online Orders": "تحصيل الضرائب من الطلبات عبر الإنترنت",
-    "Tax Collection from Cash Payment": "تحصيل الضرائب من الدفع النقدي",
-    "Tax Collection from Online Payment": "تحصيل الضرائب من الدفع عبر الإنترنت",
-    "Tax Collection from Card Payment": "تحصيل الضرائب من دفع البطاقة",
+    "Platform": "منصة",
+    "Please enter a valid address": "يرجى إدخال عنوان صالح",
+    "Processing": "يعالج",
+    "Processing Orders": "تجهيز الطلبات",
+    "Product Name": "اسم المنتج",
+    "Quantity Cancelled": "تم إلغاء الكمية",
+    "Quantity Sold": "الكمية المباعة",
+    "Ready": "مستعد",
+    "Recall": "يتذكر",
+    "Revenue": "ربح",
+    "Revenue Generated": "الإيرادات المتولدة",
     "Revenue Generation Data": "بيانات توليد الإيرادات",
+    "Revenue from Card Payment": "الإيرادات من دفع البطاقة",
+    "Revenue from Cash Payment": "الإيرادات من الدفع النقدي",
     "Revenue from Delivery": "الإيرادات من التسليم",
-    "Revenue from Pickup": "الإيرادات من بيك اب",
     "Revenue from DineIn": "الإيرادات من داين إن",
     "Revenue from Offline Orders": "الإيرادات من الطلبات دون اتصال بالإنترنت",
     "Revenue from Online Orders": "الإيرادات من الطلبات عبر الإنترنت",
-    "Revenue from Cash Payment": "الإيرادات من الدفع النقدي",
     "Revenue from Online Payment": "الإيرادات من الدفع عبر الإنترنت",
-    "Revenue from Card Payment": "الإيرادات من دفع البطاقة",
+    "Revenue from Pickup": "الإيرادات من بيك اب",
+    "Saturday": "السبت",
+    "Sorted by": "مرتبة حسب",
+    "Start Date": "تاريخ البدء",
     "Store is already closed": "المتجر مغلق",
-    "Please enter a valid address": "يرجى إدخال عنوان صالح"
+    "Sunday": "الأحد",
+    "Tax Collected": "الضرائب المحصلة",
+    "Tax Collection Data": "بيانات تحصيل الضرائب",
+    "Tax Collection from Card Payment": "تحصيل الضرائب من دفع البطاقة",
+    "Tax Collection from Cash Payment": "تحصيل الضرائب من الدفع النقدي",
+    "Tax Collection from Delivery": "تحصيل الضرائب من التسليم",
+    "Tax Collection from DineIn": "تحصيل الضرائب من داين إن",
+    "Tax Collection from Offline Orders": "تحصيل الضرائب من الطلبات غير المتصلة بالإنترنت",
+    "Tax Collection from Online Orders": "تحصيل الضرائب من الطلبات عبر الإنترنت",
+    "Tax Collection from Online Payment": "تحصيل الضرائب من الدفع عبر الإنترنت",
+    "Tax Collection from Pickup": "تحصيل الضرائب من بيك اب",
+    "Thursday": "يوم الخميس",
+    "Top": "قمة",
+    "Total": "المجموع",
+    "Total Delivery Orders": "إجمالي طلبات التسليم",
+    "Total DineIn Orders": "إجمالي طلبات تناول الطعام",
+    "Total Offline Orders": "إجمالي الطلبات غير المتصلة بالإنترنت",
+    "Total Online Orders": "إجمالي الطلبات عبر الإنترنت",
+    "Total orders": "إجمالي الطلبات",
+    "Total Orders": "إجمالي الطلبات",
+    "Total Pickup Orders": "إجمالي طلبات الاستلام",
+    "Total Points Credited": "إجمالي النقاط المعتمدة",
+    "Total Points Redeemed": "إجمالي النقاط المستردة",
+    "Total records": "إجمالي السجلات",
+    "Total revenue": "إجمالي الإيرادات",
+    "Total Revenue Generated": "إجمالي الإيرادات المتولدة",
+    "Total Sale": "إجمالي البيع",
+    "Total Tax Collected": "إجمالي الضريبة المحصلة",
+    "Transaction ID": "رقم المعاملة",
+    "Tuesday": "يوم الثلاثاء",
+    "Unit Price": "سعر الوحدة",
+    "Unknown": "مجهول",
+    "Wednesday": "الأربعاء",
 }
 
 
@@ -203,49 +189,12 @@ def delivery_address_validation_locale(kilometer_limit):
     return f"يقع عنوان التسليم على بعد أكثر من {kilometer_limit} كيلومتر"
 
 
-def get_key_value(language, dictionary, key):
-    if language == "English":
-        if dictionary == "order_type":
-            value = order_type_english[key]
 
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_english[key]
+def check_key_exists(dictionary, key):
+    if dictionary == "order_type":
+        value = key in order_type_english.keys()
 
-        elif dictionary == "payment_status":
-            value = payment_status_english[key]
-
-        elif dictionary == "payment_type":
-            value = payment_type_english[key]
-
-    else:
-        if dictionary == "order_type":
-            value = order_type_locale[key]
-
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_locale[key]
-
-        elif dictionary == "payment_status":
-            value = payment_status_locale[key]
-
-        elif dictionary == "payment_type":
-            value = payment_type_locale[key]
-
-    return value
-
-
-def check_key_exists(language, dictionary, key):
-    if language == "English":
-        if dictionary == "order_type":
-            value = key in order_type_english.keys()
-
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_english.keys()
-
-    else:
-        if dictionary == "order_type":
-            value = key in order_type_locale.keys()
-
-        elif dictionary == "koms_order_status":
-            value = koms_order_status_locale.keys()
+    elif dictionary == "koms_order_status":
+        value = koms_order_status_english.keys()
 
     return value

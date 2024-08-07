@@ -62,7 +62,7 @@ class ProductCategoryAdmin(admin.ModelAdmin):
 class ProductAdmin(admin.ModelAdmin):
     fields = (
         'vendorId', 'active', 'productName', 'productName_locale', 'PLU', 'productDesc', 'productDesc_locale',
-        'productPrice', 'tag', 'preparationTime', 'is_displayed_online', 'is_todays_special', 'is_in_recommendations',
+        'productPrice', 'tag', 'preparationTime', 'recipe_video_url', 'is_displayed_online', 'is_todays_special', 'is_in_recommendations',
     )
     
     list_display = ('productName', 'productPrice', 'tag', 'active', 'vendorId',)
@@ -145,6 +145,16 @@ class TaxAdmin(admin.ModelAdmin):
     list_display = ('name', 'percentage', 'vendorId',)
     list_filter = ('vendorId',)
     search_fields = ('name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(EmailLog)
+class EmailLogAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'order', 'customer', 'created_at', 'sender', 'receiver', 'subject', 'email_body_type', 'email_body', 'status')
+    
+    list_display = ('order', 'customer', 'receiver', 'created_at', 'vendor',)
+    list_filter = ('vendor',)
+    search_fields = ('customer', 'receiver',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 

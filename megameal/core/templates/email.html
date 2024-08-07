@@ -250,7 +250,7 @@
       <thead style="background-color:#F0FFFF;">
         <th>
           <div class="align-items-center">
-            <img src="{{media_url}}megameal.png" id="logo">
+            <img src="{{logo_url}}" id="logo">
             &nbsp;&nbsp;&nbsp;&nbsp;<p id="order-online-text" style="margin-top: 20px;">Order Online</p>
           </div>
         </th>
@@ -258,7 +258,7 @@
       <tbody>
         <td>
           <br>Hi {{first_name}},<br>
-          Your order is placed successfully. Your Order ID is <b>#{{order_id}}</b>.
+          Your order <b>{{order_type}}</b> order is placed successfully. Your Order ID is <b>#{{order_id}}</b>.
         </td>
       </tbody>
       <table class="table table-bordered">
@@ -279,14 +279,17 @@
             <td>{{email}}</td>
           </tr>
           <tr>
-            <td>Delivery Address</td>
-            <td>
-              Address line 1: {{shipping_address.address_line1}}<br>
-              Address line 2: {{shipping_address.address_line2}}<br>
-              City: {{shipping_address.city}}<br>
-              State: {{shipping_address.state}}<br>
-              Country: {{shipping_address.country}}
-            </td>
+            {% if order_type != 'PICKUP'%}
+              <td>Delivery Address</td>
+              <td>
+                Address line 1: {{shipping_address.address_line1}}<br>
+                Address line 2: {{shipping_address.address_line2}}<br>
+                City: {{shipping_address.city}}<br>
+                State: {{shipping_address.state}}<br>
+                Country: {{shipping_address.country}}
+                Pincode: {{shipping_address.zipcode}}
+              </td>
+            {% endif %}
           </tr>
           <tr>
             <table class="table table-bordered">

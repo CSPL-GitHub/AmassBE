@@ -10,6 +10,7 @@ from core.models import POS_Settings
 from django.utils import timezone
 from datetime import datetime
 from logging import log
+import socket
 
 
 
@@ -265,15 +266,46 @@ class StagingIntegration():
                     })
 
                     counter = counter + 1
+
+                # local_ips = []
+
+                # host_name = socket.gethostname()
+
+                # host_ip_info = socket.gethostbyname_ex(host_name)
+
+                # for ip in host_ip_info[2]:
+                #     if not ip.startswith("127."):
+                #         local_ips.append(ip)
+
+                # external_ip = None
+
+                # external_ip_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+                # port = request.META.get("SERVER_PORT")
+
+                # try:
+                #     external_ip_socket.connect(('8.8.8.8', 53))
+
+                #     external_ip = external_ip_socket.getsockname()[0]
+
+                # finally:
+                #     external_ip_socket.close()
+
+                # if local_ips:
+                #     server_ip = local_ips[0]
+
+                # else:
+                #     server_ip = external_ip
                 
                 sender = EMAIL_HOST_USER
                 receiver = coreCustomer.Email
 
-                subject = "Your order confirmed"
+                subject = "Your order is confirmed"
                 email_body_type = "html"
                 
                 context = {
                     "order_id": order.pk,
+                    "order_type": data.get("orderType"),
                     "first_name": coreCustomer.FirstName,
                     "full_name": coreCustomer.FirstName + " " + coreCustomer.LastName,
                     "phone_number": coreCustomer.Phone_Number,
@@ -285,14 +317,14 @@ class StagingIntegration():
                     "delivery_charge": round(order.delivery_charge, 2),
                     "tax_details": tax_details,
                     "total_amount": round(order.TotalAmount, 2),
-                    "media_url": settings.MEDIA_URL
+                    "logo_url": f"{vendor_instance.logo.url}" if vendor_instance.logo else ""
                 }
                 
                 email_body = render_to_string('email.html', context)
                 
                 email_status = send_order_confirmation_email(sender, receiver, subject, email_body_type, email_body)
 
-                email_log = EmailLog.objects.create(
+                email_log = EmailLog(
                     order=order,
                     sender=sender,
                     receiver=receiver,
