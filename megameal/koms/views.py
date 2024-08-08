@@ -1381,14 +1381,14 @@ def getOrder(ticketId, vendorId, language="English"):
 
                 modifier_name = ""
 
+                modifier_instance = ProductModifier.objects.filter(
+                    modifierPLU=singleContentModifier.SKU, vendorId=vendorId
+                ).first()
+                
                 if language == "English":
-                    modifier_name = singleContentModifier.name
+                    modifier_name = modifier_instance.modifierName
 
                 else:
-                    modifier_instance = ProductModifier.objects.filter(
-                        modifierPLU=singleContentModifier.SKU, vendorId=vendorId
-                    ).first()
-
                     modifier_name = modifier_instance.modifierName_locale
 
                 mapOfSingleModifier["id"] = singleContentModifier.pk
@@ -1398,7 +1398,7 @@ def getOrder(ticketId, vendorId, language="English"):
                 mapOfSingleModifier["quantity"] = singleContentModifier.quantity
 
                 try:
-                    mapOfSingleModifier["price"] = ProductModifier.objects.filter(modifierPLU=singleContentModifier.SKU,vendorId=vendorId).last().modifierPrice
+                    mapOfSingleModifier["price"] = modifier_instance.modifierPrice
                 
                 except:
                     mapOfSingleModifier["price"] = 0
