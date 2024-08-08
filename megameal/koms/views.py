@@ -1221,7 +1221,7 @@ def statuscount(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     result = {}
     for i in KOMSOrderStatus.objects.all():
-        result[i.status] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
+        result[i.get_status_display()] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
     return result
 
 
