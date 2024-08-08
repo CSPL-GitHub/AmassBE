@@ -400,7 +400,7 @@ def orderCount(request):
         for orderStatus in order_status:
             data = {
                 "status": orderStatus.id,
-                "name": orderStatus.status,
+                "name": orderStatus.get_status_display(),
                 "count": Order.objects.filter(Q(order_status=orderStatus.id) & Q(arrival_time__range=(s_date, e_date)) & Q(vendorId=request.GET.get("vendorId"))
                 ).count(),
             }
