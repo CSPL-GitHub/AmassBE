@@ -1436,7 +1436,7 @@ def stationQueueCount(vendorId):
             }
             for singleStatus in statusName:
                 test = Order_content.objects.filter(
-                    orderId__in=all_orders, stationId=station.pk, status=singleStatus.get_status_display()
+                    orderId__in=all_orders, stationId=station.pk, status=singleStatus.pk
                 )
                 station_details[singleStatus.get_status_display()] = len(test)
                 response[station.station_name] = station_details
