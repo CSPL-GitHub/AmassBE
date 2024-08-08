@@ -5,7 +5,7 @@ from koms.views import getOrder, stationQueueCount
 from pos.views import order_data_start_thread
 from asgiref.sync import async_to_sync
 from channels.generic.websocket import WebsocketConsumer
-from koms.models import Order
+from koms.models import Order, Station
 from woms.models import Floor
 from datetime import datetime
 import json
@@ -216,6 +216,8 @@ class ChatConsumer(WebsocketConsumer):
                         result={}
 
                     else:
+                        vendorId = Station.objects.filter(pk=stationId).first().vendorId.pk
+
                         result = stationdata(id=stationId, vendorId=vendorId)
             
             else:

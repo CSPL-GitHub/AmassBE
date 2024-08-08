@@ -120,6 +120,65 @@ class CustomPagination(PageNumberPagination):
         })
 
 
+class DepartmentModelViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all().order_by('-pk')
+    serializer_class = DepartmentModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
+        
+        return Department.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"departments": serializer.data})
+    
+    def create(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.data.get('vendor')
+
+        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
+
+        if existing_department.exists():
+            return Response(
+                {"error": "Department with this name already exists"},
+                status=status.HTTP_400_BAD_REQUEST
+        )
+
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.GET.get('vendor')
+
+        instance = self.get_object()
+
+        if name:
+            existing_department = Department.objects.filter(
+                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
+            )
+
+            if existing_department.exists():
+                return Response(
+                    {"error": "Department with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().update(request, *args, **kwargs)
+
+
 class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
     queryset = CoreUserCategory.objects.all().order_by('-pk')
     serializer_class = CoreUserCategoryModelSerializer
@@ -256,65 +315,6 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
             serializer.save(password=make_password(password))
         else:
             serializer.save()
-
-
-class DepartmentModelViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all().order_by('-pk')
-    serializer_class = DepartmentModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
-        
-        return Department.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"departments": serializer.data})
-    
-    def create(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.data.get('vendor')
-
-        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
-
-        if existing_department.exists():
-            return Response(
-                {"error": "Department with this name already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.GET.get('vendor')
-
-        instance = self.get_object()
-
-        if name:
-            existing_department = Department.objects.filter(
-                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
-            )
-
-            if existing_department.exists():
-                return Response(
-                    {"error": "Department with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
 
 
 class WaiterViewSet(viewsets.ModelViewSet):

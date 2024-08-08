@@ -65,8 +65,17 @@ class POSSetting(models.Model):
         return self.vendor.Name
 
 
+class Department(models.Model):
+    name = models.CharField(max_length=150)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
+
+    class Meta:
+        unique_together = ('name', 'vendor')
+
+
 class CoreUserCategory(Group):
-    platform = models.CharField(max_length=20, choices=platform_choices)
+    is_editable = models.BooleanField(default=True)
+    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="user_department")
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
@@ -77,18 +86,12 @@ class CoreUser(User):
     profile_picture = models.ImageField(upload_to="user", max_length=500, null=True, blank=True)
     document_1 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
+    is_head = models.BooleanField(default=False)
+    reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
     class Meta:
         unique_together = ('phone_number', 'vendor')
-
-
-class Department(models.Model):
-    name = models.CharField(max_length=150)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
-
-    class Meta:
-        unique_together = ('name', 'vendor')
 
 
 class CashRegister(models.Model):
