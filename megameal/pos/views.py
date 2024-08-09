@@ -20,8 +20,8 @@ from django.contrib import messages
 from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
-from django.db.models.functions import Coalesce, Cast, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value
+from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
 from rest_framework.parsers import JSONParser 
 from django.shortcuts import get_object_or_404
 from koms.models import (
@@ -48,7 +48,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, CoreUserCategory, CoreUser, Department, POSMenu, CashRegister
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -118,6 +118,65 @@ class CustomPagination(PageNumberPagination):
             'page_size': self.page.paginator.per_page,
             'results': data
         })
+
+
+class DepartmentModelViewSet(viewsets.ModelViewSet):
+    queryset = Department.objects.all().order_by('-pk')
+    serializer_class = DepartmentModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name',)
+    ordering_fields = ('id', 'name',)
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
+        
+        return Department.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"departments": serializer.data})
+    
+    def create(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.data.get('vendor')
+
+        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
+
+        if existing_department.exists():
+            return Response(
+                {"error": "Department with this name already exists"},
+                status=status.HTTP_400_BAD_REQUEST
+        )
+
+        return super().create(request, *args, **kwargs)
+    
+    def update(self, request, *args, **kwargs):
+        name = request.data.get('name')
+        vendor_id = request.GET.get('vendor')
+
+        instance = self.get_object()
+
+        if name:
+            existing_department = Department.objects.filter(
+                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
+            )
+
+            if existing_department.exists():
+                return Response(
+                    {"error": "Department with this name already exists"},
+                    status=status.HTTP_400_BAD_REQUEST
+            )
+
+        return super().update(request, *args, **kwargs)
 
 
 class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
@@ -256,65 +315,6 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
             serializer.save(password=make_password(password))
         else:
             serializer.save()
-
-
-class DepartmentModelViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all().order_by('-pk')
-    serializer_class = DepartmentModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
-        
-        return Department.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-        
-        return JsonResponse({"departments": serializer.data})
-    
-    def create(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.data.get('vendor')
-
-        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
-
-        if existing_department.exists():
-            return Response(
-                {"error": "Department with this name already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.GET.get('vendor')
-
-        instance = self.get_object()
-
-        if name:
-            existing_department = Department.objects.filter(
-                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
-            )
-
-            if existing_department.exists():
-                return Response(
-                    {"error": "Department with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
 
 
 class WaiterViewSet(viewsets.ModelViewSet):
@@ -1325,6 +1325,9 @@ def productByCategory(request, id=0):
 
         else:
             data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+
+        if product_tag == "veg":
+            products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
 
         if search_text:
             if ((platform == "Website") or (platform == "Mobile App")) and (product_tag == "veg"):
@@ -2481,7 +2484,7 @@ def createOrder(request):
         if (not platform) or (platform.isActive == False):
             return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
         
-        orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S")
+        orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S%f")[:15]
 
         result = {
             "language": language,
@@ -9112,37 +9115,6 @@ def is_platform(request):
     
     except Exception as e:
         return Response(f"{str(e)}", status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["GET"])
-def get_pos_menu(request):
-    vendor_id = request.GET.get('vendor')
-
-    if not vendor_id:
-        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        vendor_id = int(vendor_id)
-
-    except ValueError:
-        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    if not vendor_instance:
-        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    pos_menu = POSMenu.objects.filter(vendor=vendor_id).first()
-
-    if not pos_menu:
-        return JsonResponse({"message": "POS menu not configured"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    return JsonResponse(
-        {
-            "message": "",
-            "is_sop_active": pos_menu.is_sop_active,
-        }, status=status.HTTP_400_BAD_REQUEST
-    )
 
 
 @api_view(["POST"])

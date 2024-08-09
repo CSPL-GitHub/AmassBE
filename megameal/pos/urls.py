@@ -14,15 +14,14 @@ router.register("setting/discount_coupon", views.DiscountCouponModelViewSet, bas
 router.register("setting/station", views.StationModelViewSet, basename="station")
 router.register("setting/chef", views.ChefModelViewSet, basename="chef")
 router.register("setting/banner", views.BannerModelViewSet, basename="banner")
+router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
 router.register("setting/user-categories", views.CoreUserCategoryModelViewSet, basename="user_categories")
 router.register("setting/users", views.CoreUserModelViewSet, basename="core_users")
-router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
 
 
 urlpatterns = [
    path('login/', views.login),
    path('language/', views.pos_lanuage_setting, name="language"),
-   path('pos_menu/', views.get_pos_menu, name="pos_menu"),
    path('allCategory/',views.allCategory), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS

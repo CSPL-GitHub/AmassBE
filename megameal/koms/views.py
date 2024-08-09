@@ -400,7 +400,7 @@ def orderCount(request):
         for orderStatus in order_status:
             data = {
                 "status": orderStatus.id,
-                "name": orderStatus.status,
+                "name": orderStatus.get_status_display(),
                 "count": Order.objects.filter(Q(order_status=orderStatus.id) & Q(arrival_time__range=(s_date, e_date)) & Q(vendorId=request.GET.get("vendorId"))
                 ).count(),
             }
@@ -1221,7 +1221,7 @@ def statuscount(vendorId):
     date = datetime.today().strftime("20%y-%m-%d")
     result = {}
     for i in KOMSOrderStatus.objects.all():
-        result[i.status] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
+        result[i.get_status_display()] = Order.objects.filter(order_status=i.pk, arrival_time__contains=date,vendorId=vendorId).count()
     return result
 
 
@@ -1320,14 +1320,14 @@ def getOrder(ticketId, vendorId, language="English"):
 
         product_name = ""
         station_name = ""
+
+        product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
         
         if language == "English":
-            product_name = singleContent.name
+            product_name = product_instance.productName
             station_name = singleContent.stationId.station_name
 
         else:
-            product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-
             product_name = product_instance.productName_locale
             station_name = singleContent.stationId.station_name_locale
 
@@ -1345,8 +1345,6 @@ def getOrder(ticketId, vendorId, language="English"):
         product_price = 0.0
         recipe_video_url = ""
         
-        product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-
         if product_instance:
             product_price = product_instance.productPrice
             recipe_video_url = product_instance.recipe_video_url if product_instance.recipe_video_url else ""
@@ -1381,14 +1379,14 @@ def getOrder(ticketId, vendorId, language="English"):
 
                 modifier_name = ""
 
+                modifier_instance = ProductModifier.objects.filter(
+                    modifierPLU=singleContentModifier.SKU, vendorId=vendorId
+                ).first()
+                
                 if language == "English":
-                    modifier_name = singleContentModifier.name
+                    modifier_name = modifier_instance.modifierName
 
                 else:
-                    modifier_instance = ProductModifier.objects.filter(
-                        modifierPLU=singleContentModifier.SKU, vendorId=vendorId
-                    ).first()
-
                     modifier_name = modifier_instance.modifierName_locale
 
                 mapOfSingleModifier["id"] = singleContentModifier.pk
@@ -1398,7 +1396,7 @@ def getOrder(ticketId, vendorId, language="English"):
                 mapOfSingleModifier["quantity"] = singleContentModifier.quantity
 
                 try:
-                    mapOfSingleModifier["price"] = ProductModifier.objects.filter(modifierPLU=singleContentModifier.SKU,vendorId=vendorId).last().modifierPrice
+                    mapOfSingleModifier["price"] = modifier_instance.modifierPrice
                 
                 except:
                     mapOfSingleModifier["price"] = 0
@@ -1438,7 +1436,7 @@ def stationQueueCount(vendorId):
                 test = Order_content.objects.filter(
                     orderId__in=all_orders, stationId=station.pk, status=singleStatus.pk
                 )
-                station_details[singleStatus.status] = len(test)
+                station_details[singleStatus.get_status_display()] = len(test)
                 response[station.station_name] = station_details
         return response
     except:

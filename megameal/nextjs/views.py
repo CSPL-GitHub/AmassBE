@@ -781,6 +781,8 @@ def get_banner(request):
                     todays_special_list = product_list
         
         return JsonResponse({
+            "currency": vendor_instance.currency,
+            "currency_symbol": vendor_instance.currency_symbol,
             "banners": banner_list,
             "recommendations": recommendation_list,
             "todays_special": todays_special_list

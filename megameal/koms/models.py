@@ -2,7 +2,7 @@ from django.db import models
 from core.models import Vendor
 from order.models import Order as MasterOrder
 from woms.models import HotelTable
-from core.utils import KOMSOrderStatus
+from core.utils import KOMSOrderStatus as koms_order_status
 
 
 
@@ -47,7 +47,7 @@ class Station(models.Model):
 
 class Order(models.Model):
     master_order = models.ForeignKey(MasterOrder, on_delete=models.CASCADE, related_name="master_order_id")
-    externalOrderId = models.IntegerField(unique=True)
+    externalOrderId = models.PositiveBigIntegerField(unique=True)
     order_status = models.IntegerField()
     order_note = models.CharField(max_length=100, null=True, blank=True)
     order_type = models.IntegerField()
@@ -153,7 +153,7 @@ class UserSettings(models.Model):
 
 
 class KOMSOrderStatus(models.Model):
-    status = models.IntegerField(choices=KOMSOrderStatus.choices, unique=True)
+    status = models.IntegerField(choices=koms_order_status.choices, unique=True)
 
     def __str__(self):
         return self.get_status_display()

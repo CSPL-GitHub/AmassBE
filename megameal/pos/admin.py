@@ -2,12 +2,20 @@ from django.contrib import admin
 from pos.models import *
 
 
+@admin.register(Department)
+class DepartmentAdmin(admin.ModelAdmin):
+    list_display = ('name','vendor',)
+    list_filter = ('name','vendor')
+    search_fields = ('name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(CoreUserCategory)
 class CoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'platform', 'name', 'permissions',)
+    fields = ('vendor', 'department', 'is_editable', 'name', 'permissions',)
 
-    list_display = ('name', 'platform', 'vendor',)
-    list_filter = ('vendor', 'platform',)
+    list_display = ('name', 'department', 'is_editable', 'vendor',)
+    list_filter = ('vendor', 'department', 'is_editable',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
@@ -15,12 +23,12 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
 @admin.register(CoreUser)
 class CoreUserAdmin(admin.ModelAdmin):
     fields = (
-        'vendor', 'is_active', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
-        'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2', 'groups',
+        'vendor', 'is_active', 'is_head', 'reports_to', 'username', 'password', 'first_name', 'last_name', 'email',
+        'phone_number', 'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2', 'groups',
     )
 
-    list_display = ('first_name', 'last_name', 'username', 'is_active', 'vendor',)
-    list_filter = ('vendor', 'groups',)
+    list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
+    list_filter = ('vendor', 'groups', 'is_head',)
     search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
     # show_facets = admin.ShowFacets.ALWAYS
 
@@ -57,10 +65,3 @@ class StoreTimingAdmin(admin.ModelAdmin):
     search_fields = ('slot_identity','day')
     # show_facets = admin.ShowFacets.ALWAYS
 
-
-@admin.register(Department)
-class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name','vendor',)
-    list_filter = ('name','vendor')
-    search_fields = ('name',)
-    # show_facets = admin.ShowFacets.ALWAYS
