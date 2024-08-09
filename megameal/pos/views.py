@@ -2484,7 +2484,7 @@ def createOrder(request):
         if (not platform) or (platform.isActive == False):
             return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST, safe=False)
         
-        orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S")
+        orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S%f")[:15]
 
         result = {
             "language": language,
