@@ -48,7 +48,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, POSPermission, CashRegister
+from pos.models import POSUser ,StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
