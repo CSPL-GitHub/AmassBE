@@ -371,10 +371,12 @@ def translation(request,txt=''):
 
 
 @api_view(['POST'])
-def createOrder(request,vendorId=1):
+def createOrder(request, vendorId=1):
     try:
-        print(request.data)
-        orderid=str(CorePlatform.KIOSK)+datetime.datetime.now().strftime("%H%M%S")
+        platform = Platform.objects.filter(Name="Kiosk", VendorId=vendorId).first()
+
+        orderid = str(vendorId) + str(platform.pk) + datetime.datetime.now().strftime("%H%M%S%f")[:15]
+
         result = {
                 "internalOrderId": orderid,
                 "vendorId": vendorId,
