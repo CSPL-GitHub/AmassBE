@@ -1320,14 +1320,14 @@ def getOrder(ticketId, vendorId, language="English"):
 
         product_name = ""
         station_name = ""
+
+        product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
         
         if language == "English":
-            product_name = singleContent.name
+            product_name = product_instance.productName
             station_name = singleContent.stationId.station_name
 
         else:
-            product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-
             product_name = product_instance.productName_locale
             station_name = singleContent.stationId.station_name_locale
 
@@ -1345,8 +1345,6 @@ def getOrder(ticketId, vendorId, language="English"):
         product_price = 0.0
         recipe_video_url = ""
         
-        product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
-
         if product_instance:
             product_price = product_instance.productPrice
             recipe_video_url = product_instance.recipe_video_url if product_instance.recipe_video_url else ""
