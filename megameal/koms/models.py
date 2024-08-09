@@ -47,7 +47,7 @@ class Station(models.Model):
 
 class Order(models.Model):
     master_order = models.ForeignKey(MasterOrder, on_delete=models.CASCADE, related_name="master_order_id")
-    externalOrderId = models.IntegerField(unique=True)
+    externalOrderId = models.CharField(max_length=200, unique=True)
     order_status = models.IntegerField()
     order_note = models.CharField(max_length=100, null=True, blank=True)
     order_type = models.IntegerField()
