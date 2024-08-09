@@ -22,7 +22,6 @@ router.register("setting/users", views.CoreUserModelViewSet, basename="core_user
 urlpatterns = [
    path('login/', views.login),
    path('language/', views.pos_lanuage_setting, name="language"),
-   path('pos_menu/', views.get_pos_menu, name="pos_menu"),
    path('allCategory/',views.allCategory), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
