@@ -75,3 +75,16 @@ class StoreTimingAdmin(admin.ModelAdmin):
     search_fields = ('slot_identity','day')
     # show_facets = admin.ShowFacets.ALWAYS
 
+
+@admin.register(CashRegister)
+class CashRegisterAdmin(admin.ModelAdmin):
+    fields = (
+        "vendor", "balance_while_store_opening", "balance_while_store_closing",
+        "created_by", "created_at", "edited_by", "edited_at",
+    )
+
+    readonly_fields = ("created_at", "edited_at",)
+
+    list_display = ("balance_while_store_opening", "balance_while_store_closing", "vendor",)
+    list_filter = ("vendor",)
+    search_fields = ("vendor__name",)
