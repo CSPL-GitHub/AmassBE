@@ -213,7 +213,6 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
 
         if password:
             serializer.save(password=make_password(password))
-            
         else:
             serializer.save()
 
@@ -9153,10 +9152,10 @@ def get_cash_register_history(request):
         cash_register_history_list.append({
             "balance_while_store_opening": instance.balance_while_store_opening,
             "balance_while_store_closing": instance.balance_while_store_closing,
-            "created_by": instance.created_by,
-            "created_at": instance.created_at,
-            "edited_by": instance.edited_by,
-            "edited_at": instance.edited_at,
+            "created_by": instance.created_by.pk,
+            "created_at": instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_by": instance.edited_by.pk,
+            "edited_at": instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
     return JsonResponse({"message": "", "history": cash_register_history_list})
@@ -9164,56 +9163,68 @@ def get_cash_register_history(request):
 
 @api_view(["POST", "PATCH"])
 def register_cash(request):
-    balance = request.GET.get("balance")
-    user_id = request.GET.get("user_id")
-    vendor_id = request.GET.get("vendor_id")
-
-    if not all((balance, user_id, vendor_id)):
-        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        balance = int(balance)
-        user_id = int(user_id)
-        vendor_id = int(vendor_id)
+        balance = request.data.get("balance")
+        user_id = request.data.get("user_id")
+        vendor_id = request.data.get("vendor_id")
 
-    except ValueError:
-        return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+        if not all((balance, user_id, vendor_id)):
+            return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            balance = float(balance)
+            user_id = int(user_id)
+            vendor_id = int(vendor_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        user_instance = CoreUser.objects.filter(pk=user_id, vendor=vendor_id).first()
+        
+        if not user_instance:
+            return JsonResponse({"message": "User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.method == "POST":
+            cash_register_instance = CashRegister.objects.filter(
+                created_at__date = datetime.now().date(),
+                vendor = vendor_id
+            ).first()
+
+            if cash_register_instance:
+                return JsonResponse({"message": "You have already registered today's store opening cash balance today"}, status=status.HTTP_400_BAD_REQUEST)
+
+            cash_register_instance = CashRegister.objects.create(
+                balance_while_store_opening = balance,
+                created_by = user_instance,
+                edited_by = user_instance,
+                vendor = vendor_instance
+            )
+
+        elif request.method == "PATCH":
+            cash_register_instance = CashRegister.objects.filter(
+                created_at__date = datetime.now().date(),
+                vendor = vendor_id
+            ).first()
+
+            cash_register_instance.balance_while_store_closing = balance
+            cash_register_instance.edited_by = user_instance
+
+            cash_register_instance.save()
+
+        return JsonResponse({
+            "message": "",
+            "balance_while_store_opening": cash_register_instance.balance_while_store_opening,
+            "balance_while_store_closing": cash_register_instance.balance_while_store_closing,
+            "created_by": cash_register_instance.created_by.pk,
+            "created_at": cash_register_instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_by": cash_register_instance.edited_by.pk,
+            "edited_at": cash_register_instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+        })
     
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-
-    if not vendor_instance:
-        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    user_instance = CoreUser.objects.filter(pk=user_id, vendor=vendor_id).first()
-    
-    if not user_instance:
-        return JsonResponse({"message": "User does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if request.method == "POST":
-        cash_register_instance = CashRegister.objects.create(
-            balance_while_store_opening = balance,
-            created_by = user_instance,
-            edited_by = user_instance,
-            vendor = vendor_instance
-        )
-
-    elif request.method == "PATCH":
-        cash_register_instance = CashRegister.objects.filter(
-            created_at__date = datetime.now().date(),
-            vendor = vendor_id
-        ).first()
-
-        cash_register_instance.balance_while_store_closing = balance
-        cash_register_instance.edited_by = user_instance
-
-        cash_register_instance = cash_register_instance.save()
-
-    return JsonResponse({
-        "message": "",
-        "balance_while_store_opening": cash_register_instance.balance_while_store_opening,
-        "balance_while_store_closing": cash_register_instance.balance_while_store_closing,
-        "created_by": cash_register_instance.created_by,
-        "created_at": cash_register_instance.created_at,
-        "edited_by": cash_register_instance.edited_by,
-        "edited_at": cash_register_instance.edited_at,
-    })
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
