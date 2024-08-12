@@ -317,7 +317,8 @@ class StagingIntegration():
                     "delivery_charge": round(order.delivery_charge, 2),
                     "tax_details": tax_details,
                     "total_amount": round(order.TotalAmount, 2),
-                    "logo_url": f"{vendor_instance.logo.url}" if vendor_instance.logo else ""
+                    "logo_url": f"{vendor_instance.logo.url}" if vendor_instance.logo else "",
+                    "currency": vendor_instance.currency_symbol,
                 }
                 
                 email_body = render_to_string('email.html', context)
