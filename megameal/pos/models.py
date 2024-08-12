@@ -98,6 +98,7 @@ class POSPermission(models.Model):
     show_tax_setting = models.BooleanField(default=False)
     show_delivery_charge_setting = models.BooleanField(default=False)
     show_loyalty_points_setting = models.BooleanField(default=False)
+    show_cash_register_setting = models.BooleanField(default=False)
     show_customer_setting = models.BooleanField(default=False)
     show_printer_setting = models.BooleanField(default=False)
     show_payment_machine_setting = models.BooleanField(default=False)
