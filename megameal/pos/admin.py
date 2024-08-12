@@ -33,14 +33,24 @@ class CoreUserAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
+@admin.register(POSPermission)
+class POSPermissionAdmin(admin.ModelAdmin):
+    fields = (
+        "vendor", "core_user_category", "show_dashboard", "show_tables_page", "show_place_order_page",
+        "show_order_history_page", "show_product_menu", "show_store_time_setting", "show_tax_setting",
+        "show_delivery_charge_setting", "show_loyalty_points_setting", "show_customer_setting", "show_printer_setting",
+        "show_payment_machine_setting", "show_banner_setting", "show_excel_file_setting", "show_employee_setting",
+        "show_reports", "show_sop", "show_language_setting",  
+    )
+
+    list_display = ("core_user_category", "vendor",)
+    list_filter = ("vendor", "core_user_category__department",)
+    search_fields = ("core_user_category__name", "core_user_category__department__name", "vendor__name",)
+
+
 @admin.register(POSSetting)
 class POSSettingAdmin(admin.ModelAdmin):
     fields = ('vendor', 'store_status', 'delivery_kilometer_limit', 'delivery_charges_for_kilometer_limit')
-
-
-@admin.register(POSMenu)
-class POSMenuAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'is_sop_active',)
 
 
 @admin.register(Banner)
