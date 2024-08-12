@@ -626,7 +626,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
         master_order = coreOrder.objects.filter(Q(externalOrderId=str(data.get('orderId'))) | Q(pk=str(data.get('orderId')))).first()
 
-        payment_type = OrderPayment.objects.filter(orderId=master_order.pk).last()
+        payment_type = OrderPayment.objects.filter(orderId=master_order.pk,masterPaymentId=None).last()
         
         if payment_type:
             payment_mode = payment_type_english[payment_type.type]
@@ -644,9 +644,20 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             "paymentKey": payment_type.paymentKey,
             "platform": payment_type.platform,
             "status": payment_type.status,
-            "mode": payment_mode
+            "mode": payment_mode,
+            "split_payments":[]
         }
-
+        split_payments_list = [{
+                "paymentId": split_payment.pk,
+                "paymentBy": split_payment.paymentBy,
+                "paymentKey": split_payment.paymentKey,
+                "amount_paid": split_payment.paid,
+                "paymentType": split_payment.type,
+                "paymentStatus": split_payment.status,
+                "platform": split_payment.platform
+            } for split_payment in OrderPayment.objects.filter(masterPaymentId=payment_type.pk)]
+        
+        payment_details["split_payments"] = split_payments_list
         data['payment'] = payment_details
 
         platform_details = {
