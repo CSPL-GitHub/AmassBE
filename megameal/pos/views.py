@@ -144,39 +144,6 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         
         return JsonResponse({"departments": serializer.data})
-    
-    def create(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.data.get('vendor')
-
-        existing_department = Department.objects.filter(Q(name__iexact=name) & Q(vendor=vendor_id))
-
-        if existing_department.exists():
-            return Response(
-                {"error": "Department with this name already exists"},
-                status=status.HTTP_400_BAD_REQUEST
-        )
-
-        return super().create(request, *args, **kwargs)
-    
-    def update(self, request, *args, **kwargs):
-        name = request.data.get('name')
-        vendor_id = request.GET.get('vendor')
-
-        instance = self.get_object()
-
-        if name:
-            existing_department = Department.objects.filter(
-                Q(name__iexact=name) & ~Q(pk=instance.pk) & Q(vendor=vendor_id)
-            )
-
-            if existing_department.exists():
-                return Response(
-                    {"error": "Department with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-
-        return super().update(request, *args, **kwargs)
 
 
 class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
@@ -203,70 +170,9 @@ class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
 
         serializer_data = serializer.data
-        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'vendor': 1})
+        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'is_editable': False, 'department': 0, 'vendor': 1})
         
         return JsonResponse({"user_categories": serializer_data})
-
-    def create(self, request, *args, **kwargs):
-        try:
-            name = request.data.get('name')
-            vendor_id = request.data.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-            
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            core_user_category = CoreUserCategory(name=f"{name}_{vendor_id}", vendor_id=vendor_id)
-            core_user_category.save()
-
-            serializer = self.get_serializer(core_user_category)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
-        
-    def update(self, request, *args, **kwargs):
-        try:
-            instance = self.get_object()
-            name = request.data.get('name')
-            vendor_id = request.GET.get('vendor')
-
-            if not name: 
-                return JsonResponse({"name": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-                
-            if not vendor_id:
-                return JsonResponse({"vendor": ["This field is required."]}, status=status.HTTP_400_BAD_REQUEST)
-
-            existing_category = CoreUserCategory.objects.filter(
-                Q(name__iexact=f"{name}_{vendor_id}") & ~Q(pk=instance.pk) & Q(vendor_id=vendor_id)
-            )
-
-            if existing_category.exists():
-                return Response(
-                    {"error": "Category with this name already exists"},
-                    status=status.HTTP_400_BAD_REQUEST
-            )
-            
-            instance.name = f"{name}_{vendor_id}"
-            instance.save()
-
-            serializer = self.get_serializer(instance)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-    
-        except IntegrityError:
-            return JsonResponse({"name": ["group with this name already exists."]}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class CoreUserModelViewSet(viewsets.ModelViewSet):
@@ -287,7 +193,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
             if not group_id:
                 return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
 
-            elif group_id=='0':
+            elif group_id == '0':
                 return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
             
             else:
@@ -304,15 +210,19 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     
     def perform_create(self, serializer):
         password = self.request.data.get('password')
+
         if password:
             serializer.save(password=make_password(password))
+            
         else:
             serializer.save()
 
     def perform_update(self, serializer):
         password = self.request.data.get('password')
+
         if password:
             serializer.save(password=make_password(password))
+
         else:
             serializer.save()
 

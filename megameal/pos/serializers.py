@@ -279,7 +279,7 @@ class BannerModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class CoreUserCategoryModelSerializer(serializers.ModelSerializer):
+class DepartmentModelSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -292,13 +292,25 @@ class CoreUserCategoryModelSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
 
     class Meta:
-        model = CoreUserCategory
-        fields = ("id", "name", "vendor")
+        model = Department
+        fields = "__all__"
 
-    def to_representation(self, instance):
-        data = super().to_representation(instance)
-        data['name'] = instance.name.split('_')[0]
-        return data
+
+class CoreUserCategoryModelSerializer(serializers.ModelSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        if self.context["request"].method in ("PUT", "PATCH",):
+            excluded_fields = ("vendor", "is_editable",)
+
+            for field_name in excluded_fields:
+                self.fields.pop(field_name)
+
+    id = serializers.IntegerField(read_only=True)
+
+    class Meta:
+        model = CoreUserCategory
+        fields = ("id", "name", "is_editable", "department", "vendor",)
 
 
 class CoreUserModelSerializer(serializers.ModelSerializer):
@@ -341,20 +353,3 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
             data['profile_picture'] = ''
 
         return data
-
-
-class DepartmentModelSerializer(serializers.ModelSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if self.context["request"].method in ("PUT", "PATCH",):
-            excluded_fields = ("vendor",)
-
-            for field_name in excluded_fields:
-                self.fields.pop(field_name)
-
-    id = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = Department
-        fields = "__all__"
