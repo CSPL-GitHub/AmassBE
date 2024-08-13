@@ -48,7 +48,9 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister
+from pos.models import (
+    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, DeparmentAndCoreUserCategory, CoreUser, CashRegister
+)
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -83,27 +85,6 @@ from operator import itemgetter
 import calendar
 import pgeocode
 
-
-
-def date_sort_top_selling_products(item):
-    return item["order_date"]
-
-
-def date_sort(date):
-    year, month, day = date.split('-')
-    return (int(year), int(month), int(day))
-
-
-def date_sort_dashboard(item):
-    return item["date"]
-
-
-def date_sort_order_status_type_summary(item):
-    return item["order_date"]
-
-
-def get_order_id(order_data):
-    return order_data["orderId"]
 
 
 class CustomPagination(PageNumberPagination):
@@ -9224,8 +9205,6 @@ def register_cash(request):
         return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-
-
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
@@ -9262,17 +9241,19 @@ def splitOrderPayment(request):
     
     for splitPayment in data["payments"]:
         OrderPayment(
-            orderId=coreOrder,
-            masterPaymentId=payment,
-            paymentBy=coreOrder.customerId.Email or "",
-            paymentKey=splitPayment.get("paymentKey",""),
-            paid=splitPayment.get("amount_paid",0.0),
-            due=0.0,
-            tip=splitPayment.get('tip',0.0),
-            status=splitPayment.get("paymentStatus", False),
-            type=PaymentType.get_payment_number(splitPayment.get("paymentType", PaymentType.CASH)),
-            platform=splitPayment.get("platform", ""),
-            splitType=splitPayment.get("splitType", None),
+            orderId = coreOrder,
+            masterPaymentId = payment,
+            paymentBy = coreOrder.customerId.Email or "",
+            paymentKey = splitPayment.get("paymentKey",""),
+            paid = splitPayment.get("amount_paid",0.0),
+            due = 0.0,
+            tip = splitPayment.get('tip',0.0),
+            status = splitPayment.get("paymentStatus", False),
+            type = PaymentType.get_payment_number(splitPayment.get("paymentType", PaymentType.CASH)),
+            platform = splitPayment.get("platform", ""),
+            splitType = splitPayment.get("splitType", None),
         ).save()
+
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+    
     return Response({})
