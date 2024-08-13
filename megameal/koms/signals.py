@@ -37,3 +37,28 @@ def send_complete_order_notification(sender, instance, **kwargs):
                     stn = [f'WOMS{waiter_head.pk}'],
                     vendorId = vendor_id
                 )
+
+        # OneSignal
+        # from nextjs.push_notification import send_push_notification
+        # response = send_push_notification(['a11797c8-ded9-46ca-b95c-6b586807de84',], "Order is ready", "Order ID")
+        # print(response)
+
+        # FCM
+        # from pyfcm import FCMNotification
+        # device_token = instance.customerId.device_token
+        
+        # fcm = FCMNotification(
+        #     service_account_file="/home/megameal/dev/megameal/megameal/nextjs/megameal-7f6c9-firebase-adminsdk-pzzb8-65f0140314.json",
+        #     project_id="megameal-7f6c9"
+        # )
+        
+        # notification_title = "Order is ready"
+        # notification_body = f"Your order #{instance.id} is ready for dispatch."
+
+        # result = fcm.notify(
+        #     fcm_token=device_token,
+        #     notification_title=notification_title,
+        #     notification_body=notification_body,
+        # )
+       
+        # print(result)

@@ -127,12 +127,3 @@ class CashRegister(models.Model):
     edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
     edited_at = models.DateTimeField(auto_now=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_cash_register")
-
-
-
-@receiver(post_save, sender=Vendor)
-def deactivate_related_users(sender, instance, **kwargs):
-    if not kwargs.get('raw', False):  # To avoid signal firing during bulk operations
-        if instance.is_active is False:  # When is_active of Vendor changes to False
-            related_users = POSUser.objects.filter(vendor=instance)
-            related_users.update(is_active=False)
