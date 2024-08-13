@@ -9141,8 +9141,7 @@ def generate_language_translation_excel(request):
 @api_view(["GET"])
 def get_cash_register_history(request):
     vendor_id = request.GET.get("vendor")
-
-    cash_register_history = CashRegister.objects.filter(vendor=vendor_id)
+    date = request.GET.get("date")
 
     if not vendor_id:
         return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
@@ -9158,7 +9157,22 @@ def get_cash_register_history(request):
     if not vendor_instance:
         return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
+    if date:
+        cash_register_history = CashRegister.objects.filter(created_at__date=date, vendor=vendor_id).first()
+
+        return JsonResponse({
+            "message": "",
+            "balance_while_store_opening": cash_register_history.balance_while_store_opening,
+            "balance_while_store_closing": cash_register_history.balance_while_store_closing,
+            "created_by": cash_register_history.created_by.pk,
+            "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_by": cash_register_history.edited_by.pk,
+            "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+        })
+
     cash_register_history_list = []
+    
+    cash_register_history = CashRegister.objects.filter(vendor=vendor_id)
 
     for instance in cash_register_history:
         cash_register_history_list.append({
