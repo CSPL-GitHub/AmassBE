@@ -8,6 +8,7 @@ class DepartmentAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_active', 'vendor',)
     list_filter = ('is_active', 'vendor')
     search_fields = ('name',)
+    ordering = ('vendor', 'name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -18,6 +19,18 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
     list_display = ('name', 'is_editable', 'vendor',)
     list_filter = ('vendor', 'is_editable',)
     search_fields = ('name',)
+    ordering = ('vendor', 'name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(DeparmentAndCoreUserCategory)
+class DeparmentAndCoreUserCategoryAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'department', 'core_user_category', 'is_core_category_active',)
+
+    list_display = ('department', 'core_user_category', 'is_core_category_active', 'vendor',)
+    list_filter = ('is_core_category_active', 'vendor',)
+    search_fields = ('department__name', 'core_user_category__name', 'vendor__name')
+    ordering = ('vendor', 'department', 'core_user_category',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -32,6 +45,7 @@ class CoreUserAdmin(admin.ModelAdmin):
     list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
     list_filter = ('vendor', 'groups', 'is_head',)
     search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
+    ordering = ('vendor', 'first_name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -87,6 +101,7 @@ class CashRegisterAdmin(admin.ModelAdmin):
 
     readonly_fields = ("created_at", "edited_at",)
 
-    list_display = ("balance_while_store_opening", "balance_while_store_closing", "vendor",)
+    list_display = ("created_at", "balance_while_store_opening", "balance_while_store_closing", "vendor",)
     list_filter = ("vendor",)
     search_fields = ("vendor__name",)
+    ordering = ('vendor', '-created_at',)
