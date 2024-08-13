@@ -296,23 +296,6 @@ class DepartmentModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class CoreUserCategoryModelSerializer(serializers.ModelSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if self.context["request"].method in ("PUT", "PATCH",):
-            excluded_fields = ("vendor", "is_editable",)
-
-            for field_name in excluded_fields:
-                self.fields.pop(field_name)
-
-    id = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = CoreUserCategory
-        fields = ("id", "name", "is_editable", "department", "vendor",)
-
-
 class CoreUserModelSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

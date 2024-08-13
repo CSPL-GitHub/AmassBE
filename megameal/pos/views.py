@@ -35,7 +35,7 @@ from pos.serializers import (
     WaiterSerializer, FloorSerializer, HotelTableSerializer , StoreTImingSerializer, ProductCategorySerializer,
     ProductSerializer, ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer,
     ModifierGroupSerializer, ModifierSerializer, StationModelSerializer, DiscountCouponModelSerializer,
-    ChefModelSerializer, BannerModelSerializer, CoreUserCategoryModelSerializer, CoreUserModelSerializer,
+    ChefModelSerializer, BannerModelSerializer, CoreUserModelSerializer,
     DepartmentModelSerializer,
 )
 from pos.filters import (
@@ -144,35 +144,6 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         
         return JsonResponse({"departments": serializer.data})
-
-
-class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUserCategory.objects.all().order_by('-pk')
-    serializer_class = CoreUserCategoryModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
-        
-        return CoreUserCategory.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-
-        serializer_data = serializer.data
-        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'is_editable': False, 'department': 0, 'vendor': 1})
-        
-        return JsonResponse({"user_categories": serializer_data})
 
 
 class CoreUserModelViewSet(viewsets.ModelViewSet):
