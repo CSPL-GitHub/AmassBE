@@ -39,6 +39,7 @@ urlpatterns = [
    path('platform_list/', views.platform_list, name="platform_list"),
    path('order_details/', views.order_details, name="order_details"),
    path('updatePaymentDetails/', views.updatePaymentDetails, name="updatePaymentDetails"),
+   path('splitOrderPayment/', views.splitOrderPayment, name="splitOrderPayment"),
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
    path('store_status/', views.update_store_status, name="store_status"),
    path('order_data_socket/', views.order_data_socket, name="order_data_socket"), # for order_data socket testing purpose

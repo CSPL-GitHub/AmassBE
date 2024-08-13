@@ -1,16 +1,17 @@
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
   <title>Order Confirmation</title>
+
   <style type="text/css">
     @charset "UTF-8";
 
-    *,
-    *::before,
-    *::after {
+    *, *::before, *::after {
       box-sizing: border-box;
     }
 
@@ -37,8 +38,7 @@
       margin-bottom: 1rem;
     }
 
-    b,
-    strong {
+    b, strong {
       font-weight: bolder;
     }
 
@@ -59,51 +59,31 @@
     }
 
     @media (min-width: 576px) {
-
-      .container-sm,
-      .container {
+      .container-sm, .container {
         max-width: 540px;
       }
     }
 
     @media (min-width: 768px) {
-
-      .container-md,
-      .container-sm,
-      .container {
+      .container-md, .container-sm, .container {
         max-width: 720px;
       }
     }
 
     @media (min-width: 992px) {
-
-      .container-lg,
-      .container-md,
-      .container-sm,
-      .container {
+      .container-lg, .container-md, .container-sm, .container {
         max-width: 960px;
       }
     }
 
     @media (min-width: 1200px) {
-
-      .container-xl,
-      .container-lg,
-      .container-md,
-      .container-sm,
-      .container {
+      .container-xl, .container-lg, .container-md, .container-sm, .container {
         max-width: 1140px;
       }
     }
 
     @media (min-width: 1400px) {
-
-      .container-xxl,
-      .container-xl,
-      .container-lg,
-      .container-md,
-      .container-sm,
-      .container {
+      .container-xxl, .container-xl, .container-lg, .container-md, .container-sm, .container {
         max-width: 1320px;
       }
     }
@@ -118,12 +98,7 @@
       text-align: -webkit-match-parent;
     }
 
-    thead,
-    tbody,
-    tfoot,
-    tr,
-    td,
-    th {
+    thead, tbody, tfoot, tr, td, th {
       border-color: inherit;
       border-style: solid;
       border-width: 0;
@@ -250,47 +225,55 @@
       <thead style="background-color:#F0FFFF;">
         <th>
           <div class="align-items-center">
-            <img src="{{logo_url}}" id="logo">
-            &nbsp;&nbsp;&nbsp;&nbsp;<p id="order-online-text" style="margin-top: 20px;">Order Online</p>
+            <img src="{{ logo_url }}" id="logo">
+
+            &nbsp;&nbsp;&nbsp;&nbsp;<p id="order-online-text" style="margin-top: 20px;">Order Confirmation</p>
           </div>
         </th>
       </thead>
+
       <tbody>
         <td>
-          <br>Hi {{first_name}},<br>
-          Your order <b>{{order_type}}</b> order is placed successfully. Your Order ID is <b>#{{order_id}}</b>.
+          <br>Hi {{ first_name }},<br>
+          Your <b>{{ order_type }}</b> order is placed successfully. Your Order ID is <b>#{{ order_id }}</b>.
         </td>
       </tbody>
+
       <table class="table table-bordered">
         <thead>
-          <th style="background-color: #3ab1c8; color: white;" colspan="2">Contact Information</th>
+          <th style="background-color: #3ab1c8; color: white;" colspan="2">Personal Details</th>
         </thead>
+
         <tbody style="background-color: #F0FFFF;">
           <tr>
             <td>Name</td>
-            <td>{{full_name}}</td>
+            <td>{{ full_name }}</td>
           </tr>
+
           <tr>
             <td>Phone number</td>
-            <td>{{phone_number}}</td>
+            <td>{{ phone_number }}</td>
           </tr>
+
           <tr>
             <td>Email ID</td>
-            <td>{{email}}</td>
+            <td>{{ email }}</td>
           </tr>
+
           <tr>
             {% if order_type != 'PICKUP'%}
               <td>Delivery Address</td>
               <td>
-                Address line 1: {{shipping_address.address_line1}}<br>
-                Address line 2: {{shipping_address.address_line2}}<br>
-                City: {{shipping_address.city}}<br>
-                State: {{shipping_address.state}}<br>
-                Country: {{shipping_address.country}}
-                Pincode: {{shipping_address.zipcode}}
+                Address line 1: {{ shipping_address.address_line1 }}<br>
+                Address line 2: {{ shipping_address.address_line2 }}<br>
+                City: {{ shipping_address.city }}<br>
+                State: {{ shipping_address.state }}<br> 
+                Country: {{ shipping_address.country }}
+                Pincode: {{ shipping_address.zipcode }}
               </td>
             {% endif %}
           </tr>
+
           <tr>
             <table class="table table-bordered">
               <thead>
@@ -301,65 +284,77 @@
                   <th>#</th>
                   <th>Item</th>
                   <th>Quantity</th>
-                  <th>Price (in Rs.)</th>
+                  <th>Price (in {{currency}})</th>
                 </tr>
               </thead>
+
               <tbody class="table-info center-text" style="background-color: #F0FFFF;">
-                {% for product in product_details%}
-                <tr>
-                  {% if product.modifiers %}
-                  <td>{{product.counter}}</td>
-                  <td style="text-align: left;">
-                    {{product.name}} (Rs.{{product.price}})
-                    {% for modifier in product.modifiers%}
-                    <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;{{modifier.name}} (Rs.{{modifier.price}})
-                    {% endfor %}
-                  </td>
-                  <td>
-                    {{product.quantity}}
-                    {% for modifier in product.modifiers%}
-                    <br>{{modifier.quantity}}{{endfor}}
-                    {% endfor %}
-                  </td>
-                  <td>
-                    {{product.amount}}
-                    {% for modifier in product.modifiers%}
-                    <br>{{modifier.amount}}
-                    {% endfor %}
-                  </td>
-                  {% else %}
-                  <td>{{product.counter}}</td>
-                  <td style="text-align: left;">{{product.name}} (Rs.{{product.price}})</td>
-                  <td>{{product.quantity}}</td>
-                  <td>{{product.amount}}</td>
-                  {% endif %}
-                </tr>
+                {% for product in product_details %}
+                  <tr>
+                    {% if product.modifiers %}
+                      <td>{{ product.counter }}</td>
+
+                      <td style="text-align: left;">
+                        {{ product.name }} ({{ currency }} {{ product.price }})
+
+                        {% for modifier in product.modifiers %}
+                          <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;{{ modifier.name }} ({{ currency }} {{ modifier.price }})
+                        {% endfor %}
+                      </td>
+
+                      <td>
+                        {{ product.quantity }}
+
+                        {% for modifier in product.modifiers %}
+                          <br>{{ modifier.quantity }}
+                        {% endfor %}
+                      </td>
+
+                      <td>
+                        {{ product.amount }}
+
+                        {% for modifier in product.modifiers %}
+                          <br>{{ modifier.amount }}
+                        {% endfor %}
+                      </td>
+
+                    {% else %}
+                      <td>{{ product.counter }}</td>
+                      <td style="text-align: left;">{{ product.name }} ({{ currency }} {{ product.price }})</td>
+                      <td>{{ product.quantity }}</td>
+                      <td>{{ product.amount }}</td>
+                    {% endif %}
+                  </tr>
                 {%endfor%}
               </tbody>
+              
               <tfoot style="background-color: #F0FFFF;">
                 <tr>
                   <td colspan="3">Subtotal</td>
-                  <td class="center-text">{{subtotal}}</td>
+                  <td class="center-text">{{ subtotal }}</td>
                 </tr>
+
                 <tr>
                   <td colspan="3">Discount (if applicable)</td>
-                  <td class="center-text">{{discount}}</td>
+                  <td class="center-text">{{ discount }}</td>
                 </tr>
+
                 <tr>
                   <td colspan="3">Delivery charge (if applicable)</td>
-                  <td class="center-text">{{delivery_charge}}</td>
+                  <td class="center-text">{{ delivery_charge }}</td>
                 </tr>
+
                 {% if tax_details %}
-                {% for tax in tax_details%}
-                <tr>
-                  <td colspan="3">{{tax.name}} ({{tax.percentage}}%)</td>
-                  <td class="center-text">{{tax.amount}}</td>
-                </tr>
-                {% endfor %}
+                  {% for tax in tax_details %}
+                    <tr>
+                      <td colspan="3">{{ tax.name }} ({{ tax.percentage }}%)</td>
+                      <td class="center-text">{{ tax.amount }}</td>
+                    </tr>
+                  {% endfor %}
                 {% endif %}
                 <tr>
                   <td colspan="3"><b>Total amount</b></td>
-                  <td class="center-text"><b>{{total_amount}}</b></td>
+                  <td class="center-text"><b>{{ total_amount }}</b></td>
                 </tr>
               </tfoot>
             </table>

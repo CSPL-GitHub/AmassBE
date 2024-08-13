@@ -1,18 +1,9 @@
 from django.db import models
 from core.models import Vendor, Platform
-from pos.model_choices import platform_choices
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.contrib.auth.models import Group, User
 
-
-
-class POSMenu(models.Model):
-    is_sop_active = models.BooleanField(default=False)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-    def __str__(self):
-        return self.vendor.Name
 
 
 class StoreTiming(models.Model):
@@ -72,6 +63,9 @@ class Department(models.Model):
     class Meta:
         unique_together = ('name', 'vendor')
 
+    def __str__(self):
+        return self.name
+
 
 class CoreUserCategory(Group):
     is_editable = models.BooleanField(default=True)
@@ -94,9 +88,33 @@ class CoreUser(User):
         unique_together = ('phone_number', 'vendor')
 
 
+class POSPermission(models.Model):
+    show_dashboard = models.BooleanField(default=False)
+    show_tables_page = models.BooleanField(default=False)
+    show_place_order_page = models.BooleanField(default=False)
+    show_order_history_page = models.BooleanField(default=False)
+    show_product_menu = models.BooleanField(default=False)
+    show_store_time_setting = models.BooleanField(default=False)
+    show_tax_setting = models.BooleanField(default=False)
+    show_delivery_charge_setting = models.BooleanField(default=False)
+    show_loyalty_points_setting = models.BooleanField(default=False)
+    show_cash_register_setting = models.BooleanField(default=False)
+    show_customer_setting = models.BooleanField(default=False)
+    show_printer_setting = models.BooleanField(default=False)
+    show_payment_machine_setting = models.BooleanField(default=False)
+    show_banner_setting = models.BooleanField(default=False)
+    show_excel_file_setting = models.BooleanField(default=False)
+    show_employee_setting = models.BooleanField(default=False)
+    show_reports = models.BooleanField(default=False)
+    show_sop = models.BooleanField(default=False)
+    show_language_setting = models.BooleanField(default=False)
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+
 class CashRegister(models.Model):
-    balance_while_store_opening = models.IntegerField()
-    balance_while_store_closing = models.IntegerField(default=0)
+    balance_while_store_opening = models.FloatField()
+    balance_while_store_closing = models.FloatField(default=0.0)
     created_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="opening_cash_entered_by")
     created_at = models.DateTimeField(auto_now_add=True)
     edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
