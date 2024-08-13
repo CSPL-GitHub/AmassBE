@@ -2,20 +2,21 @@ from django.contrib import admin
 from pos.models import *
 
 
+
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name','vendor',)
-    list_filter = ('name','vendor')
+    list_display = ('name', 'is_active', 'vendor',)
+    list_filter = ('is_active', 'vendor')
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(CoreUserCategory)
 class CoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'department', 'is_editable', 'name', 'permissions',)
+    fields = ('vendor', 'name', 'is_editable', 'permissions',)
 
-    list_display = ('name', 'department', 'is_editable', 'vendor',)
-    list_filter = ('vendor', 'department', 'is_editable',)
+    list_display = ('name', 'is_editable', 'vendor',)
+    list_filter = ('vendor', 'is_editable',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
@@ -23,8 +24,9 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
 @admin.register(CoreUser)
 class CoreUserAdmin(admin.ModelAdmin):
     fields = (
-        'vendor', 'is_active', 'is_head', 'reports_to', 'username', 'password', 'first_name', 'last_name', 'email',
-        'phone_number', 'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2', 'groups',
+        'vendor', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
+        'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2',
+        'is_active', 'is_head', 'reports_to', 'groups',
     )
 
     list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
@@ -44,8 +46,8 @@ class POSPermissionAdmin(admin.ModelAdmin):
     )
 
     list_display = ("core_user_category", "vendor",)
-    list_filter = ("vendor", "core_user_category__department",)
-    search_fields = ("core_user_category__name", "core_user_category__department__name", "vendor__name",)
+    list_filter = ("vendor",)
+    search_fields = ("core_user_category__name", "vendor__name",)
 
 
 @admin.register(POSSetting)

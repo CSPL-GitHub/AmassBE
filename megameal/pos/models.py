@@ -58,6 +58,7 @@ class POSSetting(models.Model):
 
 class Department(models.Model):
     name = models.CharField(max_length=150)
+    is_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
 
     class Meta:
@@ -69,8 +70,14 @@ class Department(models.Model):
 
 class CoreUserCategory(Group):
     is_editable = models.BooleanField(default=True)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="user_department")
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
+
+
+class DeparmentAndCoreUserCategory(Group):
+    department = models.ForeignKey(Department, on_delete=models.CASCADE)
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
+    is_core_category_active = models.BooleanField(default=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
 class CoreUser(User):
