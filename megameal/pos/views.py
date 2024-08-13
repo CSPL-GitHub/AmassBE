@@ -9146,14 +9146,25 @@ def get_cash_register_history(request):
     if date:
         cash_register_history = CashRegister.objects.filter(created_at__date=date, vendor=vendor_id).first()
 
+        if cash_register_history:
+            return JsonResponse({
+                "message": "",
+                "balance_while_store_opening": cash_register_history.balance_while_store_opening,
+                "balance_while_store_closing": cash_register_history.balance_while_store_closing,
+                "created_by": cash_register_history.created_by.pk,
+                "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "edited_by": cash_register_history.edited_by.pk,
+                "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            })
+        
         return JsonResponse({
             "message": "",
-            "balance_while_store_opening": cash_register_history.balance_while_store_opening,
-            "balance_while_store_closing": cash_register_history.balance_while_store_closing,
-            "created_by": cash_register_history.created_by.pk,
-            "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-            "edited_by": cash_register_history.edited_by.pk,
-            "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "balance_while_store_opening": 0.0,
+            "balance_while_store_closing": 0.0,
+            "created_by": 0,
+            "created_at": "",
+            "edited_by": 0,
+            "edited_at": "",
         })
 
     cash_register_history_list = []
