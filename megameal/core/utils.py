@@ -136,6 +136,7 @@ class PaymentType(models.IntegerChoices):
   CASH=1,"CASH"
   ONLINE=2,"ONLINE"
   BANK=3,"CARD"
+  SPLIT=4,"SPLIT"
   def get_payment_str(number):
       for order_action in PaymentType.choices:
         if order_action[0] == number:

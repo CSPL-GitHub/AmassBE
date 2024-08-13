@@ -1956,7 +1956,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
             master_order_instance = order.master_order
 
-            order_payment_instance = OrderPayment.objects.filter(orderId=master_order_instance.pk).last()
+            order_payment_instance = OrderPayment.objects.filter(orderId=master_order_instance.pk,masterPaymentId=None).last()
 
             if order_payment_instance:
                 payment_mode = payment_type_english[order_payment_instance.type]
@@ -1976,6 +1976,17 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     "status": order_payment_instance.status,
                     "mode": payment_mode
                 }
+                split_payments = OrderPayment.objects.filter(masterPaymentId=order_payment_instance.pk)
+                split_payments_list = [{
+                        "paymentId": split_payment.pk,
+                        "paymentBy": split_payment.paymentBy,
+                        "paymentKey": split_payment.paymentKey,
+                        "amount_paid": split_payment.paid,
+                        "paymentType": split_payment.type,
+                        "paymentStatus": split_payment.status,
+                        "platform": split_payment.platform
+                    } for split_payment in split_payments]
+                payment_details["split_payments"] = split_payments_list
 
             else:
                 payment_mode = payment_type_english[1]
@@ -2080,6 +2091,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         return response_data
     
     except Exception as e:
+        print(e)
         return str(e)
 
 
@@ -9129,8 +9141,7 @@ def generate_language_translation_excel(request):
 @api_view(["GET"])
 def get_cash_register_history(request):
     vendor_id = request.GET.get("vendor")
-
-    cash_register_history = CashRegister.objects.filter(vendor=vendor_id)
+    date = request.GET.get("date")
 
     if not vendor_id:
         return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
@@ -9146,7 +9157,22 @@ def get_cash_register_history(request):
     if not vendor_instance:
         return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
+    if date:
+        cash_register_history = CashRegister.objects.filter(created_at__date=date, vendor=vendor_id).first()
+
+        return JsonResponse({
+            "message": "",
+            "balance_while_store_opening": cash_register_history.balance_while_store_opening,
+            "balance_while_store_closing": cash_register_history.balance_while_store_closing,
+            "created_by": cash_register_history.created_by.pk,
+            "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_by": cash_register_history.edited_by.pk,
+            "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+        })
+
     cash_register_history_list = []
+    
+    cash_register_history = CashRegister.objects.filter(vendor=vendor_id)
 
     for instance in cash_register_history:
         cash_register_history_list.append({
@@ -9228,3 +9254,57 @@ def register_cash(request):
     
     except Exception as e:
         return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+
+
+@api_view(["POST", "PATCH"])
+def splitOrderPayment(request):
+    data = request.data
+
+    vendorId = request.GET.get('vendorId', None)
+    language = request.GET.get('language', 'English')
+
+    if vendorId is None:
+        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendorId = int(vendorId)
+
+    except ValueError:
+        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendorId).first()
+
+    if not vendor_instance:
+        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
+    order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
+
+    
+    coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
+        
+    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+
+    if not payment:
+        return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+    payment.type = PaymentType.SPLIT
+    payment.save()
+    
+    for splitPayment in data["payments"]:
+        OrderPayment(
+            orderId=coreOrder,
+            masterPaymentId=payment,
+            paymentBy=coreOrder.customerId.Email or "",
+            paymentKey=splitPayment.get("paymentKey",""),
+            paid=splitPayment.get("amount_paid",0.0),
+            due=0.0,
+            tip=splitPayment.get('tip',0.0),
+            status=splitPayment.get("paymentStatus", False),
+            type=PaymentType.get_payment_number(splitPayment.get("paymentType", PaymentType.CASH)),
+            platform=splitPayment.get("platform", ""),
+            splitType=splitPayment.get("splitType", None),
+        ).save()
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+    return Response({})

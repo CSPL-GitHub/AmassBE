@@ -95,12 +95,23 @@ class OriginalOrder(models.Model):
 
 class OrderPayment(models.Model):
     orderId = models.ForeignKey(Order, on_delete=models.CASCADE)
+    masterPaymentId = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
     paymentBy=models.CharField(max_length=122)
     paymentKey=models.CharField(max_length=255, null=True, blank=True)
     paid=models.FloatField()
     due=models.FloatField()
     tip=models.FloatField(default=0.0)
     type= models.IntegerField(choices=PaymentType.choices, default=PaymentType.CASH)
+    splitType = models.CharField(
+        max_length=50,
+        choices=(
+            ("by_percent", "by_percent"),
+            ("by_person", "by_person"),
+            ("by_product", "by_product"),
+        ),
+        null=True,
+        blank=True,
+    )
     status = models.BooleanField(default=False)
     platform = models.CharField(max_length=122,default="")
 
@@ -200,7 +211,7 @@ class Order_Discount(models.Model):
             'value': self.value,
             # 'plu': self.plu,
         }
-     
+
 
 class LoyaltyProgramSettings(models.Model):
     is_active = models.BooleanField(default=False)

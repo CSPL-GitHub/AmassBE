@@ -29,6 +29,7 @@ payment_type_english = {
     1: 'Cash',
     2: 'Online',
     3: 'Card',
+    4: 'Split'
 }
 
 platform_locale = (
@@ -122,6 +123,7 @@ language_localization = {
     "Revenue from Online Payment": "الإيرادات من الدفع عبر الإنترنت",
     "Revenue from Pickup": "الإيرادات من بيك اب",
     "Saturday": "السبت",
+    "Split":"ينقسم",
     "Sorted by": "مرتبة حسب",
     "Start Date": "تاريخ البدء",
     "Store is already closed": "المتجر مغلق",
