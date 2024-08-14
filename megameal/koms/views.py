@@ -574,22 +574,48 @@ def createOrderInKomsAndWoms(orderJson):
         wheelman=[i.pk for i in Station.objects.filter(isStation=False,vendorId=vendorId) ]
         
         if Platform.objects.filter(Name="KOMS",VendorId= vendorId).first().isActive :
-                webSocketPush(message=order_data, room_name=str(vendorId)+"-"+str(PENDINGINT), username="CORE")  # wheelMan Pending section
-                notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } on Table No {values_list} is arrived",stn=[4],vendorId=vendorId)
+            webSocketPush(message=order_data, room_name=str(vendorId)+"-"+str(PENDINGINT), username="CORE")  # wheelMan Pending section
+            
+            notify(
+                type = 1,
+                msg = order_save_data.id,
+                desc = f"Order No {order_save_data.master_order.pk} on Table No {values_list} is arrived",
+                stn = [4],
+                vendorId = vendorId
+            )
         
         else :
-                # processStation(oldStatus=str(8),currentStatus=str(8),orderId=order_save_data.id,station=content.stationId,vendorId=vendorId)
-                stnlist=[i.stationId.pk for i in Order_content.objects.filter(orderId=order_save_data.id)]
-                allStationWiseSingle(id=order_save_data.id,vendorId=vendorId)
-                notify(type=1,msg=order_save_data.id,desc=f"Order No { order_save_data.externalOrderId } is arrived",stn=stnlist,vendorId=vendorId)
+            stnlist = [i.stationId.pk for i in Order_content.objects.filter(orderId=order_save_data.id)]
+            
+            allStationWiseSingle(id=order_save_data.id,vendorId=vendorId)
+            
+            notify(
+                type = 1,
+                msg = order_save_data.id,
+                desc = f"Order No {order_save_data.master_order.pk} is arrived",
+                stn = stnlist,
+                vendorId = vendorId
+            )
         
         language = order_data.get("language", "English")
 
         if language == "English":
-            notify(type=1, msg=order_save_data.id, desc=f"Order No {order_save_data.externalOrderId} is arrived", stn=['POS'], vendorId=vendorId)
+            notify(
+                type = 1,
+                msg = order_save_data.id,
+                desc = f"Order No {order_save_data.master_order.pk} is arrived",
+                stn = ['POS'],
+                vendorId = vendorId
+            )
         
         else:
-            notify(type=1, msg=order_save_data.id, desc=order_has_arrived_locale(order_save_data.externalOrderId), stn=['POS'], vendorId=vendorId)
+            notify(
+                type = 1,
+                msg = order_save_data.id,
+                desc = order_has_arrived_locale(order_save_data.master_order.pk),
+                stn = ['POS'],
+                vendorId = vendorId
+            )
             
             
         waiteOrderUpdate(orderid=order_save_data.id, language=language, vendorId=vendorId)
