@@ -9219,6 +9219,53 @@ def register_cash(request):
         return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(["GET"])
+def get_core_user_categories(request):
+    try:
+        vendor_id = request.GET.get("vendor")
+        department_id = request.GET.get("department")
+
+        if not vendor_id or not department_id:
+            return JsonResponse({"message": "Invalid Vendor ID or Deparment ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
+            department_id = int(department_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid Vendor ID or Deparment ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        department_instance = Vendor.objects.filter(pk=department_id).first()
+
+        if not department_instance:
+            return JsonResponse({"message": "Department does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        category_list = []
+        
+        core_user_categories = DeparmentAndCoreUserCategory.objects.filter(department=department_id, vendor=vendor_id)
+
+        for instance in core_user_categories:
+            category_list.append({
+                "id": instance.core_user_category.pk,
+                "name": instance.core_user_category.name,
+                "is_editable": instance.core_user_category.is_editable,
+                "is_active": instance.is_core_category_active,
+            })
+        
+        return JsonResponse({
+            "message": "",
+            "user_categories": category_list
+        })
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
@@ -9262,9 +9309,9 @@ def splitOrderPayment(request):
             paid = splitPayment.get("amount_paid",0.0),
             due = 0.0,
             tip = splitPayment.get('tip',0.0),
-            status = splitPayment.get("paymentStatus", False),
-            type = PaymentType.get_payment_number(splitPayment.get("paymentType", PaymentType.CASH)),
-            platform = splitPayment.get("platform", ""),
+            status = splitPayment.get("paymentStatus") or  False,
+            type = PaymentType.get_payment_number(splitPayment.get("paymentType") or "CASH"),
+            platform = splitPayment.get("platform") or "",
             splitType = splitPayment.get("splitType", None),
         ).save()
 
