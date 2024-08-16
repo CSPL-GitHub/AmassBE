@@ -58,6 +58,7 @@ class POSSetting(models.Model):
 
 class Department(models.Model):
     name = models.CharField(max_length=150)
+    name_locale = models.CharField(max_length=150)
     is_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
 
@@ -69,6 +70,7 @@ class Department(models.Model):
 
 
 class CoreUserCategory(Group):
+    name_locale = models.CharField(max_length=150)
     is_editable = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
