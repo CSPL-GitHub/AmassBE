@@ -39,11 +39,11 @@ class CoreUserAdmin(admin.ModelAdmin):
     fields = (
         'vendor', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
         'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2',
-        'is_active', 'is_head', 'reports_to', 'core_user_category',
+        'is_active', 'is_head', 'reports_to', 'department_and_core_user_category_joint',
     )
 
     list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
-    list_filter = ('vendor', 'core_user_category', 'is_head',)
+    list_filter = ('vendor', 'is_head',)
     search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
     ordering = ('vendor', 'first_name',)
     # show_facets = admin.ShowFacets.ALWAYS
