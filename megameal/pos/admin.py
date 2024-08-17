@@ -23,8 +23,8 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
-@admin.register(DeparmentAndCoreUserCategory)
-class DeparmentAndCoreUserCategoryAdmin(admin.ModelAdmin):
+@admin.register(DepartmentAndCoreUserCategory)
+class DepartmentAndCoreUserCategoryAdmin(admin.ModelAdmin):
     fields = ('vendor', 'department', 'core_user_category', 'is_core_category_active',)
 
     list_display = ('department', 'core_user_category', 'is_core_category_active', 'vendor',)

@@ -75,7 +75,7 @@ class CoreUserCategory(Group):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
-class DeparmentAndCoreUserCategory(models.Model):
+class DepartmentAndCoreUserCategory(models.Model):
     department = models.ForeignKey(Department, on_delete=models.CASCADE)
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
     is_core_category_active = models.BooleanField(default=True)

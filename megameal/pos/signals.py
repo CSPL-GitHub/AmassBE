@@ -1,7 +1,7 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 from core.models import Vendor
-from pos.models import POSUser, Department, DeparmentAndCoreUserCategory
+from pos.models import POSUser, Department, DepartmentAndCoreUserCategory
 
 
 
@@ -19,6 +19,6 @@ def deactivate_related_core_user_categories(sender, instance, **kwargs):
     # To avoid signal firing during bulk operations
     if not kwargs.get('raw', False):
         if instance.is_active == False:
-            related_core_user_categories = DeparmentAndCoreUserCategory.objects.filter(department=instance, vendor=instance.vendor.pk)
+            related_core_user_categories = DepartmentAndCoreUserCategory.objects.filter(department=instance, vendor=instance.vendor.pk)
 
             related_core_user_categories.update(is_core_category_active=False)

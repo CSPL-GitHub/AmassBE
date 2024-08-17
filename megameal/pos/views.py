@@ -49,7 +49,7 @@ from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
 from pos.models import (
-    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, DeparmentAndCoreUserCategory, CoreUser, CashRegister
+    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, DepartmentAndCoreUserCategory, CoreUser, CashRegister
 )
 from pos.forms import PosUserForm
 from django.conf import settings
@@ -9252,7 +9252,7 @@ def get_core_user_categories(request):
 
         department_ids = departments.values_list("pk", flat=True)
         
-        department_and_core_user_category_joint = DeparmentAndCoreUserCategory.objects.filter(
+        department_and_core_user_category_joint = DepartmentAndCoreUserCategory.objects.filter(
             department__in = department_ids,
             vendor = vendor_id
         )
@@ -9373,7 +9373,7 @@ def create_core_user_category(request):
                 for key, value in departments.items():
                     department_instance = Department.objects.filter(pk=key, vendor=vendor_id).first()
 
-                    core_user_category_and_department_joint = DeparmentAndCoreUserCategory.objects.create(
+                    core_user_category_and_department_joint = DepartmentAndCoreUserCategory.objects.create(
                         department = department_instance,
                         core_user_category = core_user_category,
                         is_core_category_active = value,
@@ -9424,7 +9424,7 @@ def update_core_user_category(request):
             core_user_category_instance.save()
 
             if departments:
-                existing_department_ids = DeparmentAndCoreUserCategory.objects.filter(
+                existing_department_ids = DepartmentAndCoreUserCategory.objects.filter(
                     core_user_category = core_user_category_instance.pk,
                     vendor = vendor_instance
                 ).values_list("department", flat=True)
@@ -9445,7 +9445,7 @@ def update_core_user_category(request):
                 deleted_department_ids = existing_department_ids - received_department_ids
 
                 for department_id in same_department_ids:
-                    exiting_department = DeparmentAndCoreUserCategory.objects.filter(
+                    exiting_department = DepartmentAndCoreUserCategory.objects.filter(
                         department = department_id,
                         core_user_category = core_user_category_instance.pk,
                         vendor = vendor_id
@@ -9459,14 +9459,14 @@ def update_core_user_category(request):
                 for department_id in new_department_ids:
                     department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
 
-                    core_user_category_and_department_joint = DeparmentAndCoreUserCategory.objects.create(
+                    core_user_category_and_department_joint = DepartmentAndCoreUserCategory.objects.create(
                         department = department_instance,
                         core_user_category = core_user_category_instance,
                         is_core_category_active = departments[f"{department_id}"],
                         vendor = vendor_instance
                     )
                     
-                DeparmentAndCoreUserCategory.objects.filter(
+                DepartmentAndCoreUserCategory.objects.filter(
                     department__in = deleted_department_ids,
                     core_user_category = core_user_category_instance.pk,
                     vendor = vendor_id
