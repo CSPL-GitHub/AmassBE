@@ -124,6 +124,9 @@ class POSPermission(models.Model):
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+    class Meta:
+        unique_together = ('core_user_category', 'vendor')
+
 
 class CashRegister(models.Model):
     balance_while_store_opening = models.FloatField()
