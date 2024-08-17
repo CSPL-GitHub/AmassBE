@@ -9387,6 +9387,99 @@ def create_core_user_category(request):
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(["PATCH"])
+def update_core_user_category(request):
+    with transaction.atomic():
+        try:
+            core_user_category_id = request.data.get("id")
+            name = request.data.get("name")
+            name_locale = request.data.get("name_locale")
+            departments = request.data.get("departments")
+            vendor_id = request.data.get("vendor")
+
+            if not all((name, core_user_category_id, vendor_id)):
+                return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                vendor_id = int(vendor_id)
+                core_user_category_id = int(core_user_category_id)
+
+            except ValueError:
+                return JsonResponse({"message": "Invalid Vendor ID or User Category ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            core_user_category_instance = CoreUserCategory.objects.filter(pk=core_user_category_id, vendor=vendor_id).first()
+
+            if (not vendor_instance) or (not core_user_category_instance):
+                return JsonResponse({"message": "Vendor or User Category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            category_name = f"{name}_{vendor_id}"
+
+            if not name_locale:
+                name_locale = name
+
+            core_user_category_instance.name = category_name
+            core_user_category_instance.name_locale = name_locale
+
+            core_user_category_instance.save()
+
+            if departments:
+                existing_department_ids = DeparmentAndCoreUserCategory.objects.filter(
+                    core_user_category = core_user_category_instance.pk,
+                    vendor = vendor_instance
+                ).values_list("department", flat=True)
+
+                existing_department_ids = set(existing_department_ids)
+
+                received_department_ids = []
+
+                for department_id in departments.keys():
+                    received_department_ids.append(int(department_id))
+
+                received_department_ids = set(received_department_ids)
+
+                same_department_ids = received_department_ids & existing_department_ids
+
+                new_department_ids = received_department_ids - existing_department_ids
+
+                deleted_department_ids = existing_department_ids - received_department_ids
+
+                for department_id in same_department_ids:
+                    exiting_department = DeparmentAndCoreUserCategory.objects.filter(
+                        department = department_id,
+                        core_user_category = core_user_category_instance.pk,
+                        vendor = vendor_id
+                    ).first()
+
+                    if departments[f"{department_id}"] != exiting_department.is_core_category_active:
+                        exiting_department.is_core_category_active = departments[f"{department_id}"]
+
+                        exiting_department.save()
+                
+                for department_id in new_department_ids:
+                    department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
+
+                    core_user_category_and_department_joint = DeparmentAndCoreUserCategory.objects.create(
+                        department = department_instance,
+                        core_user_category = core_user_category_instance,
+                        is_core_category_active = departments[f"{department_id}"],
+                        vendor = vendor_instance
+                    )
+                    
+                DeparmentAndCoreUserCategory.objects.filter(
+                    department__in = deleted_department_ids,
+                    core_user_category = core_user_category_instance.pk,
+                    vendor = vendor_id
+                ).delete()
+
+
+            return JsonResponse({"message": ""}, status=status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+            return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
