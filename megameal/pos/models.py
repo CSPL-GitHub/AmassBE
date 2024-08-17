@@ -94,6 +94,7 @@ class CoreUser(User):
     document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     is_head = models.BooleanField(default=False)
     reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
     class Meta:
