@@ -680,7 +680,9 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
                 "paymentStatus": split_payment.status,
-                "platform": split_payment.platform
+                "status": split_payment.status,
+                "platform": split_payment.platform,
+                "mode": payment_type_english[split_payment.type]
             } for split_payment in OrderPayment.objects.filter(masterPaymentId=payment_type.pk)]
         
         payment_details["split_payments"] = split_payments_list
