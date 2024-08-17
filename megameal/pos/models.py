@@ -84,6 +84,9 @@ class DepartmentAndCoreUserCategory(models.Model):
     class Meta:
         unique_together = ("department", "core_user_category", "vendor")
 
+    def __str__(self):
+        return f"{self.department.name} -> {self.core_user_category.name}"
+
 
 class CoreUser(User):
     phone_number = models.PositiveBigIntegerField()
