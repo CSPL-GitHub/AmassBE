@@ -81,6 +81,9 @@ class DeparmentAndCoreUserCategory(models.Model):
     is_core_category_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+    class Meta:
+        unique_together = ("department", "core_user_category", "vendor")
+
 
 class CoreUser(User):
     phone_number = models.PositiveBigIntegerField()
