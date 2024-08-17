@@ -9473,7 +9473,39 @@ def update_core_user_category(request):
                 ).delete()
 
 
-            return JsonResponse({"message": ""}, status=status.HTTP_201_CREATED)
+            return JsonResponse({"message": ""}, status=status.HTTP_200_OK)
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+            return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["DELETE"])
+def delete_core_user_category(request):
+    with transaction.atomic():
+        try:
+            core_user_category_id = request.data.get("id")
+            vendor_id = request.data.get("vendor")
+
+            if not all((core_user_category_id, vendor_id)):
+                return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                vendor_id = int(vendor_id)
+                core_user_category_id = int(core_user_category_id)
+
+            except ValueError:
+                return JsonResponse({"message": "Invalid Vendor ID or User Category ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            core_user_category_instance = CoreUserCategory.objects.filter(pk=core_user_category_id, vendor=vendor_id).first()
+
+            if (not vendor_instance) or (not core_user_category_instance):
+                return JsonResponse({"message": "Vendor or User Category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            core_user_category_instance.delete()
+            
+            return Response(status=status.HTTP_204_NO_CONTENT)
         
         except Exception as e:
             transaction.set_rollback(True)
