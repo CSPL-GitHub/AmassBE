@@ -50,7 +50,7 @@ from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
 from pos.models import (
-    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, DepartmentAndCoreUserCategory, CoreUser, CashRegister,
+    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister,
     POSPermission,
 )
 from pos.forms import PosUserForm
@@ -1961,20 +1961,23 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 }
                 split_payments_list = []
                 for split_order in Order.objects.filter(masterOrder=master_order_instance.pk):
+                    print("split")
                     split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
-                    split_payments_list.append({
-                        "paymentId": split_payment.pk,
-                        "paymentBy": split_payment.paymentBy,
-                        "paymentKey": split_payment.paymentKey,
-                        "amount_paid": split_payment.paid,
-                        "paymentType": split_payment.type,
-                        "paymentStatus": split_payment.status,
-                        "amount_subtotal": split_order.subtotal,
-                        "amount_tax": split_order.tax,
-                        "status": split_payment.status,
-                        "platform": split_payment.platform,
-                        "mode": payment_type_english[split_payment.type]
-                    })
+                    if split_payment:
+                        split_payments_list.append({
+                            "paymentId": split_payment.pk,
+                            "paymentBy": split_payment.paymentBy,
+                            "paymentKey": split_payment.paymentKey,
+                            "amount_paid": split_payment.paid,
+                            "paymentType": split_payment.type,
+                            "paymentStatus": split_payment.status,
+                            "amount_subtotal": split_order.subtotal,
+                            "amount_tax": split_order.tax,
+                            "status": split_payment.status,
+                            "platform": split_payment.platform,
+                            "mode": payment_type_english[split_payment.type]
+                        })
+                payment_details["split_payments"] = split_payments_list
 
             else:
                 payment_mode = payment_type_english[1]
@@ -2937,9 +2940,7 @@ def updatePaymentDetails(request):
     if data.get("payment_id"):
         payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
 
-    if payment:    
-        print(payment.platform)
-
+    if payment:
         payment.paymentBy = data['payment']['paymentBy']
         payment.paymentKey = data['payment']['paymentKey']
         payment.type = data['payment']['type']
@@ -2960,10 +2961,10 @@ def updatePaymentDetails(request):
             status = True,
             platform = data['payment']['platform']
         )
-    if data.get("payment_id"):
-        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
-        if False not in [i.status for i in  OrderPayment.objects.filter(masterPaymentId=payment.masterPaymentId.id)]:
-            OrderPayment.objects.filter(pk=payment.masterPaymentId.pk).update(status=True)
+    # if data.get("payment_id"):
+    #     payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+    #     if False not in [i.status for i in  OrderPayment.objects.filter(masterPaymentId=payment.masterPaymentId.id)]:
+    #         OrderPayment.objects.filter(pk=payment.masterPaymentId.pk).update(status=True)
     if coreOrder.orderType == 3:
         order.order_status = 10 # CLOSE order
         order.save()
@@ -9586,8 +9587,7 @@ def splitOrderPayment(request):
     payment.save()
     count = 1
     for splitPayment in data["payments"]:
-        split_customer = Customer.objects.get(pk=splitPayment.get('customerId'))
-        
+        split_customer = Customer.objects.filter(pk=splitPayment.get('customerId')) if splitPayment.get('customerId') else None
         split_order = Order(
                 Status=OrderStatus.OPEN,
                 masterOrder = coreOrder,
@@ -9602,7 +9602,7 @@ def splitOrderPayment(request):
                 tip=0.0,
                 delivery_charge=0.0,
                 subtotal=splitPayment.get("amount_paid") or 0.0 ,
-                customerId=split_customer,
+                customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
                 vendorId=vendor_instance,
                 platform=coreOrder.platform
             ).save()
