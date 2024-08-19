@@ -9549,41 +9549,50 @@ def delete_core_user_category(request):
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
-
     vendorId = request.GET.get('vendorId', None)
     language = request.GET.get('language', 'English')
-
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
         vendorId = int(vendorId)
-
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
-
     vendor_instance = Vendor.objects.filter(pk=vendorId).first()
-
     if not vendor_instance:
         return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
-
-    
     coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
-        
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
-
     if not payment:
         return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
-
+    
     payment.type = PaymentType.SPLIT
     payment.save()
-    
+    count = 1
     for splitPayment in data["payments"]:
+        split_customer = Customer.objects.get(pk=splitPayment.get('customerId'))
+        
+        split_order = Order(
+                Status=OrderStatus.OPEN,
+                masterOrder = coreOrder,
+                TotalAmount=splitPayment.get("amount_paid",0.0),
+                OrderDate=timezone.now(),
+                Notes=data.get("note"),
+                externalOrderId=coreOrder.externalOrderId + f"_{count}",
+                orderType=coreOrder.orderType,
+                arrivalTime=timezone.now(),
+                tax= splitPayment.get("amount_paid") or 0.0 ,
+                discount=0.0,
+                tip=0.0,
+                delivery_charge=0.0,
+                subtotal=splitPayment.get("amount_paid") or 0.0 ,
+                customerId=split_customer,
+                vendorId=vendor_instance,
+                platform=coreOrder.platform
+            ).save()
+        count = count + 1
         OrderPayment(
-            orderId = coreOrder,
-            masterPaymentId = payment,
+            orderId = split_order,
             paymentBy = coreOrder.customerId.Email or "",
             paymentKey = splitPayment.get("paymentKey",""),
             paid = splitPayment.get("amount_paid",0.0),
@@ -9594,7 +9603,5 @@ def splitOrderPayment(request):
             platform = splitPayment.get("platform") or "",
             splitType = splitPayment.get("splitType", None),
         ).save()
-
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
-    
     return Response({})
