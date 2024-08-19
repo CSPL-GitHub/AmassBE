@@ -1959,19 +1959,22 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     "status": order_payment_instance.status,
                     "mode": payment_mode
                 }
-                split_payments = OrderPayment.objects.filter(masterPaymentId=order_payment_instance.pk)
-                split_payments_list = [{
+                split_payments_list = []
+                for split_order in Order.objects.filter(masterOrder=master_order_instance.pk):
+                    split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
+                    split_payments_list.append({
                         "paymentId": split_payment.pk,
                         "paymentBy": split_payment.paymentBy,
                         "paymentKey": split_payment.paymentKey,
                         "amount_paid": split_payment.paid,
                         "paymentType": split_payment.type,
                         "paymentStatus": split_payment.status,
-                        "platform": split_payment.platform,
+                        "amount_subtotal": split_order.subtotal,
+                        "amount_tax": split_order.tax,
                         "status": split_payment.status,
+                        "platform": split_payment.platform,
                         "mode": payment_type_english[split_payment.type]
-                    } for split_payment in split_payments]
-                payment_details["split_payments"] = split_payments_list
+                    })
 
             else:
                 payment_mode = payment_type_english[1]

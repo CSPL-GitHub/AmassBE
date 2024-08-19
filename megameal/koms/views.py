@@ -673,17 +673,22 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             "mode": payment_mode,
             "split_payments":[]
         }
-        split_payments_list = [{
+        split_payments_list = []
+        for split_order in coreOrder.objects.filter(masterOrder=master_order.pk):
+            split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
+            split_payments_list.append({
                 "paymentId": split_payment.pk,
                 "paymentBy": split_payment.paymentBy,
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
                 "paymentStatus": split_payment.status,
+                "amount_subtotal": split_order.subtotal,
+                "amount_tax": split_order.tax,
                 "status": split_payment.status,
                 "platform": split_payment.platform,
                 "mode": payment_type_english[split_payment.type]
-            } for split_payment in OrderPayment.objects.filter(masterPaymentId=payment_type.pk)]
+            })
         
         payment_details["split_payments"] = split_payments_list
         data['payment'] = payment_details

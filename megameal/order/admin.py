@@ -10,7 +10,7 @@ class OrderAdmin(admin.ModelAdmin):
         'TotalAmount', 'due',
     )
     
-    list_display = ('pk', 'customerId', 'TotalAmount', 'vendorId',)
+    list_display = ('pk','masterOrder', 'customerId', 'TotalAmount', 'vendorId',)
     list_filter = ('vendorId', 'platform', 'orderType',)
     search_fields = ('pk', 'externalOrderId', 'vendorId__Name')
 
