@@ -14,23 +14,12 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(CoreUserCategory)
 class CoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'name', 'is_editable', 'permissions',)
+    fields = ('vendor', 'name', 'is_editable', 'is_active', 'department', 'permissions',)
 
-    list_display = ('name', 'is_editable', 'vendor',)
-    list_filter = ('vendor', 'is_editable',)
-    search_fields = ('name',)
+    list_display = ('name', 'is_active', 'department', 'vendor',)
+    list_filter = ('vendor', 'is_active')
+    search_fields = ('name', 'department__name')
     ordering = ('vendor', 'name',)
-    # show_facets = admin.ShowFacets.ALWAYS
-
-
-@admin.register(DepartmentAndCoreUserCategory)
-class DepartmentAndCoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'department', 'core_user_category', 'is_core_category_active',)
-
-    list_display = ('department', 'core_user_category', 'is_core_category_active', 'vendor',)
-    list_filter = ('is_core_category_active', 'vendor',)
-    search_fields = ('department__name', 'core_user_category__name', 'vendor__name')
-    ordering = ('vendor', 'department', 'core_user_category',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -39,12 +28,15 @@ class CoreUserAdmin(admin.ModelAdmin):
     fields = (
         'vendor', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
         'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2',
-        'is_active', 'is_head', 'reports_to', 'department_and_core_user_category_joint',
+        'is_active', 'reports_to', 'core_user_category', 'is_head',
     )
 
-    list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
+    list_display = ('first_name', 'last_name', 'username', 'core_user_category', 'is_head', 'is_active', 'vendor',)
     list_filter = ('vendor', 'is_head',)
-    search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
+    search_fields = (
+        'username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',
+        'core_user_category__name',
+    )
     ordering = ('vendor', 'first_name',)
     # show_facets = admin.ShowFacets.ALWAYS
 

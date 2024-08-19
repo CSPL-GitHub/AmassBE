@@ -72,20 +72,9 @@ class Department(models.Model):
 class CoreUserCategory(Group):
     name_locale = models.CharField(max_length=150, null=True, blank=True)
     is_editable = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
-
-
-class DepartmentAndCoreUserCategory(models.Model):
-    department = models.ForeignKey(Department, on_delete=models.CASCADE)
-    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
-    is_core_category_active = models.BooleanField(default=True)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)   
-
-    class Meta:
-        unique_together = ("department", "core_user_category", "vendor")
-
-    def __str__(self):
-        return f"{self.department.name} -> {self.core_user_category.name}"
 
 
 class CoreUser(User):
@@ -97,7 +86,7 @@ class CoreUser(User):
     document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     is_head = models.BooleanField(default=False)
     reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
-    department_and_core_user_category_joint = models.ForeignKey(DepartmentAndCoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
     class Meta:
