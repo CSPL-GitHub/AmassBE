@@ -2961,10 +2961,11 @@ def updatePaymentDetails(request):
             status = True,
             platform = data['payment']['platform']
         )
-    # if data.get("payment_id"):
-    #     payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
-    #     if False not in [i.status for i in  OrderPayment.objects.filter(masterPaymentId=payment.masterPaymentId.id)]:
-    #         OrderPayment.objects.filter(pk=payment.masterPaymentId.pk).update(status=True)
+    if data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+        splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+        if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+            OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
     if coreOrder.orderType == 3:
         order.order_status = 10 # CLOSE order
         order.save()
