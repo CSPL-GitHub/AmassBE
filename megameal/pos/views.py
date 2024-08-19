@@ -36,8 +36,7 @@ from pos.serializers import (
     WaiterSerializer, FloorSerializer, HotelTableSerializer , StoreTImingSerializer, ProductCategorySerializer,
     ProductSerializer, ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer,
     ModifierGroupSerializer, ModifierSerializer, StationModelSerializer, DiscountCouponModelSerializer,
-    ChefModelSerializer, BannerModelSerializer, CoreUserModelSerializer,
-    DepartmentModelSerializer,
+    ChefModelSerializer, BannerModelSerializer, DepartmentModelSerializer, CoreUserModelSerializer,
 )
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
@@ -63,7 +62,10 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from django.core.validators import URLValidator
 from koms.views import notify
-from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
+from pos.utils import (
+    order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
+    get_department_wise_categories,
+)
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
     delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
@@ -1073,17 +1075,21 @@ def pos_user_login(request):
 
                 return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
-            department_and_core_user_category_joint = pos_user.department_and_core_user_category_joint
+            user_category = pos_user.core_user_category
 
-            if (not department_and_core_user_category_joint) or \
-            (department_and_core_user_category_joint.is_core_category_active == False) or \
-            (department_and_core_user_category_joint.department.is_active == False):
+            if (not user_category):
+                response_json["message"] = "User category not configured for the user"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                
+            if (user_category.is_active == False) or (not user_category.department) or \
+            (user_category.department.is_active == False):
                 response_json["message"] = "Department and User category not configured for the user"
 
                 return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             pos_permission = POSPermission.objects.filter(
-                core_user_category = department_and_core_user_category_joint.core_user_category.pk, 
+                core_user_category = pos_user.core_user_category.pk, 
                 vendor = vendor_id
             ).first()
 
@@ -9298,80 +9304,10 @@ def get_core_user_categories(request):
         if not vendor_instance:
             return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
 
-        department_wise_categories = []
-
-        departments = Department.objects.filter(vendor = vendor_id).order_by("name")
-
-        department_ids = departments.values_list("pk", flat=True)
-        
-        department_and_core_user_category_joint = DepartmentAndCoreUserCategory.objects.filter(
-            department__in = department_ids,
-            vendor = vendor_id
+        department_wise_categories = get_department_wise_categories(
+            vendor_instance = vendor_instance,
+            search_parameter = search_parameter
         )
-
-        core_user_category_ids_in_joint = department_and_core_user_category_joint.values_list("core_user_category", flat=True)
-
-        all_core_user_categories = CoreUserCategory.objects.filter(vendor=vendor_id)
-
-        all_core_user_category_ids = all_core_user_categories.values_list("pk", flat=True)
-
-        uncategorized_core_user_category_ids = set(all_core_user_category_ids) - set(core_user_category_ids_in_joint)
-
-        uncategorized_core_user_categories = all_core_user_categories.filter(pk__in = uncategorized_core_user_category_ids)
-
-        category_list = []
-        
-        for category_instance in uncategorized_core_user_categories:
-            category_name = category_instance.name
-
-            category_name = category_name.split("_")[0]
-
-            category_list.append({
-                "id": category_instance.pk,
-                "name": category_name,
-                "name_locale": category_instance.name_locale,
-                "is_editable": category_instance.is_editable,
-                "is_active": True,
-            })
-
-        department_wise_categories.append({
-            "id": 0,
-            "name": "Uncategorized",
-            "name_locale": language_localization["Uncategorized"] if vendor_instance.secondary_language else "",
-            "core_user_categories": category_list
-        })
-
-        for department_instance in departments:
-            category_list = []
-
-            filtered_categories = department_and_core_user_category_joint.filter(department = department_instance.pk) \
-                .order_by("core_user_category__name")
-            
-            if search_parameter:
-                filtered_categories = filtered_categories.filter(
-                    Q(core_user_category__name__icontains = search_parameter) | \
-                    Q (core_user_category__name_locale__icontains = search_parameter)
-                ).order_by("core_user_category__name")
-            
-            for instance in filtered_categories:
-                category_name = instance.core_user_category.name
-
-                category_name = category_name.split("_")[0]
-
-                category_list.append({
-                    "id": instance.core_user_category.pk,
-                    "name": category_name,
-                    "name_locale": instance.core_user_category.name_locale,
-                    "is_editable": instance.core_user_category.is_editable,
-                    "is_active": instance.is_core_category_active,
-                })
-
-            department_wise_categories.append({
-                "id": department_instance.pk,
-                "name": department_instance.name,
-                "name_locale": department_instance.name_locale,
-                "core_user_categories": category_list
-            })
         
         return JsonResponse({
             "message": "",
@@ -9388,22 +9324,32 @@ def create_core_user_category(request):
         try:
             name = request.data.get("name")
             name_locale = request.data.get("name_locale")
-            departments = request.data.get("departments")
+            is_active = request.data.get("is_active")
+            department_id = request.data.get("department")
             vendor_id = request.data.get("vendor")
 
-            if not all((name, vendor_id)):
+            if (not name) or (not vendor_id):
                 return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
 
             try:
                 vendor_id = int(vendor_id)
 
+                if department_id:
+                    department_id = int(department_id)
+
             except ValueError:
-                return JsonResponse({"message": "Invalid Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Invalid Vendor ID or Department ID"}, status=status.HTTP_400_BAD_REQUEST)
             
             vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
             if not vendor_instance:
                 return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if department_id:
+                department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
+
+                if not department_instance:
+                    return JsonResponse({"message": "Department does not exist"}, status=status.HTTP_400_BAD_REQUEST)
             
             category_name = f"{name}_{vendor_id}"
 
@@ -9418,24 +9364,21 @@ def create_core_user_category(request):
             core_user_category = CoreUserCategory.objects.create(
                 name = category_name,
                 name_locale = name_locale,
+                is_active = is_active,
+                department = department_instance if department_id else None,
                 vendor = vendor_instance
             )
 
-            if departments:
-                for key, value in departments.items():
-                    department_instance = Department.objects.filter(pk=key, vendor=vendor_id).first()
-
-                    core_user_category_and_department_joint = DepartmentAndCoreUserCategory.objects.create(
-                        department = department_instance,
-                        core_user_category = core_user_category,
-                        is_core_category_active = value,
-                        vendor = vendor_instance
-                    )
-
-            return JsonResponse({"message": ""}, status=status.HTTP_201_CREATED)
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            }, status = status.HTTP_201_CREATED)
         
         except Exception as e:
             transaction.set_rollback(True)
+            
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -9446,7 +9389,8 @@ def update_core_user_category(request):
             core_user_category_id = request.data.get("id")
             name = request.data.get("name")
             name_locale = request.data.get("name_locale")
-            departments = request.data.get("departments")
+            is_active = request.data.get("is_active")
+            department_id = request.data.get("department")
             vendor_id = request.data.get("vendor")
 
             if not all((name, core_user_category_id, vendor_id)):
@@ -9456,14 +9400,23 @@ def update_core_user_category(request):
                 vendor_id = int(vendor_id)
                 core_user_category_id = int(core_user_category_id)
 
+                if department_id:
+                    department_id = int(department_id)
+
             except ValueError:
-                return JsonResponse({"message": "Invalid Vendor ID or User Category ID"}, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Invalid Vendor ID, User Category ID or Department ID"}, status=status.HTTP_400_BAD_REQUEST)
             
             vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
             core_user_category_instance = CoreUserCategory.objects.filter(pk=core_user_category_id, vendor=vendor_id).first()
 
             if (not vendor_instance) or (not core_user_category_instance):
                 return JsonResponse({"message": "Vendor or User Category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if department_id:
+                department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
+
+                if not department_instance:
+                    return JsonResponse({"message": "Department does not exist"}, status=status.HTTP_400_BAD_REQUEST)
             
             category_name = f"{name}_{vendor_id}"
 
@@ -9472,63 +9425,21 @@ def update_core_user_category(request):
 
             core_user_category_instance.name = category_name
             core_user_category_instance.name_locale = name_locale
+            core_user_category_instance.is_active = is_active
+            core_user_category_instance.department = department_instance if department_id else None
 
             core_user_category_instance.save()
 
-            if departments:
-                existing_department_ids = DepartmentAndCoreUserCategory.objects.filter(
-                    core_user_category = core_user_category_instance.pk,
-                    vendor = vendor_instance
-                ).values_list("department", flat=True)
-
-                existing_department_ids = set(existing_department_ids)
-
-                received_department_ids = []
-
-                for department_id in departments.keys():
-                    received_department_ids.append(int(department_id))
-
-                received_department_ids = set(received_department_ids)
-
-                same_department_ids = received_department_ids & existing_department_ids
-
-                new_department_ids = received_department_ids - existing_department_ids
-
-                deleted_department_ids = existing_department_ids - received_department_ids
-
-                for department_id in same_department_ids:
-                    exiting_department = DepartmentAndCoreUserCategory.objects.filter(
-                        department = department_id,
-                        core_user_category = core_user_category_instance.pk,
-                        vendor = vendor_id
-                    ).first()
-
-                    if departments[f"{department_id}"] != exiting_department.is_core_category_active:
-                        exiting_department.is_core_category_active = departments[f"{department_id}"]
-
-                        exiting_department.save()
-                
-                for department_id in new_department_ids:
-                    department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
-
-                    core_user_category_and_department_joint = DepartmentAndCoreUserCategory.objects.create(
-                        department = department_instance,
-                        core_user_category = core_user_category_instance,
-                        is_core_category_active = departments[f"{department_id}"],
-                        vendor = vendor_instance
-                    )
-                    
-                DepartmentAndCoreUserCategory.objects.filter(
-                    department__in = deleted_department_ids,
-                    core_user_category = core_user_category_instance.pk,
-                    vendor = vendor_id
-                ).delete()
-
-
-            return JsonResponse({"message": ""}, status=status.HTTP_200_OK)
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            })
         
         except Exception as e:
             transaction.set_rollback(True)
+
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -9557,10 +9468,16 @@ def delete_core_user_category(request):
             
             core_user_category_instance.delete()
             
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            }, status = status.HTTP_200_OK)
         
         except Exception as e:
             transaction.set_rollback(True)
+
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
