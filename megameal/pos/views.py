@@ -17,7 +17,7 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
-from django.contrib.auth import authenticate
+from django.contrib.auth import authenticate, login
 from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
@@ -1046,38 +1046,41 @@ def pos_user_login(request):
             password = request.data.get("password")
 
             if (not username) or (not password):
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             user = authenticate(request, username=username, password=password)
             
             if not user:
                 response_json["message"] = "Invalid login credentials"
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
 
-            user = CoreUser.objects.filter(username=username, password=user.password).first()
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
             
-            vendor_id = user.vendor.pk
+            vendor_id = pos_user.vendor.pk
 
-            vendor_instance = Vendor.objects.filter(pk=user.vendor.pk).first()
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
             if not vendor_instance:
                 response_json["message"] = "Invalid Vendor for the user"
 
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
             if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
                 response_json["message"] = "Contact your administrator to activate the platform"
 
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
-            department_and_core_user_category_joint = user.department_and_core_user_category_joint
+            department_and_core_user_category_joint = pos_user.department_and_core_user_category_joint
 
-            if (not department_and_core_user_category_joint) or (department_and_core_user_category_joint.is_core_category_active == False):
+            if (not department_and_core_user_category_joint) or \
+            (department_and_core_user_category_joint.is_core_category_active == False) or \
+            (department_and_core_user_category_joint.department.is_active == False):
                 response_json["message"] = "Department and User category not configured for the user"
 
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             pos_permission = POSPermission.objects.filter(
                 core_user_category = department_and_core_user_category_joint.core_user_category.pk, 
@@ -1087,7 +1090,7 @@ def pos_user_login(request):
             if not pos_permission:
                 response_json["message"] = "Permissions not specified for the user"
 
-                return JsonResponse(response_json, status=status.HTTP_400_BAD_REQUEST)
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             permission_dictionary = {
                 "show_dashboard": pos_permission.show_dashboard,
@@ -1111,25 +1114,28 @@ def pos_user_login(request):
                 "core_user_category": pos_permission.core_user_category.pk,
                 "vendor": pos_permission.vendor.pk,
             }
+
+            login(request, user)
             
             return JsonResponse({
                 "message": "",
-                "user_id": user.pk,
-                "first_name": user.first_name,
-                "last_name": user.last_name,
+                "user_id": pos_user.pk,
+                "first_name": pos_user.first_name,
+                "last_name": pos_user.last_name,
                 "primary_language": vendor_instance.primary_language,
                 "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
                 "currency": vendor_instance.currency,
                 "currency_symbol": vendor_instance.currency_symbol,
                 "vendor_id": vendor_id,
                 "permissions": permission_dictionary,
-            }, status=status.HTTP_200_OK)
+            }, status = status.HTTP_200_OK)
         
         except Exception as e:
             transaction.set_rollback(True)
+
             response_json["message"] = str(e)
 
-            return JsonResponse(response_json, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return JsonResponse(response_json, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
