@@ -2691,8 +2691,7 @@ def order_details(request):
                 customer_details["loyalty_points_balance"] = customer_loyalty_points_balance
                 customer_details["Shipping_Address"] = shipping_address
 
-                payment = OrderPayment.objects.filter(orderId=order_id).first()
-
+                payment = OrderPayment.objects.filter(orderId=order_id,masterPaymentId=None).first()
                 payment_details["paymentId"] = payment.pk if payment else 0
                 payment_details["paymentBy"] = payment.paymentBy if payment else ''
                 payment_details["paymentKey"] = payment.paymentKey if payment else ''
@@ -2854,7 +2853,24 @@ def order_details(request):
                 order_info["arrival_time"] = core_order.arrivalTime
                 order_info["type"] = koms_order.order_type
                 order_info["products"] = order_items[order_id]
-
+                
+                if request.GET.get("paymentId"):
+                    payment = OrderPayment.objects.filter(pk=request.GET.get("paymentId")).last()
+                    payment_details["paymentId"] = payment.pk if payment else 0
+                    payment_details["paymentBy"] = payment.paymentBy if payment else ''
+                    payment_details["paymentKey"] = payment.paymentKey if payment else ''
+                    payment_details["amount_paid"] = payment.paid if payment else 0.0
+                    payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
+                    payment_details["paymentStatus"] = payment.status if payment else False
+                    order_info["core_orderId"] = payment.orderId.pk
+                    order_info["orderId"] = payment.orderId.externalOrderId
+                    order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
+                    order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
+                    order_info["delivery_charge"] = payment.orderId.delivery_charge
+                    order_info["subtotal"] = payment.orderId.subtotal
+                    order_info["finalTotal"] = payment.orderId.TotalAmount
+                    
+                    
                 if core_order.platform == None:
                     platform_id = 0
                     platform_name = ""
