@@ -49,10 +49,8 @@ from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
 from pos.models import (
-    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister,
-    POSPermission,
+    StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister, POSPermission,
 )
-from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
 from django.core.files.storage import default_storage
@@ -3760,109 +3758,6 @@ def delete_excel(request):
 
     except Exception as e:
         return JsonResponse({"error": f"Failed to delete file: {str(e)}"}, status=500)
-
-
-def get_pos_user(request):
-    page = int(request.GET.get('pageIndex', 1)) # pageIndex variable should not be renamed as it is required for jsGrid plugin
-    page_size = int(request.GET.get('pageSize', 10)) # pageSize variable should not be renamed as it is required for jsGrid plugin
-
-    vendors = POSUser.objects.all().order_by('pk')
-
-    paginated_data = []
-    
-    paginator = Paginator(vendors, page_size)
-    page = paginator.get_page(page)
-
-    for data in page:
-        paginated_data.append({
-            "id": data.pk,
-            "username": data.username,
-            "password": data.password,
-            "name": data.name,
-            "email": data.email,
-            "vendor": data.vendor.pk,
-            "is_active": data.is_active
-        })
-
-    return JsonResponse({
-        "data": paginated_data, # data key should not be renamed as it is required for jsGrid plugin
-        "itemsCount": paginator.count # itemsCount key should not be renamed as it is required for jsGrid plugin
-    })
-
-
-def create_pos_user(request):
-    vendors = Vendor.objects.all()
-
-    if request.method == "POST":
-        form = PosUserForm(request.POST or None)
-
-        if form.is_valid():
-            form.save()
-
-            messages.success(request, "POS User Created!")
-
-            return redirect("/pos/pos_user/")
-        else:
-            messages.warning(request, "Please fill all the fields!")
-
-            form = PosUserForm()
-
-            return render( request, "adminlte/pos_user.html", {"form": form, "vendors":vendors})
-
-    form = PosUserForm(None)
-
-    return render(request, "adminlte/pos_user.html", {"form": form, "vendors":vendors})
-
-
-def update_pos_user(request, pos_user_id):
-    pos_user = get_object_or_404(POSUser, id=pos_user_id)
-
-    if request.method == "POST":
-        form = PosUserForm(request.POST, instance=pos_user)
-
-        if form.is_valid():
-            pos_user.save()
-
-            serialized_data = {}
-
-            serialized_data["id"] = pos_user.pk
-            serialized_data["username"] = pos_user.username
-            serialized_data["password"] = pos_user.password
-            serialized_data["name"] = pos_user.name
-            serialized_data["email"] = pos_user.email
-            serialized_data["vendor"] = pos_user.vendor.pk
-            serialized_data["is_active"] = pos_user.is_active
-
-            messages.success(request, "POS User updated successfully")
-            return JsonResponse(serialized_data, content_type="application/json", safe=False)
-        
-        else:
-            print(form.errors)
-            messages.error(request, "Please fill the details correctly!")
-
-            return JsonResponse({'error': 'Please fill the details correctly'}, status=400, content_type="application/json")
-
-    else:
-        messages.error(request, "Invalid request method!")
-
-        return JsonResponse({"message": "Invalid request method"}, status=400, content_type="application/json")
-
-
-def delete_pos_user(request, pos_user_id):
-    try:
-        if request.method == "POST":
-            pos_user = POSUser.objects.filter(pk=pos_user_id)
-
-            pos_user.delete()
-
-            return JsonResponse({"message": "POS User deleted successfully"}, content_type="application/json", status=204)
-
-        else:
-            messages.error(request, "Invalid request method!")
-            return JsonResponse({"message": "Invalid request method"}, status=400, content_type="application/json")
-    except Exception as e:
-        print(e)
-        return JsonResponse({"message": "Something went wrong!"}, content_type="application/json")
 
 
 @api_view(['GET'])
