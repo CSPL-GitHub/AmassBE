@@ -68,14 +68,6 @@ class BannerAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
-@admin.register(POSUser)
-class PosUserAdmin(admin.ModelAdmin):
-    list_display = ('name','username','password','vendor','is_active',)
-    list_filter = ('is_active','vendor')
-    search_fields = ('name','username')
-    # show_facets = admin.ShowFacets.ALWAYS
-
-
 @admin.register(StoreTiming)
 class StoreTimingAdmin(admin.ModelAdmin):
     list_display = ('slot_identity','day','open_time','close_time','vendor','is_holiday','is_active',)

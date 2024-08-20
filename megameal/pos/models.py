@@ -24,19 +24,6 @@ class StoreTiming(models.Model):
     close_time = models.TimeField()
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
     platform = models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
-    
-
-class POSUser(models.Model):
-    username = models.CharField(max_length=100, unique=True)
-    password = models.CharField(max_length=100)
-    name =  models.CharField(max_length=100)
-    phone_number = models.PositiveBigIntegerField()
-    email = models.EmailField()
-    is_active = models.BooleanField(default=False)
-    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-    def __str__(self):
-        return self.name
 
 
 class Banner(models.Model):
