@@ -15,12 +15,11 @@ router.register("setting/station", views.StationModelViewSet, basename="station"
 router.register("setting/chef", views.ChefModelViewSet, basename="chef")
 router.register("setting/banner", views.BannerModelViewSet, basename="banner")
 router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
-router.register("setting/user-categories", views.CoreUserCategoryModelViewSet, basename="user_categories")
 router.register("setting/users", views.CoreUserModelViewSet, basename="core_users")
 
 
 urlpatterns = [
-   path('login/', views.login),
+   path('login/', views.pos_user_login),
    path('language/', views.pos_lanuage_setting, name="language"),
    path('allCategory/',views.allCategory), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
@@ -80,6 +79,10 @@ urlpatterns = [
    path('setting/product_data_excel_download/', views.download_product_data_excel, name='download_product_data_excel'),
    path('setting/register_cash/', views.register_cash, name='register_cash'),
    path('setting/cash_register_history/', views.get_cash_register_history, name='cash_register_history'),
+   path('setting/user_category/get/', views.get_core_user_categories, name='get_core_user_categories'),
+   path('setting/user_category/create/', views.create_core_user_category, name='create_core_user_category'),
+   path('setting/user_category/update/', views.update_core_user_category, name='update_core_user_category'),
+   path('setting/user_category/delete/', views.delete_core_user_category, name='delete_core_user_category'),
    path('redeem_loyalty_points/', views.redeem_loyalty_points, name='redeem_loyalty_points'),
    path('reports/top_selling_products/', views.top_selling_products_report, name='top_selling_products_report'),
    path('reports/most_repeating_customers/', views.most_repeating_customers_report, name='most_repeating_customers_report'),

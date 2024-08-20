@@ -12,6 +12,7 @@ from core.models import (
     ProductModifier,
 )
 from koms.models import Station, Staff
+from urllib.parse import urlparse
 
 
 
@@ -296,23 +297,6 @@ class DepartmentModelSerializer(serializers.ModelSerializer):
         fields = "__all__"
 
 
-class CoreUserCategoryModelSerializer(serializers.ModelSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if self.context["request"].method in ("PUT", "PATCH",):
-            excluded_fields = ("vendor", "is_editable",)
-
-            for field_name in excluded_fields:
-                self.fields.pop(field_name)
-
-    id = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = CoreUserCategory
-        fields = ("id", "name", "is_editable", "department", "vendor",)
-
-
 class CoreUserModelSerializer(serializers.ModelSerializer):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -327,23 +311,13 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = CoreUser
+
         extra_kwargs = {'password': {'write_only': True}}
+
         fields = (
-            "id",
-            "first_name",
-            "last_name",
-            "phone_number",
-            "email",
-            "current_address",
-            "permanent_address",
-            "username",
-            "password",
-            "profile_picture",
-            "date_joined",
-            "is_active",
-            "is_staff",
-            "groups",
-            "vendor",
+            "id", "first_name", "last_name", "phone_number", "email", "current_address", "permanent_address",
+            "username", "password", "profile_picture", "document_1", "document_2", "reports_to", "is_active",
+            "is_staff", "is_head", "core_user_category", "vendor",
         )
     
     def to_representation(self, instance):
@@ -352,4 +326,34 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
         if not instance.profile_picture:
             data['profile_picture'] = ''
 
+        else:
+            parsed_url = urlparse(data['profile_picture'])
+            path = parsed_url.path
+
+            data['profile_picture'] = path
+
+        if not instance.document_1:
+            data['document_1'] = ''
+
+        else:
+            parsed_url = urlparse(data['document_1'])
+            path = parsed_url.path
+
+            data['document_1'] = path
+
+        if not instance.document_2:
+            data['document_2'] = ''
+
+        else:
+            parsed_url = urlparse(data['document_2'])
+            path = parsed_url.path
+
+            data['document_2'] = path
+
+        if not instance.reports_to:
+            data['reports_to'] = 0
+        
+        if not instance.core_user_category:
+            data['core_user_category'] = 0
+        
         return data

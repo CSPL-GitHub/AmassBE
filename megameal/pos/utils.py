@@ -8,7 +8,9 @@ from core.models import (
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
+from pos.models import Department, CoreUserCategory
 from koms.models import Station
+from pos.language import language_localization
 from django.conf import settings
 from django.template.defaultfilters import slugify
 
@@ -832,3 +834,81 @@ def process_product_excel(file_path, sheet_name, vendor_id):
     else:
         failed_file_path = None
         return 1, failed_file_path
+
+
+def get_department_wise_categories(vendor_instance, search_parameter=None):
+    vendor_id = vendor_instance.pk
+
+    department_wise_categories = []
+
+    departments = Department.objects.filter(vendor = vendor_id).order_by("name")
+
+    department_ids = departments.values_list("pk", flat=True)
+    
+    all_core_user_categories = CoreUserCategory.objects.filter(vendor = vendor_id)
+
+    core_user_categories_with_department = all_core_user_categories.filter(department__in = department_ids)
+
+    core_user_categories_without_department = all_core_user_categories.filter(
+        Q(department__isnull = True) | Q(department_id = 0)
+    ).order_by("name")
+
+    if search_parameter:
+        core_user_categories_without_department = core_user_categories_without_department.filter(
+            Q(name__icontains = search_parameter) | Q(name_locale__icontains = search_parameter)
+        ).order_by("name")
+
+    category_list = []
+        
+    for category_instance in core_user_categories_without_department:
+        category_name = category_instance.name
+
+        category_name = category_name.split("_")[0]
+
+        category_list.append({
+            "id": category_instance.pk,
+            "name": category_name,
+            "name_locale": category_instance.name_locale,
+            "is_editable": category_instance.is_editable,
+            "is_active": True,
+        })
+
+    department_wise_categories.append({
+        "id": 0,
+        "name": "Uncategorized",
+        "name_locale": language_localization["Uncategorized"] if vendor_instance.secondary_language else "",
+        "core_user_categories": category_list
+    })
+
+    for department_instance in departments:
+        category_list = []
+
+        filtered_categories = core_user_categories_with_department.filter(department = department_instance.pk) \
+            .order_by("name")
+        
+        if search_parameter:
+            filtered_categories = filtered_categories.filter(
+                Q(name__icontains = search_parameter) | Q(name_locale__icontains = search_parameter)
+            ).order_by("name")
+        
+        for instance in filtered_categories:
+            category_name = instance.name
+
+            category_name = category_name.split("_")[0]
+
+            category_list.append({
+                "id": instance.pk,
+                "name": category_name,
+                "name_locale": instance.name_locale,
+                "is_editable": instance.is_editable,
+                "is_active": instance.is_active,
+            })
+
+        department_wise_categories.append({
+            "id": department_instance.pk,
+            "name": department_instance.name,
+            "name_locale": department_instance.name_locale,
+            "core_user_categories": category_list
+        })
+
+    return department_wise_categories

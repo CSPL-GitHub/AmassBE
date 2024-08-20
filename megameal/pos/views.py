@@ -17,6 +17,7 @@ from order.models import (
 )
 from django.core.paginator import Paginator
 from django.contrib import messages
+from django.contrib.auth import authenticate, login
 from core.utils import OrderStatus, OrderType, PaymentType
 from rest_framework.response import Response
 from collections import defaultdict
@@ -35,8 +36,7 @@ from pos.serializers import (
     WaiterSerializer, FloorSerializer, HotelTableSerializer , StoreTImingSerializer, ProductCategorySerializer,
     ProductSerializer, ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer,
     ModifierGroupSerializer, ModifierSerializer, StationModelSerializer, DiscountCouponModelSerializer,
-    ChefModelSerializer, BannerModelSerializer, CoreUserCategoryModelSerializer, CoreUserModelSerializer,
-    DepartmentModelSerializer,
+    ChefModelSerializer, BannerModelSerializer, DepartmentModelSerializer, CoreUserModelSerializer,
 )
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
@@ -48,7 +48,10 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render, redirect
-from pos.models import POSUser ,StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister
+from pos.models import (
+    POSUser, StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister,
+    POSPermission,
+)
 from pos.forms import PosUserForm
 from django.conf import settings
 from collections import OrderedDict
@@ -59,7 +62,10 @@ from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.contrib.auth.hashers import make_password
 from django.core.validators import URLValidator
 from koms.views import notify
-from pos.utils import order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel
+from pos.utils import (
+    order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
+    get_department_wise_categories,
+)
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
     delete_product_in_odoo, single_modifier_group_sync_with_odoo, delete_modifier_group_in_odoo,
@@ -83,27 +89,6 @@ from operator import itemgetter
 import calendar
 import pgeocode
 
-
-
-def date_sort_top_selling_products(item):
-    return item["order_date"]
-
-
-def date_sort(date):
-    year, month, day = date.split('-')
-    return (int(year), int(month), int(day))
-
-
-def date_sort_dashboard(item):
-    return item["date"]
-
-
-def date_sort_order_status_type_summary(item):
-    return item["order_date"]
-
-
-def get_order_id(order_data):
-    return order_data["orderId"]
 
 
 class CustomPagination(PageNumberPagination):
@@ -144,35 +129,6 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         
         return JsonResponse({"departments": serializer.data})
-
-
-class CoreUserCategoryModelViewSet(viewsets.ModelViewSet):
-    queryset = CoreUserCategory.objects.all().order_by('-pk')
-    serializer_class = CoreUserCategoryModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
-    search_fields = ('name',)
-    ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return CoreUserCategory.objects.filter(vendor=vendor_id).order_by('name')
-        
-        return CoreUserCategory.objects.none()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-
-        serializer_data = serializer.data
-        serializer_data.insert(0, {'id':0, 'name': 'Uncategorized', 'is_editable': False, 'department': 0, 'vendor': 1})
-        
-        return JsonResponse({"user_categories": serializer_data})
 
 
 class CoreUserModelViewSet(viewsets.ModelViewSet):
@@ -1072,87 +1028,120 @@ def delete_tax(request):
 
 
 @api_view(["POST"])
-def login(request):
-    try:
-        username = request.data.get("name")
-        password = request.data.get("password")
-
-        user = POSUser.objects.filter(username=username, password=password, is_active=True).first()
-
-        if not user:
-            return JsonResponse({
-                "message": "User not found",
-                "user_id": 0,
-                "token": "",
-                "name": "",
-                "email": "",
-                "primary_language": "",
-                "secondary_language": "",
-                "currency": "",
-                "currency_symbol": "",
-                "vendor_id": 0
-            }, status=status.HTTP_400_BAD_REQUEST)
-        
-        vendor_id = user.vendor.pk
-
-        vendor_instance = Vendor.objects.filter(pk=user.vendor.pk).first()
-
-        if not vendor_instance:
-            return JsonResponse({
-                "message": "Invalid Vendor",
-                "user_id": 0,
-                "token": "",
-                "name": "",
-                "email": "",
-                "primary_language": "",
-                "secondary_language": "",
-                "currency": "",
-                "currency_symbol": "",
-                "vendor_id": 0
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
-
-        if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
-            return JsonResponse({
-                "message": "User not found",
-                "user_id": 0,
-                "token": "",
-                "name": "",
-                "email": "",
-                "primary_language": "",
-                "secondary_language": "",
-                "currency": "",
-                "currency_symbol": "",
-                "vendor_id": 0
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-        return JsonResponse({
-            "message": "",
-            "user_id": user.pk,
-            "token": "",
-            "name": user.name,
-            "email": user.email,
-            "primary_language": vendor_instance.primary_language,
-            "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
-            "currency": vendor_instance.currency,
-            "currency_symbol": vendor_instance.currency_symbol,
-            "vendor_id": vendor_id,
-        }, status=status.HTTP_200_OK)
+def pos_user_login(request):
+    response_json = {
+        "message": "Invalid request data",
+        "user_id": 0,
+        "first_name": "",
+        "last_name": "",
+        "primary_language": "",
+        "secondary_language": "",
+        "currency": "",
+        "currency_symbol": "",
+        "vendor_id": 0,
+        "permissions": None,
+    }
     
-    except Exception as e:
-        return JsonResponse({
-            "message": str(e),
-            "user_id": 0,
-            "token": "",
-            "name": "",
-            "email": "",
-            "primary_language": "",
-            "secondary_language": "",
-            "currency": "",
-            "currency_symbol": "",
-            "vendor_id": 0
-        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR) 
+    with transaction.atomic():
+        try:
+            username = request.data.get("username")
+            password = request.data.get("password")
+
+            if (not username) or (not password):
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            user = authenticate(request, username=username, password=password)
+            
+            if not user:
+                response_json["message"] = "Invalid login credentials"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
+            
+            vendor_id = pos_user.vendor.pk
+
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+            if not vendor_instance:
+                response_json["message"] = "Invalid Vendor for the user"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+
+            if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+                response_json["message"] = "Contact your administrator to activate the platform"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            user_category = pos_user.core_user_category
+
+            if (not user_category):
+                response_json["message"] = "User category not configured for the user"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                
+            if (user_category.is_active == False) or (not user_category.department) or \
+            (user_category.department.is_active == False):
+                response_json["message"] = "Department and User category not configured for the user"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            pos_permission = POSPermission.objects.filter(
+                core_user_category = pos_user.core_user_category.pk, 
+                vendor = vendor_id
+            ).first()
+
+            if not pos_permission:
+                response_json["message"] = "Permissions not specified for the user"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+
+            permission_dictionary = {
+                "show_dashboard": pos_permission.show_dashboard,
+                "show_tables_page": pos_permission.show_tables_page,
+                "show_place_order_page": pos_permission.show_place_order_page,
+                "show_order_history_page": pos_permission.show_order_history_page,
+                "show_product_menu": pos_permission.show_product_menu,
+                "show_store_time_setting": pos_permission.show_store_time_setting,
+                "show_tax_setting": pos_permission.show_tax_setting,
+                "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
+                "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
+                "show_customer_setting": pos_permission.show_customer_setting,
+                "show_printer_setting": pos_permission.show_printer_setting,
+                "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
+                "show_banner_setting": pos_permission.show_banner_setting,
+                "show_excel_file_setting": pos_permission.show_excel_file_setting,
+                "show_employee_setting": pos_permission.show_employee_setting,
+                "show_reports": pos_permission.show_reports,
+                "show_sop": pos_permission.show_sop,
+                "show_language_setting": pos_permission.show_language_setting,
+                "core_user_category": pos_permission.core_user_category.pk,
+                "vendor": pos_permission.vendor.pk,
+            }
+
+            login(request, user)
+            
+            return JsonResponse({
+                "message": "",
+                "user_id": pos_user.pk,
+                "first_name": pos_user.first_name,
+                "last_name": pos_user.last_name,
+                "primary_language": vendor_instance.primary_language,
+                "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
+                "currency": vendor_instance.currency,
+                "currency_symbol": vendor_instance.currency_symbol,
+                "vendor_id": vendor_id,
+                "permissions": permission_dictionary,
+            }, status = status.HTTP_200_OK)
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+
+            response_json["message"] = str(e)
+
+            return JsonResponse(response_json, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -1976,16 +1965,24 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     "status": order_payment_instance.status,
                     "mode": payment_mode
                 }
-                split_payments = OrderPayment.objects.filter(masterPaymentId=order_payment_instance.pk)
-                split_payments_list = [{
-                        "paymentId": split_payment.pk,
-                        "paymentBy": split_payment.paymentBy,
-                        "paymentKey": split_payment.paymentKey,
-                        "amount_paid": split_payment.paid,
-                        "paymentType": split_payment.type,
-                        "paymentStatus": split_payment.status,
-                        "platform": split_payment.platform
-                    } for split_payment in split_payments]
+                split_payments_list = []
+                for split_order in Order.objects.filter(masterOrder=master_order_instance.pk):
+                    print("split")
+                    split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
+                    if split_payment:
+                        split_payments_list.append({
+                            "paymentId": split_payment.pk,
+                            "paymentBy": split_payment.paymentBy,
+                            "paymentKey": split_payment.paymentKey,
+                            "amount_paid": split_payment.paid,
+                            "paymentType": split_payment.type,
+                            "paymentStatus": split_payment.status,
+                            "amount_subtotal": split_order.subtotal,
+                            "amount_tax": split_order.tax,
+                            "status": split_payment.status,
+                            "platform": split_payment.platform,
+                            "mode": payment_type_english[split_payment.type]
+                        })
                 payment_details["split_payments"] = split_payments_list
 
             else:
@@ -2703,8 +2700,7 @@ def order_details(request):
                 customer_details["loyalty_points_balance"] = customer_loyalty_points_balance
                 customer_details["Shipping_Address"] = shipping_address
 
-                payment = OrderPayment.objects.filter(orderId=order_id).first()
-
+                payment = OrderPayment.objects.filter(orderId=order_id,masterPaymentId=None).first()
                 payment_details["paymentId"] = payment.pk if payment else 0
                 payment_details["paymentBy"] = payment.paymentBy if payment else ''
                 payment_details["paymentKey"] = payment.paymentKey if payment else ''
@@ -2866,7 +2862,24 @@ def order_details(request):
                 order_info["arrival_time"] = core_order.arrivalTime
                 order_info["type"] = koms_order.order_type
                 order_info["products"] = order_items[order_id]
-
+                
+                if request.GET.get("paymentId"):
+                    payment = OrderPayment.objects.filter(pk=request.GET.get("paymentId")).last()
+                    payment_details["paymentId"] = payment.pk if payment else 0
+                    payment_details["paymentBy"] = payment.paymentBy if payment else ''
+                    payment_details["paymentKey"] = payment.paymentKey if payment else ''
+                    payment_details["amount_paid"] = payment.paid if payment else 0.0
+                    payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
+                    payment_details["paymentStatus"] = payment.status if payment else False
+                    order_info["core_orderId"] = payment.orderId.pk
+                    order_info["orderId"] = payment.orderId.externalOrderId
+                    order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
+                    order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
+                    order_info["delivery_charge"] = payment.orderId.delivery_charge
+                    order_info["subtotal"] = payment.orderId.subtotal
+                    order_info["finalTotal"] = payment.orderId.TotalAmount
+                    
+                    
                 if core_order.platform == None:
                     platform_id = 0
                     platform_name = ""
@@ -2928,12 +2941,12 @@ def updatePaymentDetails(request):
     oldStatus = order.order_status
     
     coreOrder = Order.objects.filter(externalOrderId=order.externalOrderId, vendorId=vendorId).last()
-        
-    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
     
-    if payment:    
-        print(payment.platform)
+    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+    if data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
 
+    if payment:
         payment.paymentBy = data['payment']['paymentBy']
         payment.paymentKey = data['payment']['paymentKey']
         payment.type = data['payment']['type']
@@ -2954,7 +2967,11 @@ def updatePaymentDetails(request):
             status = True,
             platform = data['payment']['platform']
         )
-    
+    if data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+        splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+        if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+            OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
     if coreOrder.orderType == 3:
         order.order_status = 10 # CLOSE order
         order.save()
@@ -9267,55 +9284,258 @@ def register_cash(request):
         return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(["GET"])
+def get_core_user_categories(request):
+    try:
+        vendor_id = request.GET.get("vendor")
+        search_parameter = request.GET.get("search")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid Vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        department_wise_categories = get_department_wise_categories(
+            vendor_instance = vendor_instance,
+            search_parameter = search_parameter
+        )
+        
+        return JsonResponse({
+            "message": "",
+            "departments": department_wise_categories
+        })
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def create_core_user_category(request):
+    with transaction.atomic():
+        try:
+            name = request.data.get("name")
+            name_locale = request.data.get("name_locale")
+            is_active = request.data.get("is_active")
+            department_id = request.data.get("department")
+            vendor_id = request.data.get("vendor")
+
+            if (not name) or (not vendor_id):
+                return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                vendor_id = int(vendor_id)
+
+                if department_id:
+                    department_id = int(department_id)
+
+            except ValueError:
+                return JsonResponse({"message": "Invalid Vendor ID or Department ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+            if not vendor_instance:
+                return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if department_id:
+                department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
+
+                if not department_instance:
+                    return JsonResponse({"message": "Department does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            category_name = f"{name}_{vendor_id}"
+
+            existing_core_user_category = CoreUserCategory.objects.filter(name=category_name, vendor=vendor_id).first()
+
+            if existing_core_user_category:
+                return JsonResponse({"message": "Category with this name already exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+            if not name_locale:
+                name_locale = name
+            
+            core_user_category = CoreUserCategory.objects.create(
+                name = category_name,
+                name_locale = name_locale,
+                is_active = is_active,
+                department = department_instance if department_id else None,
+                vendor = vendor_instance
+            )
+
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            }, status = status.HTTP_201_CREATED)
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+            
+            return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["PATCH"])
+def update_core_user_category(request):
+    with transaction.atomic():
+        try:
+            core_user_category_id = request.data.get("id")
+            name = request.data.get("name")
+            name_locale = request.data.get("name_locale")
+            is_active = request.data.get("is_active")
+            department_id = request.data.get("department")
+            vendor_id = request.data.get("vendor")
+
+            if not all((name, core_user_category_id, vendor_id)):
+                return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                vendor_id = int(vendor_id)
+                core_user_category_id = int(core_user_category_id)
+
+                if department_id:
+                    department_id = int(department_id)
+
+            except ValueError:
+                return JsonResponse({"message": "Invalid Vendor ID, User Category ID or Department ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            core_user_category_instance = CoreUserCategory.objects.filter(pk=core_user_category_id, vendor=vendor_id).first()
+
+            if (not vendor_instance) or (not core_user_category_instance):
+                return JsonResponse({"message": "Vendor or User Category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            if department_id:
+                department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
+
+                if not department_instance:
+                    return JsonResponse({"message": "Department does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            category_name = f"{name}_{vendor_id}"
+
+            if not name_locale:
+                name_locale = name
+
+            core_user_category_instance.name = category_name
+            core_user_category_instance.name_locale = name_locale
+            core_user_category_instance.is_active = is_active
+            core_user_category_instance.department = department_instance if department_id else None
+
+            core_user_category_instance.save()
+
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            })
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+
+            return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["DELETE"])
+def delete_core_user_category(request):
+    with transaction.atomic():
+        try:
+            core_user_category_id = request.data.get("id")
+            vendor_id = request.data.get("vendor")
+
+            if not all((core_user_category_id, vendor_id)):
+                return JsonResponse({"message": "Invalid request data"}, status=status.HTTP_400_BAD_REQUEST)
+
+            try:
+                vendor_id = int(vendor_id)
+                core_user_category_id = int(core_user_category_id)
+
+            except ValueError:
+                return JsonResponse({"message": "Invalid Vendor ID or User Category ID"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            core_user_category_instance = CoreUserCategory.objects.filter(pk=core_user_category_id, vendor=vendor_id).first()
+
+            if (not vendor_instance) or (not core_user_category_instance):
+                return JsonResponse({"message": "Vendor or User Category does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            
+            core_user_category_instance.delete()
+            
+            department_wise_categories = get_department_wise_categories(vendor_instance = vendor_instance)
+        
+            return JsonResponse({
+                "message": "",
+                "departments": department_wise_categories
+            }, status = status.HTTP_200_OK)
+        
+        except Exception as e:
+            transaction.set_rollback(True)
+
+            return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
-
     vendorId = request.GET.get('vendorId', None)
     language = request.GET.get('language', 'English')
-
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
         vendorId = int(vendorId)
-
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
-
     vendor_instance = Vendor.objects.filter(pk=vendorId).first()
-
     if not vendor_instance:
         return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
-
-    
     coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
-        
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
-
     if not payment:
         return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
-
+    
     payment.type = PaymentType.SPLIT
     payment.save()
-    
+    count = 1
     for splitPayment in data["payments"]:
+        split_customer = Customer.objects.filter(pk=splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+        split_order = Order(
+                Status=OrderStatus.OPEN,
+                masterOrder = coreOrder,
+                TotalAmount=splitPayment.get("amount_paid",0.0),
+                OrderDate=timezone.now(),
+                Notes=data.get("note"),
+                externalOrderId=coreOrder.externalOrderId + f"_{count}",
+                orderType=coreOrder.orderType,
+                arrivalTime=timezone.now(),
+                tax= splitPayment.get("amount_paid") or 0.0 ,
+                discount=0.0,
+                tip=0.0,
+                delivery_charge=0.0,
+                subtotal=splitPayment.get("amount_paid") or 0.0 ,
+                customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
+                vendorId=vendor_instance,
+                platform=coreOrder.platform
+            ).save()
+        count = count + 1
         OrderPayment(
-            orderId=coreOrder,
-            masterPaymentId=payment,
-            paymentBy=coreOrder.customerId.Email or "",
-            paymentKey=splitPayment.get("paymentKey",""),
-            paid=splitPayment.get("amount_paid",0.0),
-            due=0.0,
-            tip=splitPayment.get('tip',0.0),
-            status=splitPayment.get("paymentStatus", False),
-            type=PaymentType.get_payment_number(splitPayment.get("paymentType", PaymentType.CASH)),
-            platform=splitPayment.get("platform", ""),
-            splitType=splitPayment.get("splitType", None),
+            orderId = split_order,
+            paymentBy = coreOrder.customerId.Email or "",
+            paymentKey = splitPayment.get("paymentKey",""),
+            paid = splitPayment.get("amount_paid",0.0),
+            due = 0.0,
+            tip = splitPayment.get('tip',0.0),
+            status = splitPayment.get("paymentStatus") or  False,
+            type = PaymentType.get_payment_number(splitPayment.get("paymentType") or "CASH"),
+            platform = splitPayment.get("platform") or "",
+            splitType = splitPayment.get("splitType", None),
         ).save()
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
     return Response({})

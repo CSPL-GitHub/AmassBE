@@ -58,6 +58,8 @@ class POSSetting(models.Model):
 
 class Department(models.Model):
     name = models.CharField(max_length=150)
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
 
     class Meta:
@@ -68,8 +70,10 @@ class Department(models.Model):
 
 
 class CoreUserCategory(Group):
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
     is_editable = models.BooleanField(default=True)
-    department = models.ForeignKey(Department, on_delete=models.CASCADE, related_name="user_department")
+    is_active = models.BooleanField(default=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
@@ -82,6 +86,7 @@ class CoreUser(User):
     document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     is_head = models.BooleanField(default=False)
     reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
     class Meta:
@@ -111,6 +116,9 @@ class POSPermission(models.Model):
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
+    class Meta:
+        unique_together = ('core_user_category', 'vendor')
+
 
 class CashRegister(models.Model):
     balance_while_store_opening = models.FloatField()
@@ -120,12 +128,3 @@ class CashRegister(models.Model):
     edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
     edited_at = models.DateTimeField(auto_now=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_cash_register")
-
-
-
-@receiver(post_save, sender=Vendor)
-def deactivate_related_users(sender, instance, **kwargs):
-    if not kwargs.get('raw', False):  # To avoid signal firing during bulk operations
-        if instance.is_active is False:  # When is_active of Vendor changes to False
-            related_users = POSUser.objects.filter(vendor=instance)
-            related_users.update(is_active=False)

@@ -158,6 +158,7 @@ language_localization = {
     "Transaction ID": "رقم المعاملة",
     "Tuesday": "يوم الثلاثاء",
     "Unit Price": "سعر الوحدة",
+    "Uncategorized": "غير مصنف",
     "Unknown": "مجهول",
     "Wednesday": "الأربعاء",
 }
