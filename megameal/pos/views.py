@@ -9348,6 +9348,7 @@ def splitOrderPayment(request):
     
     payment.type = PaymentType.SPLIT
     payment.save()
+    old_splits = Order.objects.filter(masterOrder=coreOrder.pk).delete()
     count = 1
     for splitPayment in data["payments"]:
         split_customer = Customer.objects.filter(pk=splitPayment.get('customerId')) if splitPayment.get('customerId') else None
