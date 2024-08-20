@@ -1286,28 +1286,30 @@ def dashboard(request):
     prepared_status_code = OrderStatus.get_order_status_value('PREPARED')
     
     sales_order_list = []
-    new_sales_order_list = []
     new_orders_count = 0
     
     orders = Order.objects.filter(
-        OrderDate__date__range=(start_date, end_date),
-        vendorId=vendor_id
+        OrderDate__date__range = (start_date, end_date),
+        vendorId = vendor_id
     )
 
-    new_orders_count = KOMSOrder.objects.filter(
-        order_status=1,
-        arrival_time__date__range=(start_date, end_date),
-        vendorId=vendor_id
-    ).count()
+    koms_orders = KOMSOrder.objects.filter(
+        arrival_time__date__range = (start_date, end_date),
+        vendorId = vendor_id
+    )
     
-    subtotal_sum, discount_sum = orders.filter(
-        orderpayment__status=True
-    ).exclude(Status=canceled_status_code).aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
+    new_orders_count = koms_orders.filter(order_status = 1).count()
+
+    onhold_orders_count = koms_orders.filter(order_status = 4).count()
+    
+    subtotal_sum, discount_sum = orders.filter(orderpayment__status = True) \
+        .exclude(Status = canceled_status_code) \
+        .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
 
     subtotal_sum = subtotal_sum or 0.0
     discount_sum = discount_sum or 0.0
     
-    total_sale = "{:.2f}".format(subtotal_sum - discount_sum)
+    total_revenue = "{:.2f}".format(subtotal_sum - discount_sum)
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
@@ -1317,14 +1319,9 @@ def dashboard(request):
     
     if online_order_platform:
         online_order_platform_id = str(online_order_platform.pk)
-
-    total_orders_canceled = orders.filter(Status=canceled_status_code).count()
-    
-    orders = orders.exclude(Status=canceled_status_code)
-
-    all_orders = orders
     
     total_orders = orders.count()
+    total_orders_canceled = orders.filter(Status=canceled_status_code).count()
     total_orders_completed = orders.filter(Status=completed_status_code, orderpayment__status=True).count()
     total_orders_inprogress = orders.filter(Status__in=[inprogress_status_code, open_status_code, prepared_status_code]).count()
     total_orders_inprogress = total_orders_inprogress - new_orders_count
@@ -1332,47 +1329,31 @@ def dashboard(request):
     total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
     total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
     online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
-
-    orders = orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
-
+    
     current_start_date = current_end_date = datetime.now().date()
     
     if ((start_date == end_date) and (start_date == current_start_date and end_date == current_end_date)) or \
     ((start_date != end_date) and (start_date != current_start_date and end_date == current_end_date)):
-        start_datetime = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
-        current_datetime = datetime.now()
-        end_datetime = current_datetime.replace(minute=0, second=0, microsecond=0)
-
-        current_datetime = start_datetime
+        end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
     
     elif (start_date == end_date) and (start_date != current_start_date and end_date != current_end_date):
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-
-        if end_date == datetime.now().date():
-            end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
-        else:
-            end_datetime = datetime.combine(start_date, store_timing.close_time)
-
-        current_datetime = start_datetime
+        end_datetime = datetime.combine(start_date, time(23, 59, 59))
 
     else:
-        start_datetime = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
-        end_datetime = datetime.strptime(str(end_date) + " 23:59:59.000000", '%Y-%m-%d %H:%M:%S.%f')
-        
-        current_datetime = start_datetime
+        end_datetime = datetime.combine(end_date, time(23, 59, 59))
+    
+    current_datetime = datetime.combine(start_date, time(0, 0, 0))
     
     if orders.exists():
         while current_datetime <= end_datetime:
             current_hour_start = current_datetime
             current_hour_end = current_datetime + timedelta(hours=1)
 
-            filtered_orders = orders.filter(
-                OrderDate__range=(current_hour_start, current_hour_end)
-            )
+            filtered_orders = orders.filter(OrderDate__range = (current_hour_start, current_hour_end))
 
-            subtotal_sum, discount_sum = filtered_orders.aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
+            orders_with_payment = filtered_orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
+
+            subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
             
             subtotal_sum = subtotal_sum or 0.0
             discount_sum = discount_sum or 0.0
@@ -1382,52 +1363,19 @@ def dashboard(request):
             sales_order_list.append({
                 "date": current_hour_start.astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'),
                 "total_sale": total_sale_hourly,
-                "completed_orders_count": filtered_orders.count(),
-                "total_orders_count": all_orders.filter(OrderDate__range=(current_hour_start, current_hour_end)).count()
+                "total_orders_count": filtered_orders.count(),
+                "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
             })
 
-            current_datetime += timedelta(hours=1)
-
-        running_total_sales = 0.0
-        running_completed_orders = 0
-        running_total_orders = 0
-        
-        for data in sales_order_list:
-            running_total_sales = running_total_sales + float(data["total_sale"])
-            running_completed_orders = running_completed_orders + data["completed_orders_count"]
-            running_total_orders = running_total_orders + data["total_orders_count"]
-
-            new_sales_order_list.append({
-                "date": data["date"],
-                "total_sale": "{:.2f}".format(running_total_sales),
-                "completed_orders_count": running_completed_orders,
-                "total_orders_count": running_total_orders,
-            })
-
-        if len(new_sales_order_list) == 1:
-            first_item = new_sales_order_list[0]
-            date_value = first_item["date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(days=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            new_sales_order_list.append({
-                "date": date_value,
-                "total_sale": "0.0",
-                "completed_orders_count": 0,
-                "total_orders_count": 0
-            })
+            current_datetime = current_datetime + timedelta(hours=1)
     
     order_items = Order_content.objects.filter(
-        orderId__order_status=10,
-        orderId__master_order__Status=completed_status_code,
-        orderId__master_order__orderpayment__status=True,
-        orderId__master_order__OrderDate__date__range=(start_date, end_date),
-        orderId__master_order__vendorId=vendor_id,
-        orderId__vendorId=vendor_id
+        orderId__order_status = 10,
+        orderId__master_order__Status = completed_status_code,
+        orderId__master_order__orderpayment__status = True,
+        orderId__master_order__OrderDate__date__range = (start_date, end_date),
+        orderId__master_order__vendorId = vendor_id,
+        orderId__vendorId = vendor_id
     )
     
     total_items_sold = order_items.values('SKU').distinct().count()
@@ -1468,7 +1416,7 @@ def dashboard(request):
     order_details = {
         "online_order_platform_id": online_order_platform_id, # Required for Flutter model
         "active_products": active_product_count,
-        "total_sale": total_sale,
+        "total_sale": total_revenue,
         "total_orders": total_orders,
         "items_sold": total_items_sold,
         "orders_completed": total_orders_completed,
@@ -1479,7 +1427,8 @@ def dashboard(request):
         "orders_dined": total_orders_dined,
         "online_orders": online_orders_count,
         "new_orders": new_orders_count,
-        "sales_order": new_sales_order_list,
+        "onhold_orders": onhold_orders_count,
+        "sales_order": sales_order_list,
         "top_selling": list_of_items
     }
 
