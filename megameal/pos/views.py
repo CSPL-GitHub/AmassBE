@@ -1970,7 +1970,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     if split_payment:
                         split_payments_list.append({
                             "paymentId": split_payment.pk,
-                            "paymentBy": split_payment.paymentBy,
+                            "paymentBy": split_order.customerId.FirstName,
                             "paymentKey": split_payment.paymentKey,
                             "amount_paid": split_payment.paid,
                             "paymentType": split_payment.type,
@@ -5685,7 +5685,8 @@ def redeem_loyalty_points(request):
                         customer_instance.save()
 
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
-            
+                    if master_order_instance.masterOrder:
+                        koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.masterOrder.pk).first()
                     waiteOrderUpdate(orderid=koms_order.pk, language=language, vendorId=vendor_id) # call socket
                     
                     return Response("Points redeemed", status=status.HTTP_200_OK)

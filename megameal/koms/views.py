@@ -678,7 +678,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
             split_payments_list.append({
                 "paymentId": split_payment.pk,
-                "paymentBy": split_payment.paymentBy,
+                "paymentBy": split_order.customerId.FirstName,
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
