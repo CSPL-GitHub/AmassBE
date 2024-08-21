@@ -1980,7 +1980,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                             "amount_tax": split_order.tax,
                             "status": split_payment.status,
                             "platform": split_payment.platform,
-                            "mode": payment_type_english[split_payment.type]
+                            "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
                         })
                 payment_details["split_payments"] = split_payments_list
 
