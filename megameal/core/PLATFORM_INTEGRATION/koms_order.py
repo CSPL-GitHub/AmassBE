@@ -1,10 +1,9 @@
-import threading
-from core.models import  Platform, Product, ProductCategoryJoint
-import pytz
-import requests
+from core.models import Product, ProductCategoryJoint
 from datetime import datetime,timedelta
 from core.utils import * 
 from koms.models import Station
+from pos.language import local_timezone
+import threading
 
 
 
@@ -36,8 +35,8 @@ class KomsEcom():
                 "master_id": data.get('master_id'),
                 "externalOrderId": data.get('externalOrderId'),
                 "orderType": OrderType.get_order_type_value( data['orderType']),
-                "arrivalTime": data['arrivalTime'] if data['arrivalTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
-                "pickupTime": data['pickupTime'] if data['pickupTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(pytz.timezone('Asia/Kolkata')).strftime('%H:%M:%S')}",
+                "arrivalTime": data['arrivalTime'] if data['arrivalTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(local_timezone).strftime('%H:%M:%S')}",
+                "pickupTime": data['pickupTime'] if data['pickupTime']!= ""  else f"{str(datetime.today().date())}T{datetime.now(local_timezone).strftime('%H:%M:%S')}",
                 "deliveryIsAsap": data['deliveryIsAsap'],
                 "tableNo": data['tables'] if data.get('tables') else [] ,
                 "items": {},
@@ -61,7 +60,7 @@ class KomsEcom():
             res["totalPrepTime"] = totalPrepTime
             
             if totalPrepTime>0:
-                current_time = datetime.now(pytz.timezone('Asia/Kolkata'))
+                current_time = datetime.now(local_timezone)
 
                 new_time = current_time + timedelta(minutes=totalPrepTime)
 

@@ -47,7 +47,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
-from django.shortcuts import render, redirect
+from django.shortcuts import render
 from pos.models import (
     StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister, POSPermission,
 )
@@ -70,12 +70,11 @@ from inventory.utils import (
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
 from pos.language import (
-    check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
-    payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
+    local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
+    koms_order_status_english, check_key_exists, table_created_locale, table_deleted_locale,
 )
 from googletrans import Translator
 import pandas
-import pytz
 import re
 import openpyxl
 import os
@@ -1362,7 +1361,7 @@ def dashboard(request):
 
             if filtered_orders.count() != 0:
                 sales_order_list.append({
-                    "date": current_hour_start.astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'),
+                    "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
                     "total_sale": total_sale_hourly,
                     "total_orders_count": filtered_orders.count(),
                     "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
@@ -1676,7 +1675,7 @@ def order_status_type_summary(request):
                     ).count()
 
                     order_list.append({
-                        "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
+                        "order_date": current_time.astimezone(local_timezone).strftime("%Y-%m-%d %H:%M"),
                         "total_orders": total_orders_count,
                         "closed_orders": closed_orders_count,
                         "onhold_orders": onhold_orders_count,
@@ -3553,7 +3552,7 @@ def excel_download_for_dashboard(request):
             payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
 
             if order_detail:
-                order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
+                order_time = order_detail.arrivalTime.astimezone(local_timezone).replace(tzinfo=None)
 
                 order_type = order_type_english[order_detail.orderType]
                 order_status = koms_order_status_english[koms_order_status]
@@ -5216,9 +5215,9 @@ def get_orders_of_customer(request):
                     "delivery_charge": order.delivery_charge,
                     "subtotal": order.subtotal,
                     "total_amount": order.TotalAmount,
-                    "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "pickup_time": koms_order.pickupTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "arrival_time": order.arrivalTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                     "order_type": order.orderType,
                     "platform_name": platform_name,
                     "table_numbers": table_numbers_list,
@@ -5342,7 +5341,7 @@ def get_loyalty_point_transactions_of_customer(request):
             order_data = {
                 "order_id": order.pk,
                 "external_order_id": order.externalOrderId,
-                "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                 "credit_history": credit_transaction,
                 "redeemed_points": redeemed_points,
                 "redeem_history": redeem_transaction
@@ -9062,9 +9061,9 @@ def get_cash_register_history(request):
                 "balance_while_store_opening": cash_register_history.balance_while_store_opening,
                 "balance_while_store_closing": cash_register_history.balance_while_store_closing,
                 "created_by": cash_register_history.created_by.pk,
-                "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "created_at": cash_register_history.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                 "edited_by": cash_register_history.edited_by.pk,
-                "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "edited_at": cash_register_history.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             })
         
         return JsonResponse({
@@ -9086,9 +9085,9 @@ def get_cash_register_history(request):
             "balance_while_store_opening": instance.balance_while_store_opening,
             "balance_while_store_closing": instance.balance_while_store_closing,
             "created_by": instance.created_by.pk,
-            "created_at": instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "created_at": instance.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             "edited_by": instance.edited_by.pk,
-            "edited_at": instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_at": instance.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
     return JsonResponse({"message": "", "history": cash_register_history_list})
@@ -9154,9 +9153,9 @@ def register_cash(request):
             "balance_while_store_opening": cash_register_instance.balance_while_store_opening,
             "balance_while_store_closing": cash_register_instance.balance_while_store_closing,
             "created_by": cash_register_instance.created_by.pk,
-            "created_at": cash_register_instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "created_at": cash_register_instance.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             "edited_by": cash_register_instance.edited_by.pk,
-            "edited_at": cash_register_instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_at": cash_register_instance.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
         })
     
     except Exception as e:
