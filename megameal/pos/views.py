@@ -1591,124 +1591,151 @@ def top_selling_product_details(request):
 
 @api_view(["POST"])
 def order_status_type_summary(request):
-    required_fields = {
-        "vendor_id", "order_status_code", "order_type_code", "start_date", "end_date", "page_number", "page_limit"
-    }
-    
-    missing_fields = required_fields - set(request.data.keys())
-
-    if missing_fields:
-        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
     try:
-        vendor_id = int(request.data.get('vendor_id'))
-        order_status_code = int(request.data.get('order_status_code'))
-        order_type_code = int(request.data.get('order_type_code'))
-        page_number = int(request.data.get('page_number'))
-        page_limit = int(request.data.get('page_limit'))
-
-        if any(value < 0 for value in (vendor_id, order_status_code, page_number, page_limit)):
-            raise ValueError
+        required_fields = {"vendor_id", "order_type_code", "start_date", "end_date", "page_number", "page_limit"}
         
-        start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
-        end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
+        missing_fields = required_fields - set(request.data.keys())
 
-    except Exception:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
-    
-    if start_date > end_date:
-        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+        if missing_fields:
+            return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        try:
+            vendor_id = int(request.data.get('vendor_id'))
+            order_type_code = int(request.data.get('order_type_code'))
+            page_number = int(request.data.get('page_number'))
+            page_limit = int(request.data.get('page_limit'))
 
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+            if any(value < 0 for value in (vendor_id, page_number, page_limit)):
+                raise ValueError
+            
+            start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
 
-    orders = KOMSOrder.objects.filter(
-        master_order__OrderDate__date__range=(start_date, end_date),
-        master_order__vendorId=vendor_id,
-        vendorId=vendor_id
-    )
+        except Exception:
+            return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
         
-    if not orders.exists():
+        if start_date > end_date:
+            return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+        orders = KOMSOrder.objects.filter(
+            master_order__OrderDate__date__range = (start_date, end_date),
+            master_order__vendorId = vendor_id,
+            vendorId = vendor_id
+        )
+        
+        if order_type_code != 0:
+            orders = orders.filter(order_type = order_type_code)
+        
+        if not orders.exists():
+            return JsonResponse({
+                "page_number": 1,
+                "total_pages": 1,
+                "orders": [],
+            })
+        
+        orders = orders.order_by("arrival_time")
+        
+        order_list = []
+        
+        if start_date == end_date:
+            current_start_date = current_end_date = datetime.now().date()
+            
+            if (start_date == current_start_date) and (end_date == current_end_date):
+                end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
+
+            else:
+                end_datetime = datetime.combine(end_date, time(0, 0, 0)) + timedelta(days=1)
+
+            current_time = datetime.combine(start_date, time(0, 0, 0))
+
+            while current_time < end_datetime:
+                next_time = current_time + timedelta(hours=1)
+
+                filtered_orders = orders.filter(arrival_time__range = (current_time, next_time))
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = OrderStatus.get_order_status_value('COMPLETED'),
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = OrderStatus.get_order_status_value('CANCELED'),
+                    ).count()
+
+                    order_list.append({
+                        "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
+
+                current_time = next_time
+        
+        else:
+            unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)))
+
+            for unique_date in unique_order_dates:
+                filtered_orders = orders.filter(arrival_time__date = unique_date)
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = OrderStatus.get_order_status_value('COMPLETED'),
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = OrderStatus.get_order_status_value('CANCELED'),
+                    ).count()
+
+                    order_list.append({
+                        "order_date": unique_date,
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
+
+        paginated_data = []
+        
+        paginator = Paginator(order_list, page_limit)
+        page = paginator.get_page(page_number) 
+
+        for order in page:
+            paginated_data.append({
+                "order_date": order['order_date'],
+                "total_orders": order['total_orders'],
+                "closed_orders": order['closed_orders'],
+                "onhold_orders": order['onhold_orders'],
+                "cancelled_orders": order['cancelled_orders'],
+            })
+
         return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": [],
+            "page_number": page.number,
+            "total_pages": paginator.num_pages,
+            "orders": paginated_data,
         })
     
-    if order_type_code != 0:
-        orders = orders.filter(order_type=order_type_code)
-    
-    if order_status_code in [2, 3, 4, 6, 7, 8, 9]:
-        orders = orders.filter(order_status__in=[2, 3, 4, 6, 7, 8, 9])
-            
-    else:
-        orders = orders.filter(order_status=order_status_code)
-    
-    if not orders.exists():
-        return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": [],
-        })
-    
-    order_list = []
-    
-    current_start_date = current_end_date = datetime.now().date()
-    
-    if start_date == end_date:
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-        end_datetime = datetime.combine(end_date, store_timing.close_time)
-        
-        if (start_date == current_start_date) and (end_date == current_end_date):
-            end_datetime = datetime.now() + timedelta(minutes=59, seconds=59)
-
-        current_time = start_datetime
-        
-        while current_time <= end_datetime:
-            next_time = current_time + timedelta(hours=1)
-            
-            filtered_orders = orders.filter(arrival_time__range=(current_time, next_time))
-
-            if filtered_orders.count() != 0:
-                order_list.append({
-                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                    "total_order": filtered_orders.count(),
-                })
-
-            current_time = next_time
-    
-    else:
-        unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)), reverse=True)
-
-        for unique_date in unique_order_dates:
-            filtered_orders = orders.filter(arrival_time__icontains=unique_date)
-            
-            if filtered_orders.count() != 0:
-                order_list.append({
-                    "order_date": unique_date,
-                    "total_order": filtered_orders.count(),
-                })
-
-    paginated_data = []
-    
-    paginator = Paginator(order_list, page_limit)
-    page = paginator.get_page(page_number) 
-
-    for order in page:
-        paginated_data.append({
-            "order_date": order['order_date'],
-            "total_order": order['total_order'],
-        })
-
-    return JsonResponse({
-        "page_number": page.number,
-        "total_pages": paginator.num_pages,
-        "orders": paginated_data,
-    })
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
