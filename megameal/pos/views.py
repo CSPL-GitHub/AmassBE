@@ -1839,9 +1839,15 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         if order_status != "All":
             if is_dashboard == 0:
                 order_data = order_data.filter(order_status=order_status)
+
             elif is_dashboard == 1:
                 if order_status == 10 :
-                    order_data = order_data.filter(order_status__in = [5,10])
+                    if s_date and e_date:
+                        order_data = order_data.filter(order_status__in = [4, 5, 10])
+
+                    else:
+                        order_data = order_data.filter(order_status__in = [5, 10])
+
                 else:
                     order_data = order_data.filter(order_status=order_status)
 
