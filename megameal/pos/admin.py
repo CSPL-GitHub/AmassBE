@@ -23,6 +23,17 @@ class CoreUserCategoryAdmin(admin.ModelAdmin):
     # show_facets = admin.ShowFacets.ALWAYS
 
 
+@admin.register(WorkingShift)
+class WorkingShiftAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'name', 'name_locale', 'start_time', 'end_time',)
+
+    list_display = ('name', 'start_time', 'end_time', 'vendor',)
+    list_filter = ('vendor',)
+    search_fields = ('name', 'name_locale',)
+    ordering = ('vendor', 'start_time',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
 @admin.register(CoreUser)
 class CoreUserAdmin(admin.ModelAdmin):
     fields = (

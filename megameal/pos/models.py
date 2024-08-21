@@ -64,6 +64,14 @@ class CoreUserCategory(Group):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
+class WorkingShift(models.Model):
+    name = models.CharField(max_length=200)
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+
 class CoreUser(User):
     phone_number = models.PositiveBigIntegerField()
     current_address = models.TextField(max_length=2000, null=True, blank=True)
