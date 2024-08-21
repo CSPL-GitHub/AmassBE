@@ -1321,16 +1321,32 @@ def dashboard(request):
     
     sales_order_list = []
     new_orders_count = 0
-    
-    orders = Order.objects.filter(
-        OrderDate__date__range = (start_date, end_date),
-        vendorId = vendor_id
-    )
 
-    koms_orders = KOMSOrder.objects.filter(
-        arrival_time__date__range = (start_date, end_date),
-        vendorId = vendor_id
-    )
+    if vendor_instance.is_franchise_owner == True:
+        vendor_ids = set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True))
+
+        vendor_ids.add(vendor_id)
+
+        orders = Order.objects.filter(
+            OrderDate__date__range = (start_date, end_date),
+            vendorId__in = vendor_ids
+        )
+
+        koms_orders = KOMSOrder.objects.filter(
+            arrival_time__date__range = (start_date, end_date),
+            vendorId__in = vendor_ids
+        )
+
+    else:
+        orders = Order.objects.filter(
+            OrderDate__date__range = (start_date, end_date),
+            vendorId = vendor_id
+        )
+
+        koms_orders = KOMSOrder.objects.filter(
+            arrival_time__date__range = (start_date, end_date),
+            vendorId = vendor_id
+        )
     
     new_orders_count = koms_orders.filter(order_status = 1).count()
 
@@ -9429,11 +9445,11 @@ def splitOrderPayment(request):
                 externalOrderId=coreOrder.externalOrderId + f"_{count}",
                 orderType=coreOrder.orderType,
                 arrivalTime=timezone.now(),
-                tax= splitPayment.get("amount_paid") or 0.0 ,
+                tax= splitPayment.get("amount_tax") or 0.0 ,
                 discount=0.0,
                 tip=0.0,
                 delivery_charge=0.0,
-                subtotal=splitPayment.get("amount_paid") or 0.0 ,
+                subtotal=splitPayment.get("amount_subtotal") or 0.0 ,
                 customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
                 vendorId=vendor_instance,
                 platform=coreOrder.platform
