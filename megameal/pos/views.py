@@ -1055,7 +1055,9 @@ def pos_user_login(request):
         "currency": "",
         "currency_symbol": "",
         "vendor_id": 0,
+        "is_franchise_owner": False,
         "permissions": None,
+        "related_vendors": [],
     }
     
     with transaction.atomic():
@@ -1137,6 +1139,18 @@ def pos_user_login(request):
                 "vendor": pos_permission.vendor.pk,
             }
 
+            related_vendor_list = []
+            
+            if vendor_instance.is_franchise_owner == True:
+                vendors = Vendor.objects.filter(franchise=vendor_id)
+
+                for vendor in vendors:
+                    related_vendor_list.append({
+                        "id": vendor.pk,
+                        "is_active": vendor.is_active,
+                        "contact_person_name": vendor.contact_person_name,
+                    })
+
             login(request, user)
             
             return JsonResponse({
@@ -1149,7 +1163,9 @@ def pos_user_login(request):
                 "currency": vendor_instance.currency,
                 "currency_symbol": vendor_instance.currency_symbol,
                 "vendor_id": vendor_id,
+                "is_franchise_owner": vendor_instance.is_franchise_owner,
                 "permissions": permission_dictionary,
+                "related_vendors": related_vendor_list,
             }, status = status.HTTP_200_OK)
         
         except Exception as e:
