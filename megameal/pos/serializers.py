@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 
 
 
-class StoreTImingSerializer(serializers.ModelSerializer):
+class StoreTimingSerializer(serializers.ModelSerializer):
     class Meta:
         model = StoreTiming
         fields = "__all__"

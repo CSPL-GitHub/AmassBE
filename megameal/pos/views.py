@@ -3843,12 +3843,12 @@ def set_store_timings(request):
 
     body_data['platform'] = None
 
-    serialized = StoreTImingSerializer(data=body_data)
+    serialized = StoreTimingSerializer(data=body_data)
 
     # update store_timings
     if request.GET.get("id"):
         data = StoreTiming.objects.get(pk=request.GET.get("id"))
-        serialized = StoreTImingSerializer(instance=data, data=body_data)
+        serialized = StoreTimingSerializer(instance=data, data=body_data)
 
     if serialized.is_valid():
         slot = serialized.save()
