@@ -39,7 +39,7 @@ class CoreUserAdmin(admin.ModelAdmin):
     fields = (
         'vendor', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
         'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2',
-        'is_active', 'reports_to', 'core_user_category', 'is_head',
+        'is_active', 'reports_to', 'working_shift', 'core_user_category', 'is_head',
     )
 
     list_display = ('first_name', 'last_name', 'username', 'core_user_category', 'is_head', 'is_active', 'vendor',)
