@@ -15,6 +15,7 @@ router.register("setting/station", views.StationModelViewSet, basename="station"
 router.register("setting/chef", views.ChefModelViewSet, basename="chef")
 router.register("setting/banner", views.BannerModelViewSet, basename="banner")
 router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
+router.register("setting/working_shift", views.WorkingShiftModelViewSet, basename="working_shift")
 router.register("setting/users", views.CoreUserModelViewSet, basename="core_users")
 
 

@@ -32,12 +32,7 @@ from koms.views import allStationWiseCategory, allStationWiseRemove, allStationW
 from django.utils import timezone
 from datetime import datetime, timedelta, time
 from rest_framework import status, viewsets, permissions, authentication
-from pos.serializers import (
-    WaiterSerializer, FloorSerializer, HotelTableSerializer , StoreTImingSerializer, ProductCategorySerializer,
-    ProductSerializer, ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer,
-    ModifierGroupSerializer, ModifierSerializer, StationModelSerializer, DiscountCouponModelSerializer,
-    ChefModelSerializer, BannerModelSerializer, DepartmentModelSerializer, CoreUserModelSerializer,
-)
+from pos.serializers import *
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
     StationFilter, ChefFilter,
@@ -48,9 +43,7 @@ from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render
-from pos.models import (
-    StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister, POSPermission,
-)
+from pos.models import *
 from django.conf import settings
 from collections import OrderedDict
 from django.core.files.storage import default_storage
@@ -107,7 +100,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_fields = ('name',)
-    search_fields = ('name',)
+    search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name',)
     # permission_classes = [permissions.IsAuthenticated]
     # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
@@ -126,6 +119,32 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         
         return JsonResponse({"departments": serializer.data})
+
+
+class WorkingShiftModelViewSet(viewsets.ModelViewSet):
+    queryset = WorkingShift.objects.all().order_by('start_time')
+    serializer_class = WorkingShiftModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name', 'name_locale')
+    ordering_fields = ('id', 'name', 'start_time')
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return WorkingShift.objects.filter(vendor=vendor_id).order_by('start_time')
+        
+        return WorkingShift.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"working_shifts": serializer.data})
 
 
 class CoreUserModelViewSet(viewsets.ModelViewSet):
