@@ -2902,7 +2902,7 @@ def order_details(request):
                     payment_details["amount_paid"] = payment.paid if payment else 0.0
                     payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
                     payment_details["paymentStatus"] = payment.status if payment else False
-                    order_info["core_orderId"] = payment.orderId.pk
+                    # order_info["core_orderId"] = payment.orderId.pk
                     order_info["orderId"] = payment.orderId.externalOrderId
                     order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
                     order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
@@ -3004,11 +3004,22 @@ def updatePaymentDetails(request):
         if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
             OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
     if coreOrder.orderType == 3:
-        order.order_status = 10 # CLOSE order
-        order.save()
-        
-        coreOrder.Status = 2                    # this is just a temporary fix to update 
-        coreOrder.save()                      # core order status this needs to be changed by updateCoreOrder function
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()                # core order status this needs to be changed by updateCoreOrder function
 
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
         
@@ -3074,11 +3085,22 @@ def updatePaymentDetails(request):
                     )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
-        order.order_status = 10
-        order.save()
-        
-        coreOrder.Status = 2
-        coreOrder.save()
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()
     
     webSocketPush(
         message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
@@ -9449,7 +9471,7 @@ def splitOrderPayment(request):
                 discount=0.0,
                 tip=0.0,
                 delivery_charge=0.0,
-                subtotal=splitPayment.get("amount_subtotal") or 0.0 ,
+                subtotal=(splitPayment.get("amount_paid",0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
                 customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
                 vendorId=vendor_instance,
                 platform=coreOrder.platform
