@@ -6,18 +6,6 @@ from core.utils import KOMSOrderStatus as koms_order_status
 
 
 
-class Order_point(models.Model):
-    name = models.CharField(max_length=50)
-    activation_status = models.BooleanField(default=False)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-
-class Order_point_cred(models.Model):
-    pointId = models.ForeignKey(Order_point, on_delete=models.CASCADE)
-    key = models.CharField(max_length=100)
-    value = models.CharField(max_length=500)
-
-
 class Station(models.Model):
     station_name = models.CharField(max_length=200)
     station_name_locale = models.CharField(max_length=200, null=True, blank=True)

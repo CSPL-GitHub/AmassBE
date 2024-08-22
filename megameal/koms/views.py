@@ -7,7 +7,6 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import viewsets
-from koms.serializers.order_point_serializer import Order_point_serializer
 from koms.serializers.order_content_serializer import Order_content_serializer
 from koms.serializers.order_modifer_serializer import Order_modifer_serializer, OrderModifierWriterSerializer
 from koms.serializers.order_serializer import Order_serializer, OrderSerializerWriterSerializer
@@ -16,7 +15,7 @@ from koms.serializers.stations_serializer import Stations_serializer, StationsRe
 from koms.serializers.staff_serializer import StaffReaderSerializer,StaffWriterSerializer
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE
 from .models import (
-    Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
+    Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
     KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
 )
 from django.http.response import JsonResponse
@@ -56,13 +55,7 @@ def updateCoreOrder(order):
             # return Response(rs[0], status=rs[1])
     except Exception as err :
         print(f"updateCoreOrder {err=}, {type(err)=}")
-        
 
-@api_view(["GET", "POST"])
-def orderPoint(request,vendorId):
-    order_points = Order_point.objects.all(vendorId=vendorId)
-    serializer = Order_point_serializer(order_points, many=True)
-    return Response(serializer.data)
 
 @api_view(["GET", "POST"])
 def orderList(request):
