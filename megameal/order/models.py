@@ -51,6 +51,7 @@ class Address(models.Model):
 class Order(models.Model):
     Status = models.IntegerField(
         choices=OrderStatus.choices, default=OrderStatus.OPEN)
+    masterOrder = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
     TotalAmount = models.FloatField()
     OrderDate = models.DateTimeField(auto_now=False)
     Notes = models.CharField(max_length=122, default='', null=True)

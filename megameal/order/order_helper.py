@@ -1,11 +1,11 @@
-import threading
 from core.POS_INTEGRATION.staging_pos import StagingIntegration
-from core.models import POS_Settings, Platform
+from core.models import Platform
 from order.models import Order
-from core.utils import API_Messages,OrderAction, UpdatePoint
+from core.utils import API_Messages, OrderAction
 from core.PLATFORM_INTEGRATION.koms_order import KomsEcom
 from django.db import transaction
 import copy
+
 
 
 class OrderHelper():

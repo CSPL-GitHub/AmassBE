@@ -1,90 +1,13 @@
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
-from rest_framework.parsers import JSONParser
-from core.POS_INTEGRATION.staging_pos import StagingIntegration
-from order import order_helper
 from order.models import Order, Customer, OrderPayment, LoyaltyProgramSettings, LoyaltyPointsCreditHistory
-from core.utils import API_Messages
-from core.models import POS_Settings, Vendor, Product, ProductCategoryJoint
-from koms.models import Station
+from core.models import Vendor
 from koms.models import Order as KOMSOrder
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import status
 import json
 
-
-
-@api_view(['post'])
-def openOrder(request):
-    # +++++ response template
-    coreResponse = {
-        API_Messages.STATUS: API_Messages.ERROR,
-        "msg": "Something went wrong"
-    }
-    try:
-        # ++++++++++ request data
-        data = dict(JSONParser().parse(request))
-        vendorId = data["vendorId"]
-        # ++++ pick all the channels of vendor
-        rs=order_helper.OrderHelper.openOrder(data=data,vendorId=vendorId)
-        return Response(rs[0], status=rs[1])
-    except Exception as err:
-        coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
-        return Response(coreResponse, status=500)
-
-
-@api_view(['post'])
-def addLineItem(request):
-    # +++++ response template
-    coreResponse = {
-        API_Messages.STATUS: API_Messages.ERROR,
-        "msg": "Something went wrong"
-    }
-
-    try:
-        # ++++++++++ request data
-        data = dict(JSONParser().parse(request))
-        vendorId = data["vendorId"]
-
-        # ++++ pick all the channels of vendor
-        try:
-            platform = POS_Settings.objects.get(VendorId=vendorId)
-        except POS_Settings.DoesNotExist:
-            coreResponse["msg"] = "POS settings not found"
-            return Response(coreResponse, status=200)
-
-        # ++++++---- Stage The Order
-        stagingPos = StagingIntegration()
-        stageOrder = stagingPos.addLineItem(data)
-        if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-            posService = globals()[platform.className]
-            posResponse = posService.addLineItem(data)
-            if posResponse[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-                posResponse["response"]["core"] = stageOrder["response"]
-                return Response(posResponse, status=201)
-            else:
-                coreResponse["msg"] = "Unable to create order on POS"
-                return Response(coreResponse, status=500)
-        else:
-            coreResponse["msg"] = "Unable to update product"
-            return Response(coreResponse, status=500)
-
-    except Exception as err:
-        coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
-        return Response(coreResponse, status=500)
-
-
-def getPrepTime(plu,vendorId):
-    try:
-        prd=ProductCategoryJoint.objects.get(product=Product.objects.get(PLU=plu,vendorId=vendorId))
-        return {"prepTime":prd.product.preparationTime,"tag":prd.category.categoryStation.pk if prd.category.categoryStation else 1}
-    except Exception as err:
-        print(f"Unexpected {err=}, {type(err)=}")
-        prd=ProductCategoryJoint.objects.get(product=Product.objects.filter(PLU=plu).first())
-        # return {"prepTime":0,"tag":}[]
-        stn=Station.objects.filter(station_name=prd.category.categoryStation.station_name,vendorId=vendorId).first()
-        return {"prepTime":prd.product.preparationTime,"tag":stn.pk}
 
 
 # For testing purpose of create_loyalty_points_credit_history signal

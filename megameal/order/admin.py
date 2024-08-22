@@ -10,7 +10,7 @@ class OrderAdmin(admin.ModelAdmin):
         'TotalAmount', 'due',
     )
     
-    list_display = ('pk', 'customerId', 'TotalAmount', 'vendorId',)
+    list_display = ('pk','masterOrder', 'customerId', 'TotalAmount', 'vendorId',)
     list_filter = ('vendorId', 'platform', 'orderType',)
     search_fields = ('pk', 'externalOrderId', 'vendorId__Name')
 
@@ -62,5 +62,10 @@ class LoyaltyProgramSettingsAdmin(admin.ModelAdmin):
     list_display = ('vendor','amount_spent_in_rupees_to_earn_unit_point', 'unit_point_value_in_rupees','points_expiry_days','is_active')
     # show_facets = admin.ShowFacets.ALWAYS
     
-    
+
+
+@admin.register(OrderPayment)
+class OrderPaymentAdmin(admin.ModelAdmin):
+    list_display = ('pk','orderId','masterPaymentId','type','paid','status')
+
 admin.site.register(LoyaltyPointsRedeemHistory)

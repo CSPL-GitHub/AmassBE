@@ -2,34 +2,53 @@ from django.contrib import admin
 from pos.models import *
 
 
+
 @admin.register(Department)
 class DepartmentAdmin(admin.ModelAdmin):
-    list_display = ('name','vendor',)
-    list_filter = ('name','vendor')
+    list_display = ('name', 'is_active', 'vendor',)
+    list_filter = ('is_active', 'vendor')
     search_fields = ('name',)
+    ordering = ('vendor', 'name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(CoreUserCategory)
 class CoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'department', 'is_editable', 'name', 'permissions',)
+    fields = ('vendor', 'name', 'is_editable', 'is_active', 'department', 'permissions',)
 
-    list_display = ('name', 'department', 'is_editable', 'vendor',)
-    list_filter = ('vendor', 'department', 'is_editable',)
-    search_fields = ('name',)
+    list_display = ('name', 'is_active', 'department', 'vendor',)
+    list_filter = ('vendor', 'is_active')
+    search_fields = ('name', 'department__name')
+    ordering = ('vendor', 'name',)
+    # show_facets = admin.ShowFacets.ALWAYS
+
+
+@admin.register(WorkingShift)
+class WorkingShiftAdmin(admin.ModelAdmin):
+    fields = ('vendor', 'name', 'name_locale', 'start_time', 'end_time',)
+
+    list_display = ('name', 'start_time', 'end_time', 'vendor',)
+    list_filter = ('vendor',)
+    search_fields = ('name', 'name_locale',)
+    ordering = ('vendor', 'start_time',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
 @admin.register(CoreUser)
 class CoreUserAdmin(admin.ModelAdmin):
     fields = (
-        'vendor', 'is_active', 'is_head', 'reports_to', 'username', 'password', 'first_name', 'last_name', 'email',
-        'phone_number', 'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2', 'groups',
+        'vendor', 'username', 'password', 'first_name', 'last_name', 'email', 'phone_number',
+        'current_address', 'permanent_address', 'profile_picture', 'document_1', 'document_2',
+        'is_active', 'reports_to', 'working_shift', 'core_user_category', 'is_head',
     )
 
-    list_display = ('first_name', 'last_name', 'username', 'is_active', 'is_head', 'vendor',)
-    list_filter = ('vendor', 'groups', 'is_head',)
-    search_fields = ('username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',)
+    list_display = ('first_name', 'last_name', 'username', 'core_user_category', 'is_head', 'is_active', 'vendor',)
+    list_filter = ('vendor', 'is_head',)
+    search_fields = (
+        'username', 'first_name', 'last_name', 'email', 'phone_number', 'current_address', 'permanent_address',
+        'core_user_category__name',
+    )
+    ordering = ('vendor', 'first_name',)
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -44,8 +63,8 @@ class POSPermissionAdmin(admin.ModelAdmin):
     )
 
     list_display = ("core_user_category", "vendor",)
-    list_filter = ("vendor", "core_user_category__department",)
-    search_fields = ("core_user_category__name", "core_user_category__department__name", "vendor__name",)
+    list_filter = ("vendor",)
+    search_fields = ("core_user_category__name", "vendor__name",)
 
 
 @admin.register(POSSetting)
@@ -57,14 +76,6 @@ class POSSettingAdmin(admin.ModelAdmin):
 class BannerAdmin(admin.ModelAdmin):
     list_display = ('image','platform_type','vendor','is_active',)
     list_filter = ('vendor','platform_type')
-    # show_facets = admin.ShowFacets.ALWAYS
-
-
-@admin.register(POSUser)
-class PosUserAdmin(admin.ModelAdmin):
-    list_display = ('name','username','password','vendor','is_active',)
-    list_filter = ('is_active','vendor')
-    search_fields = ('name','username')
     # show_facets = admin.ShowFacets.ALWAYS
 
 
@@ -85,6 +96,7 @@ class CashRegisterAdmin(admin.ModelAdmin):
 
     readonly_fields = ("created_at", "edited_at",)
 
-    list_display = ("balance_while_store_opening", "balance_while_store_closing", "vendor",)
+    list_display = ("created_at", "balance_while_store_opening", "balance_while_store_closing", "vendor",)
     list_filter = ("vendor",)
     search_fields = ("vendor__name",)
+    ordering = ('vendor', '-created_at',)

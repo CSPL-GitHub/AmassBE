@@ -18,7 +18,6 @@ class VendorType(models.Model):
 class Vendor(models.Model):
     Name = models.CharField(max_length=122)
     Email = models.EmailField()
-    Password = models.CharField(max_length=122, null=True, blank=True)
     vendor_type = models.ForeignKey(VendorType, on_delete=models.CASCADE)
     phone_number = models.PositiveBigIntegerField()
     gst_number = models.CharField(max_length=20, null=True, blank=True)
@@ -34,6 +33,8 @@ class Vendor(models.Model):
     primary_language = models.CharField(max_length=100, default="English")
     secondary_language = models.CharField(max_length=100, null=True, blank=True)
     is_active = models.BooleanField(default=False)
+    is_franchise_owner = models.BooleanField(default=False)
+    franchise = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
 
 
@@ -324,22 +325,6 @@ class Product_Taxt_Joint(models.Model):
     vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
     productId=models.ForeignKey(Product,on_delete=models.CASCADE)
     taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
-
-
-class POS_Settings(models.Model):
-    Name=models.CharField(max_length=122)
-    VendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    className=models.CharField(max_length=122)
-    baseUrl=models.CharField(max_length=255,blank=True)
-    secreateKey=models.CharField(max_length=122,blank=True)
-    secreatePass=models.CharField(max_length=122,blank=True)
-    openOrder=models.CharField(max_length=255,blank=True)
-    addItem=models.CharField(max_length=255,blank=True)
-    getDiscount=models.CharField(max_length=255,blank=True)
-    applyDiscount=models.CharField(max_length=255,blank=True)
-    payBill=models.CharField(max_length=255,blank=True)
-    meta=models.JSONField(null=True,blank=True)
-    store_status = models.BooleanField(default=False)
 
 
 class Platform(models.Model):

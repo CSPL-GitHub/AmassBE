@@ -1,9 +1,17 @@
+import pytz
+
+
+
+local_timezone = pytz.timezone('Asia/Kolkata')
+
+
 order_type_english = {
     "All": "All",
     1: "Pickup",
     2: "Delivery",
     3: "DineIn"
 }
+
 
 koms_order_status_english = {
     "All": "All",
@@ -19,11 +27,13 @@ koms_order_status_english = {
     10: 'Close'
 }
 
+
 payment_status_english = {
     'True': 'Paid',
     'False': 'Pending',
     'Unknown': 'Unknown'
 }
+
 
 payment_type_english = {
     1: 'Cash',
@@ -32,10 +42,12 @@ payment_type_english = {
     4: 'Split'
 }
 
+
 platform_locale = (
     ('نقاط البيع', 'POS'), ('وومز', 'WOMS'), ('يأتي', 'KOMS'), ('كشك', 'Kiosk'),
     ('جرد', 'Inventory'), ('تطبيق الجوال', 'Mobile App'), ('موقع إلكتروني', 'Website')
 )
+
 
 language_localization = {
     "Address": "عنوان",
@@ -158,6 +170,7 @@ language_localization = {
     "Transaction ID": "رقم المعاملة",
     "Tuesday": "يوم الثلاثاء",
     "Unit Price": "سعر الوحدة",
+    "Uncategorized": "غير مصنف",
     "Unknown": "مجهول",
     "Wednesday": "الأربعاء",
 }
