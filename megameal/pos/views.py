@@ -1289,201 +1289,229 @@ def productByCategory(request, id=0):
 
 @api_view(['GET'])
 def dashboard(request):
-    vendor_id = request.GET.get("vendor")
-    language = request.GET.get("language", "English")
-    start_date = request.GET.get('start_date')
-    end_date = request.GET.get('end_date')
-
-    if not vendor_id:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
-    except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        vendor_id = request.GET.get("vendor")
+        language = request.GET.get("language", "English")
+        start_date = request.GET.get("start_date")
+        end_date = request.GET.get("end_date")
+        get_all_vendor_data = request.GET.get("get_all_vendor_data")
 
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    if (((not start_date) or (not end_date)) or (start_date > end_date)):
-        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
-
-    start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-    end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-
-    completed_status_code = OrderStatus.get_order_status_value('COMPLETED')
-    canceled_status_code = OrderStatus.get_order_status_value('CANCELED')
-    inprogress_status_code = OrderStatus.get_order_status_value('INPROGRESS')
-    open_status_code = OrderStatus.get_order_status_value('OPEN')
-    prepared_status_code = OrderStatus.get_order_status_value('PREPARED')
-    
-    sales_order_list = []
-    new_orders_count = 0
-
-    if vendor_instance.is_franchise_owner == True:
-        vendor_ids = set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True))
-
-        vendor_ids.add(vendor_id)
-
-        orders = Order.objects.filter(
-            OrderDate__date__range = (start_date, end_date),
-            vendorId__in = vendor_ids
-        )
-
-        koms_orders = KOMSOrder.objects.filter(
-            arrival_time__date__range = (start_date, end_date),
-            vendorId__in = vendor_ids
-        )
-
-    else:
-        orders = Order.objects.filter(
-            OrderDate__date__range = (start_date, end_date),
-            vendorId = vendor_id
-        )
-
-        koms_orders = KOMSOrder.objects.filter(
-            arrival_time__date__range = (start_date, end_date),
-            vendorId = vendor_id
-        )
-    
-    new_orders_count = koms_orders.filter(order_status = 1).count()
-
-    onhold_orders_count = koms_orders.filter(order_status = 4).count()
-    
-    subtotal_sum, discount_sum = orders.filter(orderpayment__status = True) \
-        .exclude(Status = canceled_status_code) \
-        .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
-
-    subtotal_sum = subtotal_sum or 0.0
-    discount_sum = discount_sum or 0.0
-    
-    total_revenue = "{:.2f}".format(subtotal_sum - discount_sum)
-
-    active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
-
-    online_order_platform_id = ""
-
-    online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
-    
-    if online_order_platform:
-        online_order_platform_id = str(online_order_platform.pk)
-    
-    total_orders = orders.count()
-    total_orders_canceled = orders.filter(Status=canceled_status_code).count()
-    total_orders_completed = orders.filter(Status=completed_status_code, orderpayment__status=True).count()
-    total_orders_inprogress = orders.filter(Status__in=[inprogress_status_code, open_status_code, prepared_status_code]).count()
-    total_orders_inprogress = total_orders_inprogress - new_orders_count
-    total_orders_pickedup = orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
-    total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
-    total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
-    online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
-    
-    current_start_date = current_end_date = datetime.now().date()
-    
-    if ((start_date == end_date) and (start_date == current_start_date and end_date == current_end_date)) or \
-    ((start_date != end_date) and (start_date != current_start_date and end_date == current_end_date)):
-        end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
-    
-    elif (start_date == end_date) and (start_date != current_start_date and end_date != current_end_date):
-        end_datetime = datetime.combine(start_date, time(23, 59, 59))
-
-    else:
-        end_datetime = datetime.combine(end_date, time(23, 59, 59))
-    
-    current_datetime = datetime.combine(start_date, time(0, 0, 0))
-    
-    if orders.exists():
-        while current_datetime <= end_datetime:
-            current_hour_start = current_datetime
-            current_hour_end = current_datetime + timedelta(hours=1)
-
-            filtered_orders = orders.filter(OrderDate__range = (current_hour_start, current_hour_end))
-
-            orders_with_payment = filtered_orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
-
-            subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
-            
-            subtotal_sum = subtotal_sum or 0.0
-            discount_sum = discount_sum or 0.0
-
-            total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
-
-            if filtered_orders.count() != 0:
-                sales_order_list.append({
-                    "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
-                    "total_sale": total_sale_hourly,
-                    "total_orders_count": filtered_orders.count(),
-                    "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
-                })
-
-            current_datetime = current_datetime + timedelta(hours=1)
-    
-    order_items = Order_content.objects.filter(
-        orderId__order_status = 10,
-        orderId__master_order__Status = completed_status_code,
-        orderId__master_order__orderpayment__status = True,
-        orderId__master_order__OrderDate__date__range = (start_date, end_date),
-        orderId__master_order__vendorId = vendor_id,
-        orderId__vendorId = vendor_id
-    )
-    
-    total_items_sold = order_items.values('SKU').distinct().count()
-    
-    top_selling_items = order_items.values('SKU').annotate(quantity_sold=Sum('quantity')).order_by('-quantity_sold')[:6]
-
-    list_of_items = []
-
-    for item in top_selling_items:
-        product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
+        if not vendor_id:
+            return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        product_image = ProductImage.objects.filter(
-            product=product.pk,
-            vendorId=vendor_id
-        ).first()
-
-        image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+        try:
+            vendor_id = int(vendor_id)
+        except ValueError:
+            return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        if product_image:    
-            image_url = product_image.url
+        vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
 
-        product_name = ""
-
-        if language == "English":
-            product_name = product.productName
+        if not vendor_instance:
+            return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
         
+        if (((not start_date) or (not end_date)) or (start_date > end_date)):
+            return Response("Invalid start date or end date", status = status.HTTP_400_BAD_REQUEST)
+
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+        if (get_all_vendor_data == True) and (vendor_instance.is_franchise_owner == True):
+            vendor_ids = set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True))
+
+            vendor_ids.add(vendor_id)
+
+            orders = Order.objects.filter(
+                OrderDate__date__range = (start_date, end_date),
+                vendorId__in = vendor_ids
+            )
+
+            koms_orders = KOMSOrder.objects.filter(
+                arrival_time__date__range = (start_date, end_date),
+                vendorId__in = vendor_ids
+            )
+
         else:
-            product_name = product.productName_locale
+            orders = Order.objects.filter(
+                OrderDate__date__range = (start_date, end_date),
+                vendorId = vendor_id
+            )
+
+            koms_orders = KOMSOrder.objects.filter(
+                arrival_time__date__range = (start_date, end_date),
+                vendorId = vendor_id
+            )
         
-        item['id'] = product.pk
-        item['product_name'] = product_name
-        item['image'] = image_url
-        item['price'] = product.productPrice
-        item['sale'] = item['quantity_sold'] * product.productPrice
+        completed_status_code = OrderStatus.get_order_status_value('COMPLETED')
+        canceled_status_code = OrderStatus.get_order_status_value('CANCELED')
+        inprogress_status_code = OrderStatus.get_order_status_value('INPROGRESS')
+        open_status_code = OrderStatus.get_order_status_value('OPEN')
+        prepared_status_code = OrderStatus.get_order_status_value('PREPARED')
+        
+        new_orders_count = koms_orders.filter(order_status = 1).count()
 
-        list_of_items.append(item)
+        onhold_orders_count = koms_orders.filter(order_status = 4).count()
+        
+        subtotal_sum, discount_sum = orders.filter(orderpayment__status = True) \
+            .exclude(Status = canceled_status_code) \
+            .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
 
-    order_details = {
-        "online_order_platform_id": online_order_platform_id, # Required for Flutter model
-        "active_products": active_product_count,
-        "total_sale": total_revenue,
-        "total_orders": total_orders,
-        "items_sold": total_items_sold,
-        "orders_completed": total_orders_completed,
-        "orders_canceled": total_orders_canceled,
-        "orders_inprogress": total_orders_inprogress,
-        "orders_pickedup": total_orders_pickedup,
-        "orders_delivered": total_orders_delivered,
-        "orders_dined": total_orders_dined,
-        "online_orders": online_orders_count,
-        "new_orders": new_orders_count,
-        "onhold_orders": onhold_orders_count,
-        "sales_order": sales_order_list,
-        "top_selling": list_of_items
-    }
+        subtotal_sum = subtotal_sum or 0.0
+        discount_sum = discount_sum or 0.0
+        
+        total_revenue = "{:.2f}".format(subtotal_sum - discount_sum)
 
-    return Response(order_details)
+        active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
+
+        online_order_platform_id = ""
+
+        online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
+        
+        if online_order_platform:
+            online_order_platform_id = str(online_order_platform.pk)
+        
+        total_orders = orders.count()
+
+        total_orders_canceled = orders.filter(Status = canceled_status_code).count()
+        total_orders_completed = orders.filter(Status = completed_status_code, orderpayment__status=True).count()
+        
+        total_orders_inprogress = orders.filter(Status__in = [inprogress_status_code, open_status_code, prepared_status_code]).count()
+        total_orders_inprogress = total_orders_inprogress - new_orders_count
+        
+        total_orders_pickedup = orders.filter(orderType = OrderType.get_order_type_value('PICKUP')).count()
+        total_orders_delivered = orders.filter(orderType = OrderType.get_order_type_value('DELIVERY')).count()
+        total_orders_dined = orders.filter(orderType = OrderType.get_order_type_value('DINEIN')).count()
+        
+        online_orders_count = orders.filter(platform__Name__in = ('Mobile App', 'Website')).count()
+        
+        sales_order_list = []
+        
+        if orders.exists():
+            current_start_date = current_end_date = datetime.now().date()
+
+            if (start_date == end_date):
+                if (start_date == current_start_date) and (end_date == current_end_date):
+                    end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
+            
+                elif (start_date != current_start_date) and (end_date != current_end_date):
+                    end_datetime = datetime.combine(start_date, time(23, 59, 59))
+
+                current_datetime = datetime.combine(start_date, time(0, 0, 0))
+            
+                while current_datetime <= end_datetime:
+                    current_hour_start = current_datetime
+                    current_hour_end = current_datetime + timedelta(hours=1)
+
+                    filtered_orders = orders.filter(OrderDate__range = (current_hour_start, current_hour_end))
+
+                    orders_with_payment = filtered_orders.filter(orderpayment__status = True).exclude(Status = canceled_status_code)
+
+                    subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+                    
+                    subtotal_sum = subtotal_sum or 0.0
+                    discount_sum = discount_sum or 0.0
+
+                    total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
+
+                    if filtered_orders.count() != 0:
+                        sales_order_list.append({
+                            "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
+                            "total_sale": total_sale_hourly,
+                            "total_orders_count": filtered_orders.count(),
+                            "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                        })
+
+                    current_datetime = current_datetime + timedelta(hours=1)
+
+            else:
+                unique_order_dates = sorted(set(orders.values_list('OrderDate__date', flat=True)))
+                
+                for unique_date in unique_order_dates:
+                    filtered_orders = orders.filter(OrderDate__date = unique_date)
+
+                    orders_with_payment = filtered_orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
+
+                    subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+                    
+                    subtotal_sum = subtotal_sum or 0.0
+                    discount_sum = discount_sum or 0.0
+
+                    total_sale = "{:.2f}".format(subtotal_sum - discount_sum)
+
+                    if filtered_orders.count() != 0:
+                        sales_order_list.append({
+                            "date": unique_date,
+                            "total_sale": total_sale,
+                            "total_orders_count": filtered_orders.count(),
+                            "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                        })
+        
+        order_items = Order_content.objects.filter(
+            orderId__order_status = 10,
+            orderId__master_order__Status = completed_status_code,
+            orderId__master_order__orderpayment__status = True,
+            orderId__master_order__OrderDate__date__range = (start_date, end_date),
+            orderId__master_order__vendorId = vendor_id,
+            orderId__vendorId = vendor_id
+        )
+        
+        total_items_sold = order_items.values('SKU').distinct().count()
+        
+        top_selling_items = order_items.values('SKU').annotate(quantity_sold = Sum('quantity')).order_by('-quantity_sold')[:6]
+
+        list_of_items = []
+
+        for item in top_selling_items:
+            product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
+            
+            product_image = ProductImage.objects.filter(
+                product = product.pk,
+                vendorId = vendor_id
+            ).first()
+
+            image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+            
+            if product_image:    
+                image_url = product_image.url
+
+            product_name = ""
+
+            if language == "English":
+                product_name = product.productName
+            
+            else:
+                product_name = product.productName_locale
+            
+            item['id'] = product.pk
+            item['product_name'] = product_name
+            item['image'] = image_url
+            item['price'] = product.productPrice
+            item['sale'] = item['quantity_sold'] * product.productPrice
+
+            list_of_items.append(item)
+
+        order_details = {
+            "online_order_platform_id": online_order_platform_id, # Required for Flutter model
+            "active_products": active_product_count,
+            "total_sale": total_revenue,
+            "total_orders": total_orders,
+            "items_sold": total_items_sold,
+            "orders_completed": total_orders_completed,
+            "orders_canceled": total_orders_canceled,
+            "orders_inprogress": total_orders_inprogress,
+            "orders_pickedup": total_orders_pickedup,
+            "orders_delivered": total_orders_delivered,
+            "orders_dined": total_orders_dined,
+            "online_orders": online_orders_count,
+            "new_orders": new_orders_count,
+            "onhold_orders": onhold_orders_count,
+            "sales_order": sales_order_list,
+            "top_selling": list_of_items
+        }
+
+        return Response(order_details)
+    
+    except Exception as e:
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
