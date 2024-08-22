@@ -86,22 +86,17 @@ class Content_history(models.Model):
     quantity = models.IntegerField()
     unit = models.CharField(max_length=20)
 
+
 class Modifer_history(models.Model):
     mod_id = models.ForeignKey(Order_modifer, on_delete=models.CASCADE)
     update_time = models.CharField(max_length=30)
     quantity = models.IntegerField()
     unit = models.CharField(max_length=20)
 
+
 class Order_tables(models.Model):
     orderId=models.ForeignKey(Order,on_delete=models.CASCADE)
     tableId=models.ForeignKey(HotelTable,on_delete=models.CASCADE)
-
-
-class Prepration_time(models.Model):
-    externalID = models.CharField(max_length=20)
-    tag = models.CharField(max_length=50)
-    prepration_time = models.CharField(max_length=100)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
 class Staff(models.Model):
