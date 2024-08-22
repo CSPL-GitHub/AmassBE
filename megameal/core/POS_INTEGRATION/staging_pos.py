@@ -1,14 +1,13 @@
 from core.models import Platform, ProductModifier, Product, Tax, Product_Taxt_Joint, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
-from core.utils import API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email
+from core.utils import (
+    API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email,
+)
 from koms.models import Order as KOMSorder
 from core.models import EmailLog
 from megameal.settings import EMAIL_HOST_USER
-from django.conf import settings
 from django.template.loader import render_to_string
-from core.models import POS_Settings
 from django.utils import timezone
-from datetime import datetime
 from logging import log
 import socket
 
@@ -137,9 +136,6 @@ class StagingIntegration():
 
                 except Order_Discount.DoesNotExist:
                     print("Invalid Discount")
-
-                except POS_Settings.DoesNotExist:
-                    print("POS settings not found")
             # ++++++
 
             # +++++++++++ Storing Line Items

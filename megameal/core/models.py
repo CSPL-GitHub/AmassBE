@@ -327,22 +327,6 @@ class Product_Taxt_Joint(models.Model):
     taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
 
 
-class POS_Settings(models.Model):
-    Name=models.CharField(max_length=122)
-    VendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    className=models.CharField(max_length=122)
-    baseUrl=models.CharField(max_length=255,blank=True)
-    secreateKey=models.CharField(max_length=122,blank=True)
-    secreatePass=models.CharField(max_length=122,blank=True)
-    openOrder=models.CharField(max_length=255,blank=True)
-    addItem=models.CharField(max_length=255,blank=True)
-    getDiscount=models.CharField(max_length=255,blank=True)
-    applyDiscount=models.CharField(max_length=255,blank=True)
-    payBill=models.CharField(max_length=255,blank=True)
-    meta=models.JSONField(null=True,blank=True)
-    store_status = models.BooleanField(default=False)
-
-
 class Platform(models.Model):
     Name = models.CharField(max_length=20, choices=platform_choices)
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
