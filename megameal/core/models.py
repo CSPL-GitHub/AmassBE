@@ -321,12 +321,6 @@ class Tax(models.Model):
         }
 
 
-class Product_Taxt_Joint(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
-
-
 class Platform(models.Model):
     Name = models.CharField(max_length=20, choices=platform_choices)
     Name_locale = models.CharField(max_length=100, choices=platform_locale)
