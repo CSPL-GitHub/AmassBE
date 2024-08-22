@@ -3,9 +3,6 @@ from .models import *
 
 
 
-admin.site.register(POS_Settings)
-
-
 @admin.register(VendorType)
 class VendorTypeAdmin(admin.ModelAdmin):
     fields = ('type',)
