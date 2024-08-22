@@ -1334,7 +1334,8 @@ def dashboard(request):
         else:
             orders = Order.objects.filter(
                 OrderDate__date__range = (start_date, end_date),
-                vendorId = vendor_id
+                vendorId = vendor_id,
+                masterOrder=None
             )
 
             koms_orders = KOMSOrder.objects.filter(
