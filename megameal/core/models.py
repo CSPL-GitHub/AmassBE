@@ -267,29 +267,6 @@ class ProductModifierAndModifierGroupJoint(models.Model):
         unique_together = ('modifier', 'modifierGroup','vendor')
 
 
-class Product_Option(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    name=models.CharField(max_length=122)
-    optionId=models.CharField(max_length=122)
-    isDeleted=models.BooleanField(default=False)
-
-
-class Product_Option_Value(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    optionsName=models.CharField(max_length=122)
-    itemOptionId=models.CharField(max_length=122)
-    sortOrder=models.IntegerField(default=0)
-    optionId=models.ForeignKey(Product_Option,on_delete=models.CASCADE)
-    isDeleted=models.BooleanField(default=False)
-
-
-class Product_Option_Joint(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    optionId=models.ForeignKey(Product_Option,on_delete=models.CASCADE)
-    optionValueId=models.ForeignKey(Product_Option_Value,on_delete=models.CASCADE)
-
-
 class Tax(models.Model):
     name = models.CharField(max_length=122)
     name_locale = models.CharField(max_length=122, null=True, blank=True)
@@ -319,12 +296,6 @@ class Tax(models.Model):
             'enabled': self.enabled,
             'taxLevel':self.taxLevel
         }
-
-
-class Product_Taxt_Joint(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
 
 
 class Platform(models.Model):

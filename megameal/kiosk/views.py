@@ -120,37 +120,7 @@ def productByCategory(request, id=0, vendorId=-1):
 
         for product in Product.objects.filter(isDeleted=False, pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product'))):
             productVariants=[]
-
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk):
-                    images=[]
-
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
-                        images.append(str(k.image))
-
-                    options=[]
-
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
-                        options.append(
-                            {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
-                            }
-                        )
-
-                    productVariants.append({
-                        "text":trans( prdVariants.productName),
-                        "imagePath": str(prdVariants.productThumb),
-                        "images":images,
-                        "quantity": 0,
-                        "cost": prdVariants.productPrice,
-                        "description": trans(prdVariants.productDesc),
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "options":options
-                    })
-
+            
             images=[]
 
             for k in ProductImage.objects.filter(product=product.pk, vendorId_id=vendorId):
@@ -529,33 +499,7 @@ def productByCategoryTemp(request,id=0):
         listOfProducts=[]
         for product in Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')),isDeleted=False):
             productVariants=[]
-            if product.productType=="Variant":
-                for prdVariants in Product.objects.filter(productParentId=product.pk,isDeleted=False):
-                    images=[]
-                    for k in ProductImage.objects.filter(product=prdVariants.pk):
-                        if k is not None:
-                            images.append(str(k.image))
-                    options=[]
-                    for varinatJoint in Product_Option_Joint.objects.filter(productId=prdVariants.pk):
-                        options.append(
-                            {
-                               "optionId":varinatJoint.optionId.optionId, 
-                               "optionValueId":varinatJoint.optionValueId.itemOptionId 
-                            }
-                        )
-                    productVariants.append({
-                        "text":prdVariants.productName,
-                        "imagePath": HOST+prdVariants.productThumb.name if prdVariants.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-                        "images":images if len(images)  else [HOST+DEFAULTIMG],
-                        "quantity": 0,
-                        "cost": prdVariants.productPrice,
-                        "description":prdVariants.productDesc,
-                        "allowCustomerNotes": True,
-                        "plu":prdVariants.PLU,
-                        "type":prdVariants.productType,
-                        "options":options
-                    })
-
+            
             images=[]
             for k in ProductImage.objects.filter(product=product.pk):
                 if k is not None:

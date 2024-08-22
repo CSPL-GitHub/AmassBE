@@ -75,39 +75,6 @@ def get_product_by_category_data(products, language, vendor_id):
     product_list = []
 
     for product in products:
-        # product_variants = []
-
-        # if product.productType == "Variant":
-        #     for variant in Product.objects.filter(productParentId=product.pk, vendorId=vendor_id, isDeleted=False):
-        #         images = []
-
-        #         for instance in ProductImage.objects.filter(product=variant.pk):
-        #             if instance is not None:
-        #                 images.append(str(instance.image))
-                
-        #         options = []
-
-        #         for varinatJoint in Product_Option_Joint.objects.filter(productId=variant.pk, vendorId=vendor_id):
-        #             options.append(
-        #                 {
-        #                     "optionId":varinatJoint.optionId.optionId, 
-        #                     "optionValueId":varinatJoint.optionValueId.itemOptionId 
-        #                 }
-        #             )
-
-        #         product_variants.append({
-        #             "text":variant.productName,
-        #             # "imagePath": HOST+variant.productThumb.name if variant.productThumb !="" else images[0] if len(images)!=0 else HOST+DEFAULTIMG,
-        #             # "images":images if len(images)  else [HOST+DEFAULTIMG],
-        #             "quantity": 0,
-        #             "cost": variant.productPrice,
-        #             "description":variant.productDesc,
-        #             "allowCustomerNotes": True,
-        #             "plu":variant.PLU,
-        #             "type":variant.productType,
-        #             "options":options
-        #         })
-
         images = []
 
         product_images = ProductImage.objects.filter(product=product.pk, vendorId=vendor_id)

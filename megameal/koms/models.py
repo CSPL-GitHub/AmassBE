@@ -6,18 +6,6 @@ from core.utils import KOMSOrderStatus as koms_order_status
 
 
 
-class Order_point(models.Model):
-    name = models.CharField(max_length=50)
-    activation_status = models.BooleanField(default=False)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-
-class Order_point_cred(models.Model):
-    pointId = models.ForeignKey(Order_point, on_delete=models.CASCADE)
-    key = models.CharField(max_length=100)
-    value = models.CharField(max_length=500)
-
-
 class Station(models.Model):
     station_name = models.CharField(max_length=200)
     station_name_locale = models.CharField(max_length=200, null=True, blank=True)
@@ -98,31 +86,17 @@ class Content_history(models.Model):
     quantity = models.IntegerField()
     unit = models.CharField(max_length=20)
 
+
 class Modifer_history(models.Model):
     mod_id = models.ForeignKey(Order_modifer, on_delete=models.CASCADE)
     update_time = models.CharField(max_length=30)
     quantity = models.IntegerField()
     unit = models.CharField(max_length=20)
 
+
 class Order_tables(models.Model):
     orderId=models.ForeignKey(Order,on_delete=models.CASCADE)
     tableId=models.ForeignKey(HotelTable,on_delete=models.CASCADE)
-
-class KOMS_config(models.Model):
-    print_or_display = models.IntegerField()
-    default_prepration_time = models.CharField(max_length=20)
-    licence_key = models.CharField(max_length=200)
-    activation_status = models.IntegerField()
-    central_url = models.CharField(max_length=30)
-    send_order_to_cs = models.BooleanField()
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
-
-class Prepration_time(models.Model):
-    externalID = models.CharField(max_length=20)
-    tag = models.CharField(max_length=50)
-    prepration_time = models.CharField(max_length=100)
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
 
 class Staff(models.Model):

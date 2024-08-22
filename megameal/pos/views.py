@@ -1323,7 +1323,7 @@ def dashboard(request):
             orders = Order.objects.filter(
                 OrderDate__date__range = (start_date, end_date),
                 vendorId__in = vendor_ids,
-                masterOrder=None
+                masterOrder = None
             )
 
             koms_orders = KOMSOrder.objects.filter(
@@ -1335,7 +1335,7 @@ def dashboard(request):
             orders = Order.objects.filter(
                 OrderDate__date__range = (start_date, end_date),
                 vendorId = vendor_id,
-                masterOrder=None
+                masterOrder = None
             )
 
             koms_orders = KOMSOrder.objects.filter(
@@ -2932,7 +2932,7 @@ def order_details(request):
                     payment_details["amount_paid"] = payment.paid if payment else 0.0
                     payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
                     payment_details["paymentStatus"] = payment.status if payment else False
-                    # order_info["core_orderId"] = payment.orderId.pk
+                    order_info["core_orderId"] = payment.orderId.pk
                     order_info["orderId"] = payment.orderId.externalOrderId
                     order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
                     order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
