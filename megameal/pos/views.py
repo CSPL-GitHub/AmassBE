@@ -32,12 +32,7 @@ from koms.views import allStationWiseCategory, allStationWiseRemove, allStationW
 from django.utils import timezone
 from datetime import datetime, timedelta, time
 from rest_framework import status, viewsets, permissions, authentication
-from pos.serializers import (
-    WaiterSerializer, FloorSerializer, HotelTableSerializer , StoreTImingSerializer, ProductCategorySerializer,
-    ProductSerializer, ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer,
-    ModifierGroupSerializer, ModifierSerializer, StationModelSerializer, DiscountCouponModelSerializer,
-    ChefModelSerializer, BannerModelSerializer, DepartmentModelSerializer, CoreUserModelSerializer,
-)
+from pos.serializers import *
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
     StationFilter, ChefFilter,
@@ -47,10 +42,8 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
-from django.shortcuts import render, redirect
-from pos.models import (
-    StoreTiming, Banner, POSSetting, Department, CoreUserCategory, CoreUser, CashRegister, POSPermission,
-)
+from django.shortcuts import render
+from pos.models import *
 from django.conf import settings
 from collections import OrderedDict
 from django.core.files.storage import default_storage
@@ -70,12 +63,11 @@ from inventory.utils import (
     single_modifier_sync_with_odoo, delete_modifier_in_odoo, sync_order_content_with_inventory,
 )
 from pos.language import (
-    check_key_exists, table_created_locale, table_deleted_locale, language_localization, 
-    payment_type_english, payment_status_english, order_type_english, koms_order_status_english,
+    local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
+    koms_order_status_english, check_key_exists, table_created_locale, table_deleted_locale,
 )
 from googletrans import Translator
 import pandas
-import pytz
 import re
 import openpyxl
 import os
@@ -108,7 +100,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
     serializer_class = DepartmentModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
     filterset_fields = ('name',)
-    search_fields = ('name',)
+    search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name',)
     # permission_classes = [permissions.IsAuthenticated]
     # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
@@ -127,6 +119,32 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
         
         return JsonResponse({"departments": serializer.data})
+
+
+class WorkingShiftModelViewSet(viewsets.ModelViewSet):
+    queryset = WorkingShift.objects.all().order_by('start_time')
+    serializer_class = WorkingShiftModelSerializer
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
+    search_fields = ('name', 'name_locale')
+    ordering_fields = ('id', 'name', 'start_time')
+    # permission_classes = [permissions.IsAuthenticated]
+    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return WorkingShift.objects.filter(vendor=vendor_id).order_by('start_time')
+        
+        return WorkingShift.objects.none()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+        
+        return JsonResponse({"working_shifts": serializer.data})
 
 
 class CoreUserModelViewSet(viewsets.ModelViewSet):
@@ -1037,7 +1055,9 @@ def pos_user_login(request):
         "currency": "",
         "currency_symbol": "",
         "vendor_id": 0,
+        "is_franchise_owner": False,
         "permissions": None,
+        "related_vendors": [],
     }
     
     with transaction.atomic():
@@ -1119,6 +1139,18 @@ def pos_user_login(request):
                 "vendor": pos_permission.vendor.pk,
             }
 
+            related_vendor_list = []
+            
+            if vendor_instance.is_franchise_owner == True:
+                vendors = Vendor.objects.filter(franchise=vendor_id)
+
+                for vendor in vendors:
+                    related_vendor_list.append({
+                        "id": vendor.pk,
+                        "is_active": vendor.is_active,
+                        "contact_person_name": vendor.contact_person_name,
+                    })
+
             login(request, user)
             
             return JsonResponse({
@@ -1131,7 +1163,9 @@ def pos_user_login(request):
                 "currency": vendor_instance.currency,
                 "currency_symbol": vendor_instance.currency_symbol,
                 "vendor_id": vendor_id,
+                "is_franchise_owner": vendor_instance.is_franchise_owner,
                 "permissions": permission_dictionary,
+                "related_vendors": related_vendor_list,
             }, status = status.HTTP_200_OK)
         
         except Exception as e:
@@ -1286,28 +1320,46 @@ def dashboard(request):
     prepared_status_code = OrderStatus.get_order_status_value('PREPARED')
     
     sales_order_list = []
-    new_sales_order_list = []
     new_orders_count = 0
-    
-    orders = Order.objects.filter(
-        OrderDate__date__range=(start_date, end_date),
-        vendorId=vendor_id
-    )
 
-    new_orders_count = KOMSOrder.objects.filter(
-        order_status=1,
-        arrival_time__date__range=(start_date, end_date),
-        vendorId=vendor_id
-    ).count()
+    if vendor_instance.is_franchise_owner == True:
+        vendor_ids = set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True))
+
+        vendor_ids.add(vendor_id)
+
+        orders = Order.objects.filter(
+            OrderDate__date__range = (start_date, end_date),
+            vendorId__in = vendor_ids
+        )
+
+        koms_orders = KOMSOrder.objects.filter(
+            arrival_time__date__range = (start_date, end_date),
+            vendorId__in = vendor_ids
+        )
+
+    else:
+        orders = Order.objects.filter(
+            OrderDate__date__range = (start_date, end_date),
+            vendorId = vendor_id
+        )
+
+        koms_orders = KOMSOrder.objects.filter(
+            arrival_time__date__range = (start_date, end_date),
+            vendorId = vendor_id
+        )
     
-    subtotal_sum, discount_sum = orders.filter(
-        orderpayment__status=True
-    ).exclude(Status=canceled_status_code).aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
+    new_orders_count = koms_orders.filter(order_status = 1).count()
+
+    onhold_orders_count = koms_orders.filter(order_status = 4).count()
+    
+    subtotal_sum, discount_sum = orders.filter(orderpayment__status = True) \
+        .exclude(Status = canceled_status_code) \
+        .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
 
     subtotal_sum = subtotal_sum or 0.0
     discount_sum = discount_sum or 0.0
     
-    total_sale = "{:.2f}".format(subtotal_sum - discount_sum)
+    total_revenue = "{:.2f}".format(subtotal_sum - discount_sum)
 
     active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
@@ -1317,14 +1369,9 @@ def dashboard(request):
     
     if online_order_platform:
         online_order_platform_id = str(online_order_platform.pk)
-
-    total_orders_canceled = orders.filter(Status=canceled_status_code).count()
-    
-    orders = orders.exclude(Status=canceled_status_code)
-
-    all_orders = orders
     
     total_orders = orders.count()
+    total_orders_canceled = orders.filter(Status=canceled_status_code).count()
     total_orders_completed = orders.filter(Status=completed_status_code, orderpayment__status=True).count()
     total_orders_inprogress = orders.filter(Status__in=[inprogress_status_code, open_status_code, prepared_status_code]).count()
     total_orders_inprogress = total_orders_inprogress - new_orders_count
@@ -1332,102 +1379,54 @@ def dashboard(request):
     total_orders_delivered = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
     total_orders_dined = orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
     online_orders_count = orders.filter(platform__Name__in=('Mobile App', 'Website')).count()
-
-    orders = orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
-
+    
     current_start_date = current_end_date = datetime.now().date()
     
     if ((start_date == end_date) and (start_date == current_start_date and end_date == current_end_date)) or \
     ((start_date != end_date) and (start_date != current_start_date and end_date == current_end_date)):
-        start_datetime = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
-        current_datetime = datetime.now()
-        end_datetime = current_datetime.replace(minute=0, second=0, microsecond=0)
-
-        current_datetime = start_datetime
+        end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
     
     elif (start_date == end_date) and (start_date != current_start_date and end_date != current_end_date):
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-
-        if end_date == datetime.now().date():
-            end_datetime = datetime.combine(start_date, time(datetime.now().time().hour, 0, 0))
-        else:
-            end_datetime = datetime.combine(start_date, store_timing.close_time)
-
-        current_datetime = start_datetime
+        end_datetime = datetime.combine(start_date, time(23, 59, 59))
 
     else:
-        start_datetime = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
-        end_datetime = datetime.strptime(str(end_date) + " 23:59:59.000000", '%Y-%m-%d %H:%M:%S.%f')
-        
-        current_datetime = start_datetime
+        end_datetime = datetime.combine(end_date, time(23, 59, 59))
+    
+    current_datetime = datetime.combine(start_date, time(0, 0, 0))
     
     if orders.exists():
         while current_datetime <= end_datetime:
             current_hour_start = current_datetime
             current_hour_end = current_datetime + timedelta(hours=1)
 
-            filtered_orders = orders.filter(
-                OrderDate__range=(current_hour_start, current_hour_end)
-            )
+            filtered_orders = orders.filter(OrderDate__range = (current_hour_start, current_hour_end))
 
-            subtotal_sum, discount_sum = filtered_orders.aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
+            orders_with_payment = filtered_orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
+
+            subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum=Sum('subtotal'), discount_sum=Sum('discount')).values()
             
             subtotal_sum = subtotal_sum or 0.0
             discount_sum = discount_sum or 0.0
 
             total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
 
-            sales_order_list.append({
-                "date": current_hour_start.astimezone(pytz.timezone('Asia/Kolkata')).strftime('%Y-%m-%d %H:%M'),
-                "total_sale": total_sale_hourly,
-                "completed_orders_count": filtered_orders.count(),
-                "total_orders_count": all_orders.filter(OrderDate__range=(current_hour_start, current_hour_end)).count()
-            })
+            if filtered_orders.count() != 0:
+                sales_order_list.append({
+                    "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
+                    "total_sale": total_sale_hourly,
+                    "total_orders_count": filtered_orders.count(),
+                    "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                })
 
-            current_datetime += timedelta(hours=1)
-
-        running_total_sales = 0.0
-        running_completed_orders = 0
-        running_total_orders = 0
-        
-        for data in sales_order_list:
-            running_total_sales = running_total_sales + float(data["total_sale"])
-            running_completed_orders = running_completed_orders + data["completed_orders_count"]
-            running_total_orders = running_total_orders + data["total_orders_count"]
-
-            new_sales_order_list.append({
-                "date": data["date"],
-                "total_sale": "{:.2f}".format(running_total_sales),
-                "completed_orders_count": running_completed_orders,
-                "total_orders_count": running_total_orders,
-            })
-
-        if len(new_sales_order_list) == 1:
-            first_item = new_sales_order_list[0]
-            date_value = first_item["date"]
-
-            date_obj = datetime.strptime(date_value, '%Y-%m-%d')
-
-            date_obj = date_obj - timedelta(days=1)
-
-            date_value = date_obj.strftime('%Y-%m-%d')
-
-            new_sales_order_list.append({
-                "date": date_value,
-                "total_sale": "0.0",
-                "completed_orders_count": 0,
-                "total_orders_count": 0
-            })
+            current_datetime = current_datetime + timedelta(hours=1)
     
     order_items = Order_content.objects.filter(
-        orderId__order_status=10,
-        orderId__master_order__Status=completed_status_code,
-        orderId__master_order__orderpayment__status=True,
-        orderId__master_order__OrderDate__date__range=(start_date, end_date),
-        orderId__master_order__vendorId=vendor_id,
-        orderId__vendorId=vendor_id
+        orderId__order_status = 10,
+        orderId__master_order__Status = completed_status_code,
+        orderId__master_order__orderpayment__status = True,
+        orderId__master_order__OrderDate__date__range = (start_date, end_date),
+        orderId__master_order__vendorId = vendor_id,
+        orderId__vendorId = vendor_id
     )
     
     total_items_sold = order_items.values('SKU').distinct().count()
@@ -1468,7 +1467,7 @@ def dashboard(request):
     order_details = {
         "online_order_platform_id": online_order_platform_id, # Required for Flutter model
         "active_products": active_product_count,
-        "total_sale": total_sale,
+        "total_sale": total_revenue,
         "total_orders": total_orders,
         "items_sold": total_items_sold,
         "orders_completed": total_orders_completed,
@@ -1479,7 +1478,8 @@ def dashboard(request):
         "orders_dined": total_orders_dined,
         "online_orders": online_orders_count,
         "new_orders": new_orders_count,
-        "sales_order": new_sales_order_list,
+        "onhold_orders": onhold_orders_count,
+        "sales_order": sales_order_list,
         "top_selling": list_of_items
     }
 
@@ -1642,124 +1642,151 @@ def top_selling_product_details(request):
 
 @api_view(["POST"])
 def order_status_type_summary(request):
-    required_fields = {
-        "vendor_id", "order_status_code", "order_type_code", "start_date", "end_date", "page_number", "page_limit"
-    }
-    
-    missing_fields = required_fields - set(request.data.keys())
-
-    if missing_fields:
-        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
     try:
-        vendor_id = int(request.data.get('vendor_id'))
-        order_status_code = int(request.data.get('order_status_code'))
-        order_type_code = int(request.data.get('order_type_code'))
-        page_number = int(request.data.get('page_number'))
-        page_limit = int(request.data.get('page_limit'))
-
-        if any(value < 0 for value in (vendor_id, order_status_code, page_number, page_limit)):
-            raise ValueError
+        required_fields = {"vendor_id", "order_type_code", "start_date", "end_date", "page_number", "page_limit"}
         
-        start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
-        end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
+        missing_fields = required_fields - set(request.data.keys())
 
-    except Exception:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
-    
-    if start_date > end_date:
-        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+        if missing_fields:
+            return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        try:
+            vendor_id = int(request.data.get('vendor_id'))
+            order_type_code = int(request.data.get('order_type_code'))
+            page_number = int(request.data.get('page_number'))
+            page_limit = int(request.data.get('page_limit'))
 
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+            if any(value < 0 for value in (vendor_id, page_number, page_limit)):
+                raise ValueError
+            
+            start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
 
-    orders = KOMSOrder.objects.filter(
-        master_order__OrderDate__date__range=(start_date, end_date),
-        master_order__vendorId=vendor_id,
-        vendorId=vendor_id
-    )
+        except Exception:
+            return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
         
-    if not orders.exists():
+        if start_date > end_date:
+            return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+        orders = KOMSOrder.objects.filter(
+            master_order__OrderDate__date__range = (start_date, end_date),
+            master_order__vendorId = vendor_id,
+            vendorId = vendor_id
+        )
+        
+        if order_type_code != 0:
+            orders = orders.filter(order_type = order_type_code)
+        
+        if not orders.exists():
+            return JsonResponse({
+                "page_number": 1,
+                "total_pages": 1,
+                "orders": [],
+            })
+        
+        orders = orders.order_by("arrival_time")
+        
+        order_list = []
+        
+        if start_date == end_date:
+            current_start_date = current_end_date = datetime.now().date()
+            
+            if (start_date == current_start_date) and (end_date == current_end_date):
+                end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
+
+            else:
+                end_datetime = datetime.combine(end_date, time(0, 0, 0)) + timedelta(days=1)
+
+            current_time = datetime.combine(start_date, time(0, 0, 0))
+
+            while current_time < end_datetime:
+                next_time = current_time + timedelta(hours=1)
+
+                filtered_orders = orders.filter(arrival_time__range = (current_time, next_time))
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = OrderStatus.get_order_status_value('COMPLETED'),
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = OrderStatus.get_order_status_value('CANCELED'),
+                    ).count()
+
+                    order_list.append({
+                        "order_date": current_time.astimezone(local_timezone).strftime("%Y-%m-%d %H:%M"),
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
+
+                current_time = next_time
+        
+        else:
+            unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)))
+
+            for unique_date in unique_order_dates:
+                filtered_orders = orders.filter(arrival_time__date = unique_date)
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = OrderStatus.get_order_status_value('COMPLETED'),
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = OrderStatus.get_order_status_value('CANCELED'),
+                    ).count()
+
+                    order_list.append({
+                        "order_date": unique_date,
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
+
+        paginated_data = []
+        
+        paginator = Paginator(order_list, page_limit)
+        page = paginator.get_page(page_number) 
+
+        for order in page:
+            paginated_data.append({
+                "order_date": order['order_date'],
+                "total_orders": order['total_orders'],
+                "closed_orders": order['closed_orders'],
+                "onhold_orders": order['onhold_orders'],
+                "cancelled_orders": order['cancelled_orders'],
+            })
+
         return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": [],
+            "page_number": page.number,
+            "total_pages": paginator.num_pages,
+            "orders": paginated_data,
         })
     
-    if order_type_code != 0:
-        orders = orders.filter(order_type=order_type_code)
-    
-    if order_status_code in [2, 3, 4, 6, 7, 8, 9]:
-        orders = orders.filter(order_status__in=[2, 3, 4, 6, 7, 8, 9])
-            
-    else:
-        orders = orders.filter(order_status=order_status_code)
-    
-    if not orders.exists():
-        return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": [],
-        })
-    
-    order_list = []
-    
-    current_start_date = current_end_date = datetime.now().date()
-    
-    if start_date == end_date:
-        store_timing = StoreTiming.objects.filter(day=start_date.strftime("%A"), vendor=vendor_id).first()
-
-        start_datetime = datetime.combine(start_date, store_timing.open_time)
-        end_datetime = datetime.combine(end_date, store_timing.close_time)
-        
-        if (start_date == current_start_date) and (end_date == current_end_date):
-            end_datetime = datetime.now() + timedelta(minutes=59, seconds=59)
-
-        current_time = start_datetime
-        
-        while current_time <= end_datetime:
-            next_time = current_time + timedelta(hours=1)
-            
-            filtered_orders = orders.filter(arrival_time__range=(current_time, next_time))
-
-            if filtered_orders.count() != 0:
-                order_list.append({
-                    "order_date": current_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%d %H:%M"),
-                    "total_order": filtered_orders.count(),
-                })
-
-            current_time = next_time
-    
-    else:
-        unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)), reverse=True)
-
-        for unique_date in unique_order_dates:
-            filtered_orders = orders.filter(arrival_time__icontains=unique_date)
-            
-            if filtered_orders.count() != 0:
-                order_list.append({
-                    "order_date": unique_date,
-                    "total_order": filtered_orders.count(),
-                })
-
-    paginated_data = []
-    
-    paginator = Paginator(order_list, page_limit)
-    page = paginator.get_page(page_number) 
-
-    for order in page:
-        paginated_data.append({
-            "order_date": order['order_date'],
-            "total_order": order['total_order'],
-        })
-
-    return JsonResponse({
-        "page_number": page.number,
-        "total_pages": paginator.num_pages,
-        "orders": paginated_data,
-    })
+    except Exception as e:
+        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
@@ -1862,9 +1889,15 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         if order_status != "All":
             if is_dashboard == 0:
                 order_data = order_data.filter(order_status=order_status)
+
             elif is_dashboard == 1:
                 if order_status == 10 :
-                    order_data = order_data.filter(order_status__in = [5,10])
+                    if s_date and e_date:
+                        order_data = order_data.filter(order_status__in = [4, 5, 10])
+
+                    else:
+                        order_data = order_data.filter(order_status__in = [5, 10])
+
                 else:
                     order_data = order_data.filter(order_status=order_status)
 
@@ -1970,7 +2003,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     if split_payment:
                         split_payments_list.append({
                             "paymentId": split_payment.pk,
-                            "paymentBy": split_payment.paymentBy,
+                            "paymentBy": split_order.customerId.FirstName,
                             "paymentKey": split_payment.paymentKey,
                             "amount_paid": split_payment.paid,
                             "paymentType": split_payment.type,
@@ -1979,7 +2012,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                             "amount_tax": split_order.tax,
                             "status": split_payment.status,
                             "platform": split_payment.platform,
-                            "mode": payment_type_english[split_payment.type]
+                            "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
                         })
                 payment_details["split_payments"] = split_payments_list
 
@@ -2869,7 +2902,7 @@ def order_details(request):
                     payment_details["amount_paid"] = payment.paid if payment else 0.0
                     payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
                     payment_details["paymentStatus"] = payment.status if payment else False
-                    order_info["core_orderId"] = payment.orderId.pk
+                    # order_info["core_orderId"] = payment.orderId.pk
                     order_info["orderId"] = payment.orderId.externalOrderId
                     order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
                     order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
@@ -2971,11 +3004,22 @@ def updatePaymentDetails(request):
         if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
             OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
     if coreOrder.orderType == 3:
-        order.order_status = 10 # CLOSE order
-        order.save()
-        
-        coreOrder.Status = 2                    # this is just a temporary fix to update 
-        coreOrder.save()                      # core order status this needs to be changed by updateCoreOrder function
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()                # core order status this needs to be changed by updateCoreOrder function
 
         waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
         
@@ -3041,11 +3085,22 @@ def updatePaymentDetails(request):
                     )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
-        order.order_status = 10
-        order.save()
-        
-        coreOrder.Status = 2
-        coreOrder.save()
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()
     
     webSocketPush(
         message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
@@ -3570,7 +3625,7 @@ def excel_download_for_dashboard(request):
             payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
 
             if order_detail:
-                order_time = order_detail.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).replace(tzinfo=None)
+                order_time = order_detail.arrivalTime.astimezone(local_timezone).replace(tzinfo=None)
 
                 order_type = order_type_english[order_detail.orderType]
                 order_status = koms_order_status_english[koms_order_status]
@@ -3842,12 +3897,12 @@ def set_store_timings(request):
 
     body_data['platform'] = None
 
-    serialized = StoreTImingSerializer(data=body_data)
+    serialized = StoreTimingSerializer(data=body_data)
 
     # update store_timings
     if request.GET.get("id"):
         data = StoreTiming.objects.get(pk=request.GET.get("id"))
-        serialized = StoreTImingSerializer(instance=data, data=body_data)
+        serialized = StoreTimingSerializer(instance=data, data=body_data)
 
     if serialized.is_valid():
         slot = serialized.save()
@@ -5233,9 +5288,9 @@ def get_orders_of_customer(request):
                     "delivery_charge": order.delivery_charge,
                     "subtotal": order.subtotal,
                     "total_amount": order.TotalAmount,
-                    "pickup_time": koms_order.pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "arrival_time": order.arrivalTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "pickup_time": koms_order.pickupTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+                    "arrival_time": order.arrivalTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                     "order_type": order.orderType,
                     "platform_name": platform_name,
                     "table_numbers": table_numbers_list,
@@ -5359,7 +5414,7 @@ def get_loyalty_point_transactions_of_customer(request):
             order_data = {
                 "order_id": order.pk,
                 "external_order_id": order.externalOrderId,
-                "order_datetime": order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                 "credit_history": credit_transaction,
                 "redeemed_points": redeemed_points,
                 "redeem_history": redeem_transaction
@@ -5685,7 +5740,8 @@ def redeem_loyalty_points(request):
                         customer_instance.save()
 
                     koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.pk).first()
-            
+                    if master_order_instance.masterOrder:
+                        koms_order = KOMSOrder.objects.filter(master_order=master_order_instance.masterOrder.pk).first()
                     waiteOrderUpdate(orderid=koms_order.pk, language=language, vendorId=vendor_id) # call socket
                     
                     return Response("Points redeemed", status=status.HTTP_200_OK)
@@ -9078,9 +9134,9 @@ def get_cash_register_history(request):
                 "balance_while_store_opening": cash_register_history.balance_while_store_opening,
                 "balance_while_store_closing": cash_register_history.balance_while_store_closing,
                 "created_by": cash_register_history.created_by.pk,
-                "created_at": cash_register_history.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "created_at": cash_register_history.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
                 "edited_by": cash_register_history.edited_by.pk,
-                "edited_at": cash_register_history.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+                "edited_at": cash_register_history.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             })
         
         return JsonResponse({
@@ -9102,9 +9158,9 @@ def get_cash_register_history(request):
             "balance_while_store_opening": instance.balance_while_store_opening,
             "balance_while_store_closing": instance.balance_while_store_closing,
             "created_by": instance.created_by.pk,
-            "created_at": instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "created_at": instance.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             "edited_by": instance.edited_by.pk,
-            "edited_at": instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_at": instance.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
         })
 
     return JsonResponse({"message": "", "history": cash_register_history_list})
@@ -9170,9 +9226,9 @@ def register_cash(request):
             "balance_while_store_opening": cash_register_instance.balance_while_store_opening,
             "balance_while_store_closing": cash_register_instance.balance_while_store_closing,
             "created_by": cash_register_instance.created_by.pk,
-            "created_at": cash_register_instance.created_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "created_at": cash_register_instance.created_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
             "edited_by": cash_register_instance.edited_by.pk,
-            "edited_at": cash_register_instance.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S"),
+            "edited_at": cash_register_instance.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
         })
     
     except Exception as e:
@@ -9398,6 +9454,7 @@ def splitOrderPayment(request):
     
     payment.type = PaymentType.SPLIT
     payment.save()
+    old_splits = Order.objects.filter(masterOrder=coreOrder.pk).delete()
     count = 1
     for splitPayment in data["payments"]:
         split_customer = Customer.objects.filter(pk=splitPayment.get('customerId')) if splitPayment.get('customerId') else None
@@ -9410,11 +9467,11 @@ def splitOrderPayment(request):
                 externalOrderId=coreOrder.externalOrderId + f"_{count}",
                 orderType=coreOrder.orderType,
                 arrivalTime=timezone.now(),
-                tax= splitPayment.get("amount_paid") or 0.0 ,
+                tax= splitPayment.get("amount_tax") or 0.0 ,
                 discount=0.0,
                 tip=0.0,
                 delivery_charge=0.0,
-                subtotal=splitPayment.get("amount_paid") or 0.0 ,
+                subtotal=(splitPayment.get("amount_paid",0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
                 customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
                 vendorId=vendor_instance,
                 platform=coreOrder.platform

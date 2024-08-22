@@ -19,15 +19,19 @@ class VendorTypeAdmin(admin.ModelAdmin):
 @admin.register(Vendor)
 class VendorAdmin(admin.ModelAdmin):
     fields = (
-        'vendor_type', 'is_active', 'Name', 'phone_number', 'Email', 'Password', 
+        'vendor_type', 'Name', 'phone_number', 'Email',
         'address_line_1', 'address_line_2', 'city', 'state', 'country',
         'currency', 'currency_symbol', 'primary_language', 'secondary_language',
-        'logo', 'gst_number', 'contact_person_name', 'contact_person_phone_number',
+        'logo', 'is_active', 'is_franchise_owner', 'franchise', 'gst_number',
+        'contact_person_name', 'contact_person_phone_number',
     )
 
     list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
     list_filter = ('is_active', 'vendor_type', 'state', 'city', )
-    search_fields = ('Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2', 'city', 'state', 'contact_person_name', 'contact_person_phone_number',)
+    search_fields = (
+        'Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2', 'city', 'state',
+        'contact_person_name', 'contact_person_phone_number',
+    )
     ordering = ('Name',)
     # show_facets = admin.ShowFacets.ALWAYS
 

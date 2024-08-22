@@ -18,7 +18,6 @@ class VendorType(models.Model):
 class Vendor(models.Model):
     Name = models.CharField(max_length=122)
     Email = models.EmailField()
-    Password = models.CharField(max_length=122, null=True, blank=True)
     vendor_type = models.ForeignKey(VendorType, on_delete=models.CASCADE)
     phone_number = models.PositiveBigIntegerField()
     gst_number = models.CharField(max_length=20, null=True, blank=True)
@@ -34,6 +33,8 @@ class Vendor(models.Model):
     primary_language = models.CharField(max_length=100, default="English")
     secondary_language = models.CharField(max_length=100, null=True, blank=True)
     is_active = models.BooleanField(default=False)
+    is_franchise_owner = models.BooleanField(default=False)
+    franchise = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
 
 

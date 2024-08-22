@@ -14,7 +14,7 @@ from koms.serializers.order_serializer import Order_serializer, OrderSerializerW
 from koms.serializers.user_settings_serializer import UserSettingReaderSerializer
 from koms.serializers.stations_serializer import Stations_serializer, StationsReadSerializer
 from koms.serializers.staff_serializer import StaffReaderSerializer,StaffWriterSerializer
-from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE, WOMS
+from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE
 from .models import (
     Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
     KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
@@ -31,13 +31,12 @@ from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
 from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.models import StoreTiming
-from pos.language import order_has_arrived_locale, payment_type_english, language_localization
+from pos.language import order_has_arrived_locale, payment_type_english, language_localization, local_timezone
 from inventory.utils import sync_order_content_with_inventory
 import secrets
 import json
 import string
 import random
-import pytz
 import logging
 import sys
 
@@ -678,7 +677,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
             split_payments_list.append({
                 "paymentId": split_payment.pk,
-                "paymentBy": split_payment.paymentBy,
+                "paymentBy": split_order.customerId.FirstName,
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
@@ -687,7 +686,8 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "amount_tax": split_order.tax,
                 "status": split_payment.status,
                 "platform": split_payment.platform,
-                "mode": payment_type_english[split_payment.type]
+                "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
+
             })
         
         payment_details["split_payments"] = split_payments_list
@@ -1320,11 +1320,11 @@ def getOrder(ticketId, vendorId, language="English"):
 
         waiters = waiters = ', '.join(waiter_names)
 
-    mapOfSingleOrder["pickupTime"] =  pickupTime.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
-    mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(pytz.timezone('Asia/Kolkata')).strftime("20%y-%m-%dT%H:%M:%S")
-    mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
+    mapOfSingleOrder["pickupTime"] =  pickupTime.astimezone(local_timezone).strftime("20%y-%m-%dT%H:%M:%S")
+    mapOfSingleOrder["arrivalTime"] = singleOrder.arrival_time.astimezone(local_timezone).strftime("20%y-%m-%dT%H:%M:%S")
+    mapOfSingleOrder["order_datetime"] = singleOrder.master_order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["is_edited"] = singleOrder.is_edited
-    mapOfSingleOrder["edited_at"] = singleOrder.edited_at.astimezone(pytz.timezone('Asia/Kolkata')).strftime("%Y-%m-%dT%H:%M:%S")
+    mapOfSingleOrder["edited_at"] = singleOrder.edited_at.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S")
     mapOfSingleOrder["deliveryIsAsap"] = singleOrder.deliveryIsAsap
     mapOfSingleOrder["note"] = order_note
     mapOfSingleOrder["remake"] = False

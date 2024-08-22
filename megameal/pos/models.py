@@ -64,6 +64,17 @@ class CoreUserCategory(Group):
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
 
 
+class WorkingShift(models.Model):
+    name = models.CharField(max_length=200)
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+
 class CoreUser(User):
     phone_number = models.PositiveBigIntegerField()
     current_address = models.TextField(max_length=2000, null=True, blank=True)
@@ -73,6 +84,7 @@ class CoreUser(User):
     document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
     is_head = models.BooleanField(default=False)
     reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
+    working_shift = models.ForeignKey(WorkingShift, on_delete=models.SET_NULL, null=True, blank=True)
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
