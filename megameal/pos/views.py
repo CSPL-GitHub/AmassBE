@@ -1769,7 +1769,7 @@ def order_status_type_summary(request):
             for unique_date in unique_order_dates:
                 filtered_orders = orders.filter(arrival_time__date = unique_date)
 
-                total_orders_count = filtered_orders.count()
+                total_orders_count = filtered_orders.filter(masterOrder=None).count()
                 
                 if total_orders_count != 0:
                     onhold_orders_count = filtered_orders.filter(order_status = 4).count()
@@ -7240,7 +7240,7 @@ def finance_report(request):
     online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
     card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
     
-    total_orders = orders.count()
+    total_orders = orders.filter(masterOrder=None).count()
     delivery_orders_count = delivery_orders.count()
     pickup_orders_count = pickup_orders.count()
     dinein_orders_count = dinein_orders.count()
@@ -7610,7 +7610,7 @@ def footfall_revenue_report(request):
         online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
         card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
 
-        total_orders = orders.count()
+        total_orders = orders.filter(masterOrder=None).count()
         delivery_orders_count = delivery_orders.count()
         pickup_orders_count = pickup_orders.count()
         dinein_orders_count = dinein_orders.count()
