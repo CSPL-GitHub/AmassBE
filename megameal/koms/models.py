@@ -96,15 +96,6 @@ class Order_tables(models.Model):
     orderId=models.ForeignKey(Order,on_delete=models.CASCADE)
     tableId=models.ForeignKey(HotelTable,on_delete=models.CASCADE)
 
-class KOMS_config(models.Model):
-    print_or_display = models.IntegerField()
-    default_prepration_time = models.CharField(max_length=20)
-    licence_key = models.CharField(max_length=200)
-    activation_status = models.IntegerField()
-    central_url = models.CharField(max_length=30)
-    send_order_to_cs = models.BooleanField()
-    vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
 
 class Prepration_time(models.Model):
     externalID = models.CharField(max_length=20)
