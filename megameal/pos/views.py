@@ -1369,7 +1369,7 @@ def dashboard(request):
         if online_order_platform:
             online_order_platform_id = str(online_order_platform.pk)
         
-        total_orders = orders.count()
+        total_orders = orders.filter(masterOrder=None).count()
 
         total_orders_canceled = orders.filter(Status = canceled_status_code).count()
         total_orders_completed = orders.filter(Status = completed_status_code, orderpayment__status=True).count()
@@ -3042,6 +3042,69 @@ def updatePaymentDetails(request):
                 
                 coreOrder.Status = 2
                 coreOrder.save()
+
+                waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+                
+                tables = Order_tables.objects.filter(orderId=order)
+                
+                for table in tables:
+                    table.tableId.status = 1 # EMPTY TABLE
+                    table.tableId.guestCount = 0
+                    table.tableId.save()
+
+                    waiter_id = 0
+
+                    if table.tableId.waiterId:
+                        waiter_id = table.tableId.waiterId.pk
+
+                    filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
+                    
+                    table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
+                    
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
+                        username = "CORE",
+                    )
+                    
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMSPOS------English-{str(vendorId)}",
+                        username = "CORE",
+                    )
+                    
+                    for waiter_head_id in filtered_waiter_heads:
+                        webSocketPush(
+                            message = {"result": table_data, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
+                            username = "CORE",
+                        )
+
+                    secondary_language = vendor_instance.secondary_language
+                    
+                    if secondary_language:
+                        table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                        
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
+
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
+
+                        waiter_head_id = 0
+
+                        for waiter_head_id in filtered_waiter_heads:
+                            webSocketPush(
+                                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                                room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
+                                username = "CORE",
+                            )  
         else :
             order.order_status = 10
             order.save()
@@ -3049,68 +3112,68 @@ def updatePaymentDetails(request):
             coreOrder.Status = 2
             coreOrder.save()                # core order status this needs to be changed by updateCoreOrder function
 
-        waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
-        
-        tables = Order_tables.objects.filter(orderId=order)
-        
-        for table in tables:
-            table.tableId.status = 1 # EMPTY TABLE
-            table.tableId.guestCount = 0
-            table.tableId.save()
+            waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+            
+            tables = Order_tables.objects.filter(orderId=order)
+            
+            for table in tables:
+                table.tableId.status = 1 # EMPTY TABLE
+                table.tableId.guestCount = 0
+                table.tableId.save()
 
-            waiter_id = 0
+                waiter_id = 0
 
-            if table.tableId.waiterId:
-                waiter_id = table.tableId.waiterId.pk
+                if table.tableId.waiterId:
+                    waiter_id = table.tableId.waiterId.pk
 
-            filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
-            
-            table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
-            
-            webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
-                username = "CORE",
-            )
-            
-            webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMSPOS------English-{str(vendorId)}",
-                username = "CORE",
-            )
-            
-            for waiter_head_id in filtered_waiter_heads:
-                webSocketPush(
-                    message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
-                    username = "CORE",
-                )
-
-            secondary_language = vendor_instance.secondary_language
-            
-            if secondary_language:
-                table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
+                
+                table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
                 
                 webSocketPush(
-                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
                     username = "CORE",
                 )
-
+                
                 webSocketPush(
-                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                    room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMSPOS------English-{str(vendorId)}",
                     username = "CORE",
                 )
-
-                waiter_head_id = 0
-
+                
                 for waiter_head_id in filtered_waiter_heads:
                     webSocketPush(
-                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                        room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
                         username = "CORE",
                     )
+
+                secondary_language = vendor_instance.secondary_language
+                
+                if secondary_language:
+                    table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                    
+                    webSocketPush(
+                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
+
+                    webSocketPush(
+                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                        room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
+
+                    waiter_head_id = 0
+
+                    for waiter_head_id in filtered_waiter_heads:
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
         if data.get("payment_id"):
