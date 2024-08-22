@@ -1322,7 +1322,8 @@ def dashboard(request):
 
             orders = Order.objects.filter(
                 OrderDate__date__range = (start_date, end_date),
-                vendorId__in = vendor_ids
+                vendorId__in = vendor_ids,
+                masterOrder=None
             )
 
             koms_orders = KOMSOrder.objects.filter(
@@ -1369,7 +1370,7 @@ def dashboard(request):
         if online_order_platform:
             online_order_platform_id = str(online_order_platform.pk)
         
-        total_orders = orders.filter(masterOrder=None).count()
+        total_orders = orders.count()
 
         total_orders_canceled = orders.filter(Status = canceled_status_code).count()
         total_orders_completed = orders.filter(Status = completed_status_code, orderpayment__status=True).count()
@@ -1769,7 +1770,7 @@ def order_status_type_summary(request):
             for unique_date in unique_order_dates:
                 filtered_orders = orders.filter(arrival_time__date = unique_date)
 
-                total_orders_count = filtered_orders.filter(masterOrder=None).count()
+                total_orders_count = filtered_orders.count()
                 
                 if total_orders_count != 0:
                     onhold_orders_count = filtered_orders.filter(order_status = 4).count()
@@ -7230,7 +7231,8 @@ def finance_report(request):
     orders = OrderPayment.objects.filter(
         status=True,
         orderId__OrderDate__date__range=(start_date, end_date),
-        orderId__vendorId=vendor_id
+        orderId__vendorId=vendor_id,
+        orderId__masterOrder=None
     ).exclude(orderId__Status=OrderStatus.get_order_status_value('CANCELED'))
 
     delivery_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('DELIVERY'))
@@ -7240,7 +7242,7 @@ def finance_report(request):
     online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
     card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
     
-    total_orders = orders.filter(masterOrder=None).count()
+    total_orders = orders.count()
     delivery_orders_count = delivery_orders.count()
     pickup_orders_count = pickup_orders.count()
     dinein_orders_count = dinein_orders.count()
@@ -7478,7 +7480,8 @@ def footfall_revenue_report(request):
     all_orders = OrderPayment.objects.filter(
         status=True,
         orderId__OrderDate__date__range=(start_date, end_date),
-        orderId__vendorId=vendor_id
+        orderId__vendorId=vendor_id,
+        orderId__masterOrder=None
     ).exclude(orderId__Status=OrderStatus.get_order_status_value('CANCELED'))
 
     # ISO standard mapping
@@ -7610,7 +7613,7 @@ def footfall_revenue_report(request):
         online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
         card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
 
-        total_orders = orders.filter(masterOrder=None).count()
+        total_orders = orders.count()
         delivery_orders_count = delivery_orders.count()
         pickup_orders_count = pickup_orders.count()
         dinein_orders_count = dinein_orders.count()
