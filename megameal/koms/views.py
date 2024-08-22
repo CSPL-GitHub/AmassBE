@@ -671,6 +671,9 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             split_payments_list.append({
                 "paymentId": split_payment.pk,
                 "paymentBy": split_order.customerId.FirstName,
+                "customer_name": split_order.customerId.FirstName,
+                "customer_mobile": split_order.customerId.Phone_Number,
+                "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
