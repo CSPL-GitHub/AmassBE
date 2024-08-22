@@ -67,11 +67,6 @@ class HotelTable(models.Model):
         return str(self.tableNumber)
 
 
-class Token_date(models.Model):
-       Date=models.DateTimeField()
-       Token=models.IntegerField(max_length=200,)
-       vendorId=models.ForeignKey(Vendor, on_delete=models.CASCADE)
-
 
 @receiver(pre_save, sender=HotelTable)
 def validate_hotel_table(sender, instance, **kwargs):
