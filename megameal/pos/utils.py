@@ -877,6 +877,7 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
         "id": 0,
         "name": "Uncategorized",
         "name_locale": language_localization["Uncategorized"] if vendor_instance.secondary_language else "",
+        "is_active": True,
         "core_user_categories": category_list
     })
 
@@ -908,6 +909,7 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
             "id": department_instance.pk,
             "name": department_instance.name,
             "name_locale": department_instance.name_locale,
+            "is_active": department_instance.is_active,
             "core_user_categories": category_list
         })
 
