@@ -20,6 +20,7 @@ router.register("setting/users", views.CoreUserModelViewSet, basename="core_user
 
 
 urlpatterns = [
+   path('', include(router.urls)),
    path('login/', views.pos_user_login),
    path('language/', views.pos_lanuage_setting, name="language"),
    path('allCategory/',views.allCategory), # All Category api for POS
@@ -30,8 +31,6 @@ urlpatterns = [
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
    path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
-   path('orderList/', views.orderList, name="orderList"),
-   path('', include(router.urls)),
    path('table/',views.showtabledetails), # show tables details
    path('tableCapacity/',views.show_tableCapacity), # show products 
    path('productStatusChange/',views.productStatusChange), # activate / deactivate products

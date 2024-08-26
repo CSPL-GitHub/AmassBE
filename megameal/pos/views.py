@@ -3484,25 +3484,6 @@ def update_order_koms(request):
 
 
 @api_view(["POST"])
-def orderList(request):
-    data=request.data
-
-    data=order_data(
-        vendor_id=data.get("vendor_id"),
-        page_number=data.get("page_number"),
-        search=data.get("search"),
-        order_status=data.get("order_status"),
-        order_type=data.get("order_type"),
-        platform=data.get("platform"),
-        s_date=data.get("s_date"),
-        e_date=data.get("e_date"),
-        is_dashboard = data.get("is_dashboard"),
-    )
-
-    return JsonResponse(data)
-
-
-@api_view(["POST"])
 def update_store_status(request):
     vendor_id = request.GET.get("vendorId")
     store_status = request.data.get("store")
