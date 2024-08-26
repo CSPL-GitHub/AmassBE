@@ -31,15 +31,18 @@ from koms.models import (
 from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
 from django.utils import timezone
 from datetime import datetime, timedelta, time
-from rest_framework import status, viewsets, permissions, authentication
+from rest_framework import status, viewsets
+from rest_framework import filters
+from rest_framework.filters import SearchFilter, OrderingFilter
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import permission_classes
+from rest_framework_simplejwt.tokens import RefreshToken
 from pos.serializers import *
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
     StationFilter, ChefFilter,
 )
-from rest_framework import filters
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.filters import SearchFilter, OrderingFilter
 from django.db import transaction, IntegrityError
 from django.db.models.functions import TruncDate, TruncHour
 from django.shortcuts import render
@@ -67,6 +70,8 @@ from pos.language import (
     koms_order_status_english, check_key_exists, table_created_locale, table_deleted_locale,
 )
 from googletrans import Translator
+from django.shortcuts import render
+from operator import itemgetter
 import pandas
 import re
 import openpyxl
@@ -74,8 +79,6 @@ import os
 import socket
 import json
 import threading
-from django.shortcuts import render
-from operator import itemgetter
 import calendar
 import pgeocode
 
@@ -102,8 +105,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
     filterset_fields = ('name',)
     search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
@@ -128,8 +130,7 @@ class WorkingShiftModelViewSet(viewsets.ModelViewSet):
     filterset_fields = ('name',)
     search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name', 'start_time')
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
@@ -154,8 +155,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     filterset_fields = ('first_name', 'last_name', 'email')
     search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
     ordering_fields = ('id', 'first_name', 'last_name',)
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
@@ -205,7 +205,6 @@ class WaiterViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
@@ -240,6 +239,7 @@ class WaiterViewSet(viewsets.ModelViewSet):
 class FloorViewSet(viewsets.ModelViewSet):
     queryset = Floor.objects.all().order_by('id')
     serializer_class = FloorSerializer
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
@@ -266,6 +266,7 @@ class HotelTableViewSet(viewsets.ModelViewSet):
     serializer_class = HotelTableSerializer
     filter_class = HotelTableFilter
     filter_backends = [DjangoFilterBackend]
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
@@ -441,7 +442,8 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
     serializer_class = ProductCategorySerializer
     filter_class = ProductCategoryFilter
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
+    pagination_class = CustomPagination
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         # vendor_id = self.request.query_params.get('vendorId', None)
@@ -599,10 +601,10 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
     serializer_class = ModifierGroupSerializer
     filter_class = ModifierGroupFilter
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
-    pagination_class = CustomPagination 
+    pagination_class = CustomPagination
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
@@ -739,11 +741,9 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
     search_fields = ("discountName", "discountCode", "value")
     pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
@@ -772,11 +772,9 @@ class StationModelViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
     search_fields = ('station_name',)
     pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
@@ -805,11 +803,8 @@ class ChefModelViewSet(viewsets.ModelViewSet):
     filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
     search_fields = ('first_name', 'last_name',)
     pagination_class = CustomPagination
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
@@ -834,11 +829,9 @@ class ChefModelViewSet(viewsets.ModelViewSet):
 class BannerModelViewSet(viewsets.ModelViewSet):
     queryset = Banner.objects.all().order_by('-pk')
     serializer_class = BannerModelSerializer
-    # permission_classes = [permissions.IsAuthenticated]
-    # authentication_classes = [authentication.SessionAuthentication, authentication.TokenAuthentication]
+    # permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId')
 
         if vendor_id:
@@ -1047,6 +1040,8 @@ def delete_tax(request):
 def pos_user_login(request):
     response_json = {
         "message": "Invalid request data",
+        # "access_token": "",
+        # "refresh_token": "",
         "user_id": 0,
         "first_name": "",
         "last_name": "",
@@ -1152,9 +1147,16 @@ def pos_user_login(request):
                     })
 
             login(request, user)
+
+            # JWT Authentication
+            # refresh = RefreshToken.for_user(user)
+
+            # access_token = str(refresh.access_token)
             
             return JsonResponse({
                 "message": "",
+                # "access_token": access_token,
+                # "refresh_token": str(refresh),
                 "user_id": pos_user.pk,
                 "first_name": pos_user.first_name,
                 "last_name": pos_user.last_name,
@@ -1288,6 +1290,7 @@ def productByCategory(request, id=0):
 
 
 @api_view(['GET'])
+# @permission_classes([IsAuthenticated])
 def dashboard(request):
     try:
         vendor_id = request.GET.get("vendor")
