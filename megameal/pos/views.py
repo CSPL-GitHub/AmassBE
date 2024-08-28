@@ -1038,73 +1038,44 @@ def delete_tax(request):
 
 @api_view(["POST"])
 def pos_user_login(request):
-    response_json = {
-        "message": "Invalid request data",
-        # "access_token": "",
-        # "refresh_token": "",
-        "user_id": 0,
-        "first_name": "",
-        "last_name": "",
-        "primary_language": "",
-        "secondary_language": "",
-        "currency": "",
-        "currency_symbol": "",
-        "vendor_id": 0,
-        "is_franchise_owner": False,
-        "permissions": None,
-        "related_vendors": [],
-    }
-    
     with transaction.atomic():
         try:
             username = request.data.get("username")
             password = request.data.get("password")
 
             if (not username) or (not password):
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
 
             user = authenticate(request, username=username, password=password)
             
             if not user:
-                response_json["message"] = "Invalid login credentials"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Invalid login credentials"}, status = status.HTTP_400_BAD_REQUEST)
 
             pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
 
             if pos_user.is_active == False:
-                response_json["message"] = "User not active"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "User not active"}, status = status.HTTP_400_BAD_REQUEST)
             
             vendor_id = pos_user.vendor.pk
 
             vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
             if not vendor_instance:
-                response_json["message"] = "Invalid Vendor for the user or Vendo not active"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Invalid Vendor for the user or Vendo not active"}, status = status.HTTP_400_BAD_REQUEST)
 
             platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
             if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
-                response_json["message"] = "Contact your administrator to activate the platform"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
 
             user_category = pos_user.core_user_category
 
             if (not user_category):
-                response_json["message"] = "User category not configured for the user"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
                 
             if (user_category.is_active == False) or (not user_category.department) or \
             (user_category.department.is_active == False):
-                response_json["message"] = "Department and User category not configured for the user"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
 
             pos_permission = POSPermission.objects.filter(
                 core_user_category = pos_user.core_user_category.pk, 
@@ -1112,9 +1083,7 @@ def pos_user_login(request):
             ).first()
 
             if not pos_permission:
-                response_json["message"] = "Permissions not specified for the user"
-
-                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
+                return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
 
             permission_dictionary = {
                 "show_dashboard": pos_permission.show_dashboard,
@@ -1142,13 +1111,13 @@ def pos_user_login(request):
             related_vendor_list = []
             
             if vendor_instance.is_franchise_owner == True:
-                vendors = Vendor.objects.filter(franchise=vendor_id)
+                vendors = Vendor.objects.filter(franchise = vendor_id)
 
                 for vendor in vendors:
                     related_vendor_list.append({
                         "id": vendor.pk,
                         "is_active": vendor.is_active,
-                        "contact_person_name": vendor.contact_person_name,
+                        "franchise_location": vendor.franchise_location,
                     })
 
             login(request, user)
@@ -1178,9 +1147,7 @@ def pos_user_login(request):
         except Exception as e:
             transaction.set_rollback(True)
 
-            response_json["message"] = str(e)
-
-            return JsonResponse(response_json, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
