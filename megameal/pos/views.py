@@ -1071,13 +1071,18 @@ def pos_user_login(request):
                 return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
             pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
+
+            if pos_user.is_active == False:
+                response_json["message"] = "User not active"
+
+                return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
             
             vendor_id = pos_user.vendor.pk
 
-            vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+            vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
             if not vendor_instance:
-                response_json["message"] = "Invalid Vendor for the user"
+                response_json["message"] = "Invalid Vendor for the user or Vendo not active"
 
                 return JsonResponse(response_json, status = status.HTTP_400_BAD_REQUEST)
 
@@ -1178,27 +1183,73 @@ def pos_user_login(request):
             return JsonResponse(response_json, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(['GET'])
-def pos_lanuage_setting(request):
-    vendor_id = request.GET.get("vendor")
+@api_view(['POST'])
+def get_pos_permissions(request):
+    vendor_id = request.data.get("vendor")
+    user_id = request.data.get("user")
 
-    if not vendor_id:
-        return JsonResponse({"message": "Invalid Vendor ID", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+    if (not vendor_id) or (not user_id):
+        return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status=status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+    vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
     if not vendor_instance:
-        return JsonResponse({"message": "Vendor not found", "langauge": ""}, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "Vendor not found"}, status=status.HTTP_400_BAD_REQUEST)
     
-    primary_language = vendor_instance.primary_language
+    platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
-    secondary_language = vendor_instance.secondary_language if vendor_instance.secondary_language else ""
+    if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+        return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
+
+    user_instance = CoreUser.objects.filter(pk = user_id, is_active = True).first()
+
+    if not user_instance:
+        return JsonResponse({"message": "User not found or not active"}, status = status.HTTP_400_BAD_REQUEST)
+    
+    user_category = user_instance.core_user_category
+
+    if (not user_category):
+        return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+        
+    if (user_category.is_active == False) or (not user_category.department) or \
+    (user_category.department.is_active == False):
+        return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+    pos_permission = POSPermission.objects.filter(
+        core_user_category = user_category.pk, 
+        vendor = vendor_id
+    ).first()
+
+    if not pos_permission:
+        return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+    permission_dictionary = {
+        "show_dashboard": pos_permission.show_dashboard,
+        "show_tables_page": pos_permission.show_tables_page,
+        "show_place_order_page": pos_permission.show_place_order_page,
+        "show_order_history_page": pos_permission.show_order_history_page,
+        "show_product_menu": pos_permission.show_product_menu,
+        "show_store_time_setting": pos_permission.show_store_time_setting,
+        "show_tax_setting": pos_permission.show_tax_setting,
+        "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
+        "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
+        "show_customer_setting": pos_permission.show_customer_setting,
+        "show_printer_setting": pos_permission.show_printer_setting,
+        "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
+        "show_banner_setting": pos_permission.show_banner_setting,
+        "show_excel_file_setting": pos_permission.show_excel_file_setting,
+        "show_employee_setting": pos_permission.show_employee_setting,
+        "show_reports": pos_permission.show_reports,
+        "show_sop": pos_permission.show_sop,
+        "show_language_setting": pos_permission.show_language_setting,
+        "core_user_category": pos_permission.core_user_category.pk,
+        "vendor": pos_permission.vendor.pk,
+    }
     
     return JsonResponse({
         "message": "",
-        "primary_language": primary_language,
-        "secondary_language": secondary_language
-    }, status=status.HTTP_200_OK)
+        "permissions": permission_dictionary,
+    }, status = status.HTTP_200_OK)
 
 
 @api_view(['GET'])
