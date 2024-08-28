@@ -35,6 +35,7 @@ class Vendor(models.Model):
     is_active = models.BooleanField(default=False)
     is_franchise_owner = models.BooleanField(default=False)
     franchise = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    franchise_location = models.CharField(max_length=200, null=True, blank=True)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
 
 
