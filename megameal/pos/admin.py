@@ -14,7 +14,7 @@ class DepartmentAdmin(admin.ModelAdmin):
 
 @admin.register(CoreUserCategory)
 class CoreUserCategoryAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'name', 'is_editable', 'is_active', 'department', 'permissions',)
+    fields = ('vendor', 'name', 'name_locale', 'is_editable', 'is_active', 'department', 'permissions',)
 
     list_display = ('name', 'is_active', 'department', 'vendor',)
     list_filter = ('vendor', 'is_active')

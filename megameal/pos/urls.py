@@ -20,8 +20,9 @@ router.register("setting/users", views.CoreUserModelViewSet, basename="core_user
 
 
 urlpatterns = [
+   path('', include(router.urls)),
    path('login/', views.pos_user_login),
-   path('language/', views.pos_lanuage_setting, name="language"),
+   path('permission/', views.get_pos_permissions, name="permission"),
    path('allCategory/',views.allCategory), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
@@ -30,8 +31,6 @@ urlpatterns = [
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
    path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
-   path('orderList/', views.orderList, name="orderList"),
-   path('', include(router.urls)),
    path('table/',views.showtabledetails), # show tables details
    path('tableCapacity/',views.show_tableCapacity), # show products 
    path('productStatusChange/',views.productStatusChange), # activate / deactivate products
@@ -42,7 +41,7 @@ urlpatterns = [
    path('splitOrderPayment/', views.splitOrderPayment, name="splitOrderPayment"),
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
    path('store_status/', views.update_store_status, name="store_status"),
-   path('order_data_socket/', views.order_data_socket, name="order_data_socket"), # for order_data socket testing purpose
+   path('order_data/', views.get_order_data, name="order_data"),
    path('excel_upload/', views.excel_upload, name="excel_upload"),
    path('excel_delete/', views.delete_excel, name="excel_delete"),
    path('get_store_timings', views.get_store_timings, name='get_store_timings'),

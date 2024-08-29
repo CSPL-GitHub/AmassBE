@@ -3,6 +3,8 @@ from core.utils import TaxLevel, OrderAction
 from pos.model_choices import platform_choices
 from pos.language import platform_locale
 from django.utils.text import slugify
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
 import string
 import secrets
 
@@ -35,7 +37,16 @@ class Vendor(models.Model):
     is_active = models.BooleanField(default=False)
     is_franchise_owner = models.BooleanField(default=False)
     franchise = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    franchise_location = models.CharField(max_length=200, null=True, blank=True)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
+    
+    def clean(self):
+        super().clean()
+
+        if self.franchise and not self.franchise_location:
+            raise ValidationError({
+                'franchise_location': _("Franchise location must be provided if a franchise is selected."),
+            })
 
 
     def __str__(self):
