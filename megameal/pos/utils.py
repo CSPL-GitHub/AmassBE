@@ -1,18 +1,20 @@
+from django.template.defaultfilters import slugify
+from django.db.models import Count, Q, Sum
 from core.utils import OrderStatus, OrderType
-from order.models import Order
-from django.db.models import Count, Q
-import os
-import pandas as pd
 from core.models import (
     Product, ProductImage, ProductCategory, ProductCategoryJoint,
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
+from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory
 from pos.models import Department, CoreUserCategory
 from koms.models import Station
-from pos.language import language_localization
+from koms.views import getOrder
+from pos.language import language_localization, payment_type_english
 from django.conf import settings
-from django.template.defaultfilters import slugify
+import pandas as pd
+import os
+
 
 
 def order_count(start_date, end_date, order_type, vendor_id):
@@ -881,3 +883,141 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
         })
 
     return department_wise_categories
+
+
+def get_order_info_for_socket(order_instance, language, vendor_id):
+    single_order = getOrder(ticketId = order_instance.pk, language = language, vendorId = vendor_id)
+
+    master_order_instance = order_instance.master_order
+
+    order_payment_instance = OrderPayment.objects.filter(orderId = master_order_instance.pk, masterPaymentId = None).last()
+
+    if order_payment_instance:
+        payment_mode = payment_type_english[order_payment_instance.type]
+        
+        if language != "English":
+            payment_mode = language_localization[payment_type_english[order_payment_instance.type]]
+        
+        payment_details = {
+            "total": master_order_instance.TotalAmount,
+            "subtotal": master_order_instance.subtotal,
+            "tax": master_order_instance.tax,
+            "delivery_charge": master_order_instance.delivery_charge,
+            "discount": master_order_instance.discount,
+            "tip": master_order_instance.tip,
+            "paymentKey": order_payment_instance.paymentKey,
+            "platform": order_payment_instance.platform,
+            "status": order_payment_instance.status,
+            "mode": payment_mode,
+            "splitType": order_payment_instance.splitType
+        }
+
+        split_payments_list = []
+
+        for split_order in Order.objects.filter(masterOrder = master_order_instance.pk):
+            split_payment = OrderPayment.objects.filter(orderId = split_order.pk).first()
+
+            if split_payment:
+                split_payments_list.append({
+                    "paymentId": split_payment.pk,
+                    "paymentBy": split_order.customerId.FirstName,
+                    "customer_name": split_order.customerId.FirstName,
+                    "customer_mobile": split_order.customerId.Phone_Number,
+                    "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
+                    "paymentKey": split_payment.paymentKey,
+                    "amount_paid": split_payment.paid,
+                    "paymentType": split_payment.type,
+                    "paymentSplitPer": (split_payment.paid/master_order_instance.TotalAmount)*100,
+                    "paymentStatus": split_payment.status,
+                    "amount_subtotal": split_order.subtotal,
+                    "amount_tax": split_order.tax,
+                    "status": split_payment.status,
+                    "platform": split_payment.platform,
+                    "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
+                    "splitType": order_payment_instance.splitType
+                })
+
+        payment_details["split_payments"] = split_payments_list
+
+    else:
+        payment_mode = payment_type_english[1]
+        
+        if language == "English":
+            payment_mode = language_localization[payment_type_english[1]]
+
+        payment_details = {
+            "total": 0.0,
+            "subtotal": 0.0,
+            "tax": 0.0,
+            "delivery_charge": 0.0,
+            "discount": 0.0,
+            "tip": 0.0,
+            "paymentKey": "",
+            "platform": "",
+            "status": False,
+            "mode": payment_mode
+        }
+        
+    single_order['payment'] = payment_details
+
+    platform_name = master_order_instance.platform.Name
+    
+    if language != "English":
+        platform_name = master_order_instance.platform.Name_locale
+    
+    platform_details = {
+        "id": master_order_instance.platform.pk,
+        "name": platform_name
+    }
+
+    single_order["platform_details"] = platform_details
+
+    first_name = master_order_instance.customerId.FirstName
+    last_name = master_order_instance.customerId.LastName
+
+    customer_name = first_name
+    
+    if last_name:
+        customer_name = first_name + " " + last_name
+
+    address = Address.objects.filter(customer=master_order_instance.customerId.pk, is_selected=True, type="shipping_address").first()
+
+    if address:
+        if address.address_line2:
+            shipping_address = address.address_line1 + " " + address.address_line2 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
+
+        else:
+            shipping_address = address.address_line1 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
+    
+    else:
+        shipping_address = ""
+
+    customer_details = {
+        "id": master_order_instance.customerId.pk,
+        "name": customer_name,
+        "mobile": master_order_instance.customerId.Phone_Number,
+        "email": master_order_instance.customerId.Email if master_order_instance.customerId.Email else "",
+        "shipping_address": shipping_address
+    }
+
+    single_order["customer_details"] = customer_details
+
+    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+        customer = master_order_instance.customerId.pk,
+        order = order_instance.master_order.pk
+    )
+
+    if loyalty_points_redeem_history.exists():
+        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+
+        if not total_points_redeemed:
+            total_points_redeemed = 0
+
+    else:
+        total_points_redeemed = 0
+
+    single_order["total_points_redeemed"] = total_points_redeemed
+
+    single_order["franchise_location"] = order_instance.vendorId.franchise_location if order_instance.vendorId.franchise_location else ""
+
+    return single_order

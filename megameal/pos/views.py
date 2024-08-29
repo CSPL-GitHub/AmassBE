@@ -23,8 +23,7 @@ from rest_framework.response import Response
 from collections import defaultdict
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
 from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
-from rest_framework.parsers import JSONParser 
-from django.shortcuts import get_object_or_404
+from rest_framework.parsers import JSONParser
 from koms.models import (
     Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Station, Staff,
 )
@@ -58,7 +57,7 @@ from django.core.validators import URLValidator
 from koms.views import notify
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
-    get_department_wise_categories,
+    get_department_wise_categories, get_order_info_for_socket,
 )
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
@@ -1913,9 +1912,7 @@ def order_data_start_thread(vendor_id, page_number, search, order_status, order_
 def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
     try:
         if vendor_id == None:
-            error_message = "Vendor ID cannot be empty"
-
-            return error_message
+            return "Vendor ID cannot be empty"
             
         order_details = {}
 
@@ -1926,35 +1923,33 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         page_number_parameter = page_number if page_number != "All" else 1
         order_status_parameter = order_status if order_status != "All" else ""
         order_type_parameter = order_type if order_type != "All" else ""
+
         current_date = datetime.today().strftime("%Y-%m-%d")
         
-        if e_date is not None and s_date is not None:
-            s_date = str(s_date).replace("T", "-") + " 00:00:00.000000"
-            e_date = str(e_date).replace("T", "-") + " 23:59:59.000000"
-
-            order_data = KOMSOrder.objects.filter(arrival_time__range=(s_date, e_date), vendorId=vendor_id)
+        if (s_date != None) and (e_date != None):
+            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (s_date, e_date), vendorId = vendor_id)
         
         else:
-            order_data = KOMSOrder.objects.filter(arrival_time__date=current_date, vendorId=vendor_id)
+            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId = vendor_id)
         
         if order_status != "All":
             if is_dashboard == 0:
-                order_data = order_data.filter(order_status=order_status)
+                order_data = order_data.filter(order_status = order_status)
 
             elif is_dashboard == 1:
                 if order_status == 10 :
                     if s_date and e_date:
-                        order_data = order_data.filter(order_status__in = [4, 5, 10])
+                        order_data = order_data.filter(order_status__in = (4, 5, 10))
 
                     else:
-                        order_data = order_data.filter(order_status__in = [5, 10])
+                        order_data = order_data.filter(order_status__in = (5, 10))
 
                 else:
-                    order_data = order_data.filter(order_status=order_status)
+                    order_data = order_data.filter(order_status = order_status)
 
         else:
             if is_dashboard == 1:
-                order_data = order_data.filter(order_status__in = [2, 3, 4, 6, 7, 8, 9])
+                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
 
         if order_type != "All":
             order_data = order_data.filter(order_type = order_type)
@@ -1973,28 +1968,15 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     order_data = order_data.filter(master_order__platform = platform)
 
         if search != 'All':
-            expression = r'\d+'
-            output = re.search(expression, search)
+            output = re.search(r'\d+', search)
 
             if output:
                 master_order_id = output.group()
 
                 order_data = order_data.filter(master_order__pk__icontains = master_order_id)
-                
-                if not order_data:
-                    response_data = {
-                        'page_number': 0,
-                        'total_pages': 0,
-                        'data_count': 0,
-                        'order_details': {},
-                    }
-                    
-                    return response_data
 
             else:
-                expression = r'[A-Za-z ]+'
-
-                output = re.search(expression, search)
+                output = re.search(r'[A-Za-z ]+', search)
 
                 if output:
                     customer_name = output.group()
@@ -2004,15 +1986,13 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
                     
-                    if not order_data:
-                        response_data = {
-                            'page_number': 0,
-                            'total_pages': 0,
-                            'data_count': 0,
-                            'order_details': {},
-                        }
-                        
-                        return response_data
+        if not order_data.exists():
+            return {
+                'page_number': 0,
+                'total_pages': 0,
+                'data_count': 0,
+                'order_details': {},
+            }
         
         order_data = order_data.order_by("-master_order__OrderDate")
         
@@ -2023,133 +2003,9 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         orders_for_page = page_obj.object_list
 
         for order in orders_for_page:
-            single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
+            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
 
-            master_order_instance = order.master_order
-
-            order_payment_instance = OrderPayment.objects.filter(orderId=master_order_instance.pk,masterPaymentId=None).last()
-
-            if order_payment_instance:
-                payment_mode = payment_type_english[order_payment_instance.type]
-                
-                if language != "English":
-                    payment_mode = language_localization[payment_type_english[order_payment_instance.type]]
-                
-                payment_details = {
-                    "total": master_order_instance.TotalAmount,
-                    "subtotal": master_order_instance.subtotal,
-                    "tax": master_order_instance.tax,
-                    "delivery_charge": master_order_instance.delivery_charge,
-                    "discount": master_order_instance.discount,
-                    "tip": master_order_instance.tip,
-                    "paymentKey": order_payment_instance.paymentKey,
-                    "platform": order_payment_instance.platform,
-                    "status": order_payment_instance.status,
-                    "mode": payment_mode
-                }
-                split_payments_list = []
-                for split_order in Order.objects.filter(masterOrder=master_order_instance.pk):
-                    print("split")
-                    split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
-                    if split_payment:
-                        split_payments_list.append({
-                            "paymentId": split_payment.pk,
-                            "paymentBy": split_order.customerId.FirstName,
-                            "customer_name": split_order.customerId.FirstName,
-                            "customer_mobile": split_order.customerId.Phone_Number,
-                            "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
-                            "paymentKey": split_payment.paymentKey,
-                            "amount_paid": split_payment.paid,
-                            "paymentType": split_payment.type,
-                            "paymentStatus": split_payment.status,
-                            "amount_subtotal": split_order.subtotal,
-                            "amount_tax": split_order.tax,
-                            "status": split_payment.status,
-                            "platform": split_payment.platform,
-                            "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
-                        })
-                payment_details["split_payments"] = split_payments_list
-
-            else:
-                payment_mode = payment_type_english[1]
-                
-                if language == "English":
-                    payment_mode = language_localization[payment_type_english[1]]
-
-                payment_details = {
-                    "total": 0.0,
-                    "subtotal": 0.0,
-                    "tax": 0.0,
-                    "delivery_charge": 0.0,
-                    "discount": 0.0,
-                    "tip": 0.0,
-                    "paymentKey": "",
-                    "platform": "",
-                    "status": False,
-                    "mode": payment_mode
-                }
-                
-            single_order['payment'] = payment_details
-
-            platform_name = master_order_instance.platform.Name
-            
-            if language != "English":
-                platform_name = master_order_instance.platform.Name_locale
-            
-            platform_details = {
-                "id": master_order_instance.platform.pk,
-                "name": platform_name
-            }
-
-            single_order["platform_details"] = platform_details
-
-            first_name = master_order_instance.customerId.FirstName
-            last_name = master_order_instance.customerId.LastName
-
-            customer_name = first_name
-            
-            if last_name:
-                customer_name = first_name + " " + last_name
-
-            address = Address.objects.filter(customer=master_order_instance.customerId.pk, is_selected=True, type="shipping_address").first()
-
-            if address:
-                if address.address_line2:
-                    shipping_address = address.address_line1 + " " + address.address_line2 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
-
-                else:
-                    shipping_address = address.address_line1 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
-            
-            else:
-                shipping_address = ""
-
-            customer_details = {
-                "id": master_order_instance.customerId.pk,
-                "name": customer_name,
-                "mobile": master_order_instance.customerId.Phone_Number,
-                "email": master_order_instance.customerId.Email if master_order_instance.customerId.Email else "",
-                "shipping_address": shipping_address
-            }
-
-            single_order["customer_details"] = customer_details
-
-            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-                customer = master_order_instance.customerId.pk,
-                order = order.master_order.pk
-            )
-
-            if loyalty_points_redeem_history.exists():
-                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                if not total_points_redeemed:
-                    total_points_redeemed = 0
-
-            else:
-                total_points_redeemed = 0
-
-            single_order["total_points_redeemed"] = total_points_redeemed
-
-            order_details[order.pk] = single_order
+            order_details[order.pk] = order_info
 
         response_data = {
             'page_number': page_obj.number,
@@ -2177,300 +2033,149 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         return str(e)
 
 
-# for order_data socket testing purpose
+# Replica of order_data function
 @api_view(["POST"])
-def order_data_socket(request):
-    body_data = json.loads(request.body)
+def get_order_data(request):
+    try:
+        request_data = request.data
 
-    vendor_id = body_data.get("vendor_id")
-    page_number = body_data.get("page_number")
-    search = body_data.get("search")
-    order_status = body_data.get("order_status")
-    order_type = body_data.get("order_type")
-    platform = body_data.get("platform")
-    is_dashboard = body_data.get("is_dashboard")
-    s_date = body_data.get("start_date")
-    e_date = body_data.get("end_date")
-    language = body_data.get("language", "English")
+        vendor_id = request_data.get("vendor_id")
+        page_number = request_data.get("page_number")
+        search = request_data.get("search")
+        order_status = request_data.get("order_status")
+        order_type = request_data.get("order_type")
+        platform = request_data.get("platform")
+        is_dashboard = request_data.get("is_dashboard")
+        start_date = request_data.get("start_date")
+        end_date = request_data.get("end_date")
+        language = request_data.get("language", "English")
+        get_all_vendor_data = request_data.get("get_all_vendor_data")
+        franchise_vendor_id = request_data.get("franchise_vendor_id")
 
-    if vendor_id == None:
-        error_message = "Vendor ID cannot be empty"
-        return Response(error_message, status=status.HTTP_200_OK)
+        if not vendor_id:
+            return Response("Vendor ID cannot be empty", status = status.HTTP_400_BAD_REQUEST)
         
-    order_details = {}
+        try:
+            vendor_id = int(vendor_id)
 
-    current_date = datetime.today().strftime("%Y-%m-%d")
-    
-    if e_date is not None and s_date is not None:
-        s_date = str(s_date).replace("T","-")+" 00:00:00.000000"
-        e_date = str(e_date).replace("T","-") + " 23:59:59.000000"
-
-        order_data = KOMSOrder.objects.filter(arrival_time__range=(s_date, e_date), vendorId=vendor_id)
-    
-    else:
-        order_data = KOMSOrder.objects.filter(arrival_time__date=current_date, vendorId=vendor_id)
-    
-    if order_status != "All":
-        if is_dashboard == 0:
-            order_data = order_data.filter(order_status=order_status)
-        elif is_dashboard == 1:
-            if order_status == 10 :
-                order_data = order_data.filter(order_status__in=[5,10])
-            else:
-                order_data = order_data.filter(order_status=order_status)
-
-    else:
-        if is_dashboard == 1:
-            order_data = order_data.filter(order_status__in=[2, 3, 4, 6, 7, 8, 9])
-
-    if order_type != "All":
-        order_data = order_data.filter(order_type=order_type)
-
-    if platform != "All":
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
+        except ValueError:
+            return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-        order_data = order_data.filter(platform=platform)
-        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
+        vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
-        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-
-    if search != 'All':
-        expression = r'\d+'
-        output = re.search(expression, search)
-
-        if output:
-            master_order_id = output.group()
-
-            order_data = order_data.filter(master_order__pk__icontains=master_order_id)
+        if not vendor_instance:
+            return Response("Vendor does not exist or not active", status = status.HTTP_400_BAD_REQUEST)
             
-            if order_data:    
-                if order_status != "All":
-                    order_data = order_data.filter(order_status=order_status)
+        if get_all_vendor_data == True:
+            vendor_ids = tuple(Vendor.objects.filter(franchise = vendor_id).values_list("pk", flat = True))
 
-                if order_type != "All":
-                    order_data = order_data.filter(order_type=order_type)
-
-                if platform != "All":
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                    order_data = order_data.filter(platform=platform)
-
-                    external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                    order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-            
-            else:
-                response_data = {
-                    'page_number': 0,
-                    'total_pages': 0,
-                    'data_count': 0,
-                    'order_details': {},
-                }
-                
-                return Response(response_data, status=status.HTTP_200_OK)
+        elif (get_all_vendor_data == False) and (franchise_vendor_id != None):
+            vendor_ids = (franchise_vendor_id,)
+            vendor_id = franchise_vendor_id
 
         else:
-            expression = r'[A-Za-z ]+'
+            vendor_ids = (vendor_id,)
 
-            output = re.search(expression, search)
+        current_date = datetime.today().strftime("%Y-%m-%d")
+        
+        if (start_date != None) and (end_date != None):
+            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (start_date, end_date), vendorId__in = vendor_ids)
+        
+        else:
+            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId__in = vendor_ids)
+        
+        if order_status != "All":
+            if is_dashboard == 0:
+                order_data = order_data.filter(order_status = order_status)
+
+            elif is_dashboard == 1:
+                if order_status == 10 :
+                    if start_date and end_date:
+                        order_data = order_data.filter(order_status__in = (4, 5, 10))
+
+                    else:
+                        order_data = order_data.filter(order_status__in = (5, 10))
+
+                else:
+                    order_data = order_data.filter(order_status = order_status)
+
+        else:
+            if is_dashboard == 1:
+                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
+
+        if order_type != "All":
+            order_data = order_data.filter(order_type = order_type)
+
+        if platform != "All":
+            if is_dashboard == 1:
+                order_data = order_data.filter(master_order__platform = platform)
+
+            else:
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
+
+                if platform in online_platform_ids:
+                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
+
+                else:
+                    order_data = order_data.filter(master_order__platform = platform)
+
+        if search != 'All':
+            output = re.search(r'\d+', search)
 
             if output:
-                customer_name = output.group()
+                master_order_id = output.group()
 
-                order_data = order_data.filter(
-                    Q(master_order__customerId__FirstName__icontains=customer_name) | \
-                    Q(master_order__customerId__LastName__icontains=customer_name)
-                )
-                
-                external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
+                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
 
-                order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-                
-                if order_data:    
-                    if order_status != "All":
-                        order_data = order_data.filter(order_status=order_status)
+            else:
+                output = re.search(r'[A-Za-z ]+', search)
 
-                    if order_type != "All":
-                        order_data = order_data.filter(order_type=order_type)
+                if output:
+                    customer_name = output.group()
 
-                    if platform != "All":
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
+                    order_data = order_data.filter(
+                        Q(master_order__customerId__FirstName__icontains = customer_name) | \
+                        Q(master_order__customerId__LastName__icontains = customer_name)
+                    )
 
-                        order_data = Order.objects.filter(externalOrderId__in=external_order_ids)
-
-                        order_data = order_data.filter(platform=platform)
-
-                        external_order_ids = list(order_data.values_list('externalOrderId', flat=True))
-
-                        order_data = KOMSOrder.objects.filter(externalOrderId__in=external_order_ids)
-
-                else:
-                    response_data = {
-                        'page_number': 0,
-                        'total_pages': 0,
-                        'data_count': 0,
-                        'order_details': {},
-                    }
-                    
-                    return Response(response_data, status=status.HTTP_200_OK)
-    
-    order_data = order_data.order_by("-master_order__OrderDate")
-    
-    paginator = Paginator(order_data, 10)
-
-    page_obj = paginator.get_page(page_number)
-
-    orders_for_page = page_obj.object_list
-
-    for order in orders_for_page:
-        single_order = getOrder(ticketId=order.pk, language=language, vendorId=vendor_id)
-
-        payment_mode = ""
+        if not order_data.exists():
+            return Response({
+                'page_number': 0,
+                'total_pages': 0,
+                'data_count': 0,
+                'order_details': {},
+            }, status = status.HTTP_200_OK)
         
-        try:
-            payment_details_order = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-            
-            payment_type = OrderPayment.objects.filter(orderId=payment_details_order.pk).last()
+        order_details = {}
 
-            payment_mode = payment_type_english[payment_type.type]
-                
-            if language != "English":
-                payment_mode = language_localization[payment_type_english[payment_type.type]]
-            
-            payment_details ={
-                "total": payment_details_order.TotalAmount,
-                "subtotal": payment_details_order.subtotal,
-                "tax": payment_details_order.tax,
-                "delivery_charge": payment_details_order.delivery_charge,
-                "discount": payment_details_order.discount,
-                "tip": payment_details_order.tip,
-                "paymentKey": payment_type.paymentKey,
-                "platform": payment_type.platform,
-                "status": payment_type.status,
-                "mode": payment_mode
-            }
-            
-        except Exception as e:
-            print("Error", e)
-
-            payment_mode = payment_type_english[1]
-                
-            if language != "English":
-                payment_mode = language_localization[payment_type_english[1]]
-
-            payment_details ={
-                "total": 0.0,
-                "subtotal": 0.0,
-                "tax": 0.0,
-                "delivery_charge": 0.0,
-                "discount": 0.0,
-                "tip": 0.0,
-                "paymentKey": "",
-                "platform": "",
-                "status": False,
-                "mode": payment_mode
-            }
-        
-        single_order['payment']=payment_details
-
-        try:
-            platform = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId))| Q(pk=str(order.externalOrderId))).last()
-
-            platform_name = ""
-            
-            if language == "English":
-                platform_name = platform.platform.Name
-
-            else:
-                platform_name = platform.platform.Name_locale
-            
-            platform_details = {
-                "id": platform.platform.pk,
-                "name": platform_name
-            }
-
-        except Exception as e:
-            print(e)
-            platform_details = {
-                "id": 0,
-                "name": ""
-            }
-
-        single_order["platform_details"] = platform_details
-
-        try:
-            customer = Order.objects.filter(Q(externalOrderId=str(order.externalOrderId)) | Q(pk=str(order.externalOrderId))).last()
-            
-            if customer:
-                first_name = customer.customerId.FirstName
-                last_name = customer.customerId.LastName
-
-                customer_name = first_name
-                
-                if last_name:
-                    customer_name = first_name + " " + last_name
-            
-            else:
-                customer_name = ""
-
-            address = Address.objects.filter(customer=customer.customerId.pk, is_selected=True, type="shipping_address").first()
-
-            if address:
-                if address.address_line2:
-                    shipping_address = address.address_line1 + " " + address.address_line2 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
-
-                else:
-                    shipping_address = address.address_line1 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
-            
-            else:
-                shipping_address = ""
-
-            customer_details = {
-                "id": customer.customerId.pk,
-                "name": customer_name,
-                "mobile": customer.customerId.Phone_Number,
-                "email": customer.customerId.Email if customer.customerId.Email else "",
-                "shipping_address": shipping_address
-            }
-
-        except Exception as e:
-            print(e)
-            customer_details = {
-                "id": 0,
-                "name": "",
-                "mobile": "",
-                "email": "",
-                "shipping_address": ""
-            }
-
-        single_order["customer_details"] = customer_details
-
-        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer.customerId.pk, order=order.master_order.pk)
-
-        if loyalty_points_redeem_history.exists():
-            total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-            if not total_points_redeemed:
-                total_points_redeemed = 0
+        if get_all_vendor_data == True:
+            order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
 
         else:
-            total_points_redeemed = 0
+            order_data = order_data.order_by("-master_order__OrderDate")
+            
+        paginator = Paginator(order_data, 10)
 
-        single_order["total_points_redeemed"] = total_points_redeemed
+        page_obj = paginator.get_page(page_number)
 
-        order_details[order.pk]=single_order
+        orders_for_page = page_obj.object_list
 
-    response_data = {
-        'page_number': page_obj.number,
-        'total_pages': paginator.num_pages,
-        'data_count': paginator.count,
-        'order_details': order_details,
-    }
+        for order in orders_for_page:
+            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
+
+            order_details[order.pk] = order_info
+
+        response_data = {
+            'page_number': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'data_count': paginator.count,
+            'order_details': order_details,
+        }
+        
+        return Response(response_data, status = status.HTTP_200_OK)
     
-    return Response(response_data, status=status.HTTP_200_OK)
+    except Exception as e:
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -9553,6 +9258,7 @@ def splitOrderPayment(request):
         return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
     
     payment.type = PaymentType.SPLIT
+    payment.splitType = data.get('splitBy', None)
     payment.save()
     old_splits = Order.objects.filter(masterOrder=coreOrder.pk).delete()
     count = 1
@@ -9587,7 +9293,7 @@ def splitOrderPayment(request):
             status = splitPayment.get("paymentStatus") or  False,
             type = PaymentType.get_payment_number(splitPayment.get("paymentType") or "CASH"),
             platform = splitPayment.get("platform") or "",
-            splitType = splitPayment.get("splitType", None),
+            splitType = data.get('splitBy', None),
         ).save()
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
     return Response({})
