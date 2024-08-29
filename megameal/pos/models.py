@@ -1,7 +1,5 @@
 from django.db import models
 from core.models import Vendor, Platform
-from django.db.models.signals import post_save
-from django.dispatch import receiver
 from django.contrib.auth.models import Group, User
 
 
@@ -53,7 +51,7 @@ class Department(models.Model):
         unique_together = ('name', 'vendor')
 
     def __str__(self):
-        return self.name
+        return f"{self.name} ({self.vendor.pk})"
 
 
 class CoreUserCategory(Group):
@@ -88,6 +86,11 @@ class CoreUser(User):
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
 
+    def save(self, *args, **kwargs):
+        self.is_staff = True
+
+        super(CoreUser, self).save(*args, **kwargs)
+    
     class Meta:
         unique_together = ('phone_number', 'vendor')
 
