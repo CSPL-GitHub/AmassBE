@@ -1,60 +1,61 @@
-from rest_framework.decorators import api_view
-from django.http import JsonResponse, HttpResponse
-from koms.serializers.content_history_serializer import Content_history_serializer
-from kiosk.models import KioskOrderData
-from kiosk.serializer import KiosK_create_order_serializer
-from core.models import (
-    Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage,
-    ProductAndModifierGroupJoint, ProductModifier, ProductModifierGroup, Platform,
-    ProductModifierAndModifierGroupJoint, Tax
-)
-from order import order_helper
-from woms.models import HotelTable, Waiter, Floor
-from woms.views import get_table_data, filter_tables
-from order.models import (
-    Order, OrderPayment, Customer, Address, LoyaltyProgramSettings,
-    LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory, Order_Discount,
-)
-from django.core.paginator import Paginator
-from django.contrib import messages
-from django.contrib.auth import authenticate, login
-from core.utils import OrderStatus, OrderType, PaymentType
-from rest_framework.response import Response
-from collections import defaultdict
-from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
-from rest_framework.parsers import JSONParser
-from koms.models import (
-    Order_tables, Order_content, Order as KOMSOrder, KOMSOrderStatus, Order_modifer, Station, Staff,
-)
-from koms.views import allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, getOrder, waiteOrderUpdate, webSocketPush
-from django.utils import timezone
-from datetime import datetime, timedelta, time
-from rest_framework import status, viewsets
-from rest_framework import filters
+from rest_framework import filters, status, viewsets
+from rest_framework.decorators import api_view, permission_classes
 from rest_framework.filters import SearchFilter, OrderingFilter
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.decorators import permission_classes
 from rest_framework_simplejwt.tokens import RefreshToken
-from pos.serializers import *
+from rest_framework.parsers import JSONParser
+from rest_framework.response import Response
+from rest_framework.pagination import PageNumberPagination
+from django.conf import settings
+from django.http import JsonResponse, HttpResponse
+from django.contrib import messages
+from django.contrib.auth import authenticate, login
+from django.contrib.auth.hashers import make_password
+from django.db import transaction, IntegrityError
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
+from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth, TruncDate, TruncHour
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
+from django.core.validators import URLValidator
+from django.core.files.storage import default_storage
+from django.utils import timezone
+from django.shortcuts import render
+from django_filters.rest_framework import DjangoFilterBackend
+from datetime import datetime, timedelta, time
+from collections import defaultdict
+from googletrans import Translator
+from operator import itemgetter
+from collections import OrderedDict
+from order import order_helper
+from core.models import (
+    Vendor, Product, ProductCategory, ProductCategoryJoint, ProductImage, ProductAndModifierGroupJoint,
+    ProductModifier, ProductModifierGroup, Platform, ProductModifierAndModifierGroupJoint, Tax
+)
+from order.models import (
+    Order, OrderPayment, Customer, Address, LoyaltyProgramSettings, LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory,
+    Order_Discount,
+)
+from pos.models import (
+    StoreTiming, Banner, POSSetting, Department, CoreUserCategory, WorkingShift, CoreUser, POSPermission, CashRegister,
+)
+from koms.models import Order_tables, Order_content, Order as KOMSOrder, Order_modifer, Station, Staff
+from kiosk.models import KioskOrderData
+from woms.models import HotelTable, Waiter, Floor
+from koms.serializers.content_history_serializer import Content_history_serializer
+from kiosk.serializer import KiosK_create_order_serializer
+from pos.serializers import (
+    StoreTimingSerializer, WaiterSerializer, FloorSerializer, HotelTableSerializer, ProductCategorySerializer, ProductSerializer,
+    ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer, ModifierGroupSerializer,
+    ModifierSerializer, DiscountCouponModelSerializer, StationModelSerializer, ChefModelSerializer, BannerModelSerializer,
+    DepartmentModelSerializer, WorkingShiftModelSerializer, CoreUserModelSerializer,
+)
+from woms.views import get_table_data, filter_tables
+from koms.views import notify, allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, waiteOrderUpdate, webSocketPush
 from pos.filters import (
     WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
     StationFilter, ChefFilter,
 )
-from django_filters.rest_framework import DjangoFilterBackend
-from django.db import transaction, IntegrityError
-from django.db.models.functions import TruncDate, TruncHour
-from django.shortcuts import render
-from pos.models import *
-from django.conf import settings
-from collections import OrderedDict
-from django.core.files.storage import default_storage
 from core.excel_file_upload import process_excel
-from rest_framework.pagination import PageNumberPagination
-from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
-from django.contrib.auth.hashers import make_password
-from django.core.validators import URLValidator
-from koms.views import notify
+from core.utils import OrderStatus, OrderType, PaymentType
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
     get_department_wise_categories, get_order_info_for_socket,
@@ -68,18 +69,15 @@ from pos.language import (
     local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
     koms_order_status_english, check_key_exists, table_created_locale, table_deleted_locale,
 )
-from googletrans import Translator
-from django.shortcuts import render
-from operator import itemgetter
 import pandas
-import re
 import openpyxl
-import os
-import socket
-import json
 import threading
 import calendar
 import pgeocode
+import socket
+import json
+import re
+import os
 
 
 
@@ -2389,320 +2387,302 @@ def platform_list(request):
 
 @api_view(["GET"])
 def order_details(request):
-    vendor_id = request.GET['vendorId']
-    external_order_id = request.GET['id']
-    platform_id = request.GET.get('platform')
-    language = request.GET.get('language', 'English')
+    try:
+        vendor_id = request.GET.get('vendorId')
+        external_order_id = request.GET.get('id')
+        platform_id = request.GET.get('platform')
+        payment_id = request.GET.get("paymentId")
+        language = request.GET.get('language', 'English')
 
-    if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"error": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    if (not platform_id) or (platform_id == 0):
-        return JsonResponse({"error": "Platform cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        if not all((vendor_id, external_order_id, platform_id)):
+            return Response({"error": "Invalid vendor ID, External Order ID or Platform ID"}, status = status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            vendor_id = int(vendor_id)
+            platform_id = int(platform_id)
 
-    koms_order_status_list = []
+        except ValueError:
+            return Response({"error": "Invalid vendor ID or Platform ID"}, status = status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
-    koms_order_status = KOMSOrderStatus.objects.all()
+        if not vendor_instance:
+            return Response({"error": "Vendor does not exist or not active"}, status = status.HTTP_400_BAD_REQUEST)
+        
+        koms_order = KOMSOrder.objects.filter(externalOrderId = external_order_id).first()
 
-    for status_value in koms_order_status:
-        name = status_value.get_status_display()
+        if not koms_order:
+            return JsonResponse({"error": "Order not found"}, status = status.HTTP_400_BAD_REQUEST)
 
-        if name!="CLOSED" or name!="CANCELED":
-           koms_order_status_list.append(status_value.status)
+        platform_instance = Platform.objects.filter(pk = platform_id, isActive = True, VendorId = vendor_id).first()
 
-        else:
-            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=status.HTTP_400_BAD_REQUEST)
+        if not platform_instance:
+            return JsonResponse({"error": "Platform invalid or not active"}, status = status.HTTP_400_BAD_REQUEST)
 
-    order_info = {}
-    payment_details = {}
-    customer_details = {}
-    table_details = []
-    platform_details = {}
-    
-    koms_order = KOMSOrder.objects.get(externalOrderId=external_order_id)
-
-    if koms_order:
+        order_info = {}
+        payment_details = {}
+        customer_details = {}
+        platform_details = {}
+        table_details = []
+        
         koms_order_id = koms_order.pk
 
-        if koms_order.order_status in koms_order_status_list:
-            platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
+        core_order = koms_order.master_order
 
-            if platform_instance:
-                if platform_instance.isActive == False:
-                    return JsonResponse({"error": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
+        order_id = core_order.pk
 
-                else:
-                    core_order = Order.objects.get(externalOrderId=external_order_id)
-
-            else:
-                return JsonResponse({"error": "Invalid platform"}, status=status.HTTP_400_BAD_REQUEST)
-
-            if core_order:
-                order_id = core_order.pk
-
-                if core_order.customerId == None:
-                    customer_first_name = ""
-                    customer_last_name = ""
-                    customer_phone = ""
-                    customer_email = ""
-                    customer_loyalty_points_balance = 0
-                    
-                else:
-                    customer_first_name = core_order.customerId.FirstName if core_order.customerId.FirstName else ""
-                    customer_last_name = core_order.customerId.LastName if core_order.customerId.LastName else ""
-                    customer_phone = core_order.customerId.Phone_Number if core_order.customerId.Phone_Number else ""
-                    customer_email = core_order.customerId.Email if core_order.customerId.Email else ""
-                    customer_loyalty_points_balance = core_order.customerId.loyalty_points_balance
-
-                    customer_address = Address.objects.filter(customer=core_order.customerId.pk, type="shipping_address", is_selected=True).first()    
-                    
-                    if customer_address == None:
-                        shipping_address = {
-                            "address_line_1": "",
-                            "address_line_2": "",
-                            "city": "",
-                            "state": "",
-                            "country": "",
-                            "zipcode": "",
-                            "type": "",
-                            "is_selected": ""
-                        }
-
-                    else:
-                        shipping_address = {
-                            "address_line_1": customer_address.address_line1 if customer_address.address_line1 else "",
-                            "address_line_2": customer_address.address_line2 if customer_address.address_line2 else "",
-                            "city": customer_address.city if customer_address.city else "",
-                            "state": customer_address.state if customer_address.state else "",
-                            "country": customer_address.country if customer_address.country else "",
-                            "zipcode": customer_address.zipcode if customer_address.zipcode else "",
-                            "type": customer_address.type,
-                            "is_selected": customer_address.is_selected
-                        }
-
-                customer_details["FirstName"] = customer_first_name
-                customer_details["LastName"] = customer_last_name
-                customer_details["Phone_Number"] = customer_phone
-                customer_details["Email"] = customer_email
-                customer_details["loyalty_points_balance"] = customer_loyalty_points_balance
-                customer_details["Shipping_Address"] = shipping_address
-
-                payment = OrderPayment.objects.filter(orderId=order_id,masterPaymentId=None).first()
-                payment_details["paymentId"] = payment.pk if payment else 0
-                payment_details["paymentBy"] = payment.paymentBy if payment else ''
-                payment_details["paymentKey"] = payment.paymentKey if payment else ''
-                payment_details["amount_paid"] = payment.paid if payment else 0.0
-                payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
-                payment_details["paymentStatus"] = payment.status if payment else False
-
-                tables = Order_tables.objects.filter(orderId__externalOrderId=external_order_id)
-
-                if tables:
-                    for table in tables:
-                        waiter_name = ""
-
-                        if language == "English":
-                            waiter_name = table.tableId.waiterId.name
-
-                        else:
-                            waiter_name = table.tableId.waiterId.name_locale
-
-                        table_details.append({
-                            "tableId": table.tableId.pk,
-                            "tableNumber": table.tableId.tableNumber,
-                            "waiterId": table.tableId.waiterId.pk,
-                            "waiterName": waiter_name,
-                            "status": table.tableId.status,
-                            "tableCapacity": table.tableId.tableCapacity,
-                            "guestCount": table.tableId.guestCount
-                        })
-
-                order_items = defaultdict(list)
-
-                koms_order_details = Order_content.objects.filter(orderId=koms_order_id)
-
-                for order in koms_order_details:
-                    try:
-                        item = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=order.SKU)
-                    
-                        image_list = []
-
-                        images = ProductImage.objects.filter(product=item.product.pk)
-
-                        for image in images:
-                            image_list.append(image.url)
-
-                    except Exception as e:
-                        print("Error: ", e)
-                        image_list = []
-
-                    modifier_list = defaultdict(list)
-                    modifier_group_list = defaultdict(list)
-                    modifier_mapping = defaultdict(list)
-
-                    modifiers = Order_modifer.objects.filter(contentID=order.pk, status="1")
-
-                    if modifiers:    
-                        for modifier in modifiers:
-                            if modifier.group == None:
-                                modifier_info = ProductModifier.objects.get(modifierSKU=modifier.SKU, vendorId=vendor_id)
-                                modifier_group = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier_info.pk).first()
-                                modifier_mapping[modifier_group.modifierGroup.pk].append(modifier.pk)
-                            else:
-                                modifier_mapping[modifier.group].append(modifier.pk)
-                    
-                    for key, values in modifier_mapping.items():
-                        for value in values:
-                            modifier = Order_modifer.objects.get(pk=value)
-                            modifier_info = ProductModifier.objects.get(modifierPLU=modifier.SKU, vendorId=vendor_id)
-
-                            modifier_name = ""
-
-                            if language == "English":
-                                modifier_name = modifier_info.modifierName
-
-                            else:
-                                modifier_name = modifier_info.modifierName_locale
-                            
-                            modifier_list[key].append({
-                                'modifierId': modifier.pk,
-                                'name': modifier_name,
-                                'plu': modifier_info.modifierPLU,
-                                'sku': modifier_info.modifierSKU,
-                                'quantity': modifier.quantity if modifier.quantity else 0,
-                                'cost': modifier_info.modifierPrice,
-                                'status': True, # Required for flutter model
-                                'image': modifier_info.modifierImg
-                            })
-
-                        modifier_group_info = ProductModifierGroup.objects.get(pk=key, vendorId=vendor_id)
-
-                        modifier_group_name = ""
-
-                        if language == "English":
-                            modifier_group_name = modifier_group_info.name
-
-                        else:
-                            modifier_group_name = modifier_group_info.name_locale
-                        
-                        modifier_group_list[order_id].append({
-                            "name": modifier_group_name,
-                            "plu": modifier_group_info.PLU,
-                            "min": modifier_group_info.min,
-                            "max": modifier_group_info.max,
-                            "id": modifier_group_info.pk,
-                            "active": modifier_group_info.active,
-                            "modifiers": modifier_list[key]
-                        })
-
-                    product_name = ""
-                    category_name = ""
-
-                    if language == "English":
-                        product_name = item.product.productName
-                        category_name = item.category.categoryName
-
-                    else:
-                        product_name = item.product.productName_locale
-                        category_name = item.category.categoryName_locale
-                    
-                    order_items[order_id].append({
-                        "order_content_id": order.pk,
-                        "productId": item.product.pk,
-                        "quantity": order.quantity,
-                        "plu": order.SKU,
-                        "name": product_name,
-                        "isTaxable": item.product.taxable,
-                        "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                        "categoryName": category_name,
-                        "note": order.note if order.note else "",
-                        "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
-                        "status": int(order.status),
-                        "modifiersGroup": modifier_group_list[order_id],
-                    })
-                    
-                total_points_redeemed = 0
-                
-                loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
-
-                if loyalty_program:
-                    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=core_order.customerId.pk, order=order.pk)
-
-                    if loyalty_points_redeem_history.exists():
-                        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                        if not total_points_redeemed:
-                            total_points_redeemed = 0
-
-                order_info["staging_orderId"] = int(koms_order_id)
-                order_info["core_orderId"] = order_id
-                order_info["orderId"] = external_order_id
-                order_info["customerNote"] = koms_order.order_note if koms_order.order_note else ""
-                order_info["tax"] = core_order.tax if core_order.tax else 0.0
-                order_info["discount"] = core_order.discount if core_order.discount else 0.0
-                order_info["delivery_charge"] = core_order.delivery_charge
-                order_info["subtotal"] = core_order.subtotal
-                order_info["total_points_redeemed"] = total_points_redeemed
-                order_info["finalTotal"] = core_order.TotalAmount
-                order_info["order_datetime"] = core_order.OrderDate
-                order_info["arrival_time"] = core_order.arrivalTime
-                order_info["type"] = koms_order.order_type
-                order_info["products"] = order_items[order_id]
-                
-                if request.GET.get("paymentId"):
-                    payment = OrderPayment.objects.filter(pk=request.GET.get("paymentId")).last()
-                    payment_details["paymentId"] = payment.pk if payment else 0
-                    payment_details["paymentBy"] = payment.paymentBy if payment else ''
-                    payment_details["paymentKey"] = payment.paymentKey if payment else ''
-                    payment_details["amount_paid"] = payment.paid if payment else 0.0
-                    payment_details["paymentType"] = PaymentType.get_payment_str(payment.type) if payment else PaymentType.get_payment_str(PaymentType.CASH)
-                    payment_details["paymentStatus"] = payment.status if payment else False
-                    order_info["core_orderId"] = payment.orderId.pk
-                    order_info["orderId"] = payment.orderId.externalOrderId
-                    order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
-                    order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
-                    order_info["delivery_charge"] = payment.orderId.delivery_charge
-                    order_info["subtotal"] = payment.orderId.subtotal
-                    order_info["finalTotal"] = payment.orderId.TotalAmount
-                    
-                    
-                if core_order.platform == None:
-                    platform_id = 0
-                    platform_name = ""
-
-                else:
-                    platform_id = core_order.platform.pk
-                    platform_name = ""
-
-                    if language == "English":
-                        platform_name = core_order.platform.Name
-
-                    else:
-                        platform_name = core_order.platform.Name_locale
-
-                platform_details["id"] = platform_id
-                platform_details["name"] = platform_name
-
-                return JsonResponse({
-                    "payment_details": payment_details,
-                    "customer_details": customer_details,
-                    "table_details": table_details,
-                    "platform_details": platform_details,
-                    "order_info": order_info
-                })
-            
-            else:
-                return JsonResponse({"error": "Order details not found"}, status=400)
+        if core_order.customerId == None:
+            customer_first_name = ""
+            customer_last_name = ""
+            customer_phone = ""
+            customer_email = ""
+            customer_loyalty_points_balance = 0
             
         else:
-            return JsonResponse({"error": "Closed or cancelled orders cannot be edited"}, status=400)  
+            customer_first_name = core_order.customerId.FirstName if core_order.customerId.FirstName else ""
+            customer_last_name = core_order.customerId.LastName if core_order.customerId.LastName else ""
+            customer_phone = core_order.customerId.Phone_Number if core_order.customerId.Phone_Number else ""
+            customer_email = core_order.customerId.Email if core_order.customerId.Email else ""
+            customer_loyalty_points_balance = core_order.customerId.loyalty_points_balance
+
+            customer_address = Address.objects.filter(customer = core_order.customerId.pk, type = "shipping_address", is_selected = True).first()    
+            
+            if customer_address == None:
+                shipping_address = {
+                    "address_line_1": "",
+                    "address_line_2": "",
+                    "city": "",
+                    "state": "",
+                    "country": "",
+                    "zipcode": "",
+                    "type": "",
+                    "is_selected": ""
+                }
+
+            else:
+                shipping_address = {
+                    "address_line_1": customer_address.address_line1 if customer_address.address_line1 else "",
+                    "address_line_2": customer_address.address_line2 if customer_address.address_line2 else "",
+                    "city": customer_address.city if customer_address.city else "",
+                    "state": customer_address.state if customer_address.state else "",
+                    "country": customer_address.country if customer_address.country else "",
+                    "zipcode": customer_address.zipcode if customer_address.zipcode else "",
+                    "type": customer_address.type,
+                    "is_selected": customer_address.is_selected
+                }
+
+        customer_details["FirstName"] = customer_first_name
+        customer_details["LastName"] = customer_last_name
+        customer_details["Phone_Number"] = customer_phone
+        customer_details["Email"] = customer_email
+        customer_details["loyalty_points_balance"] = customer_loyalty_points_balance
+        customer_details["Shipping_Address"] = shipping_address
+
+        payment = OrderPayment.objects.filter(orderId = order_id, masterPaymentId = None).first()
+
+        payment_details["paymentId"] = payment.pk if payment else 0
+        payment_details["paymentBy"] = payment.paymentBy if payment else ''
+        payment_details["paymentKey"] = payment.paymentKey if payment else ''
+        payment_details["amount_paid"] = payment.paid if payment else 0.0
+        payment_details["paymentType"] = payment_type_english[payment.type] if payment else payment_type_english[1]
+        payment_details["paymentStatus"] = payment.status if payment else False
+
+        tables = Order_tables.objects.filter(orderId__externalOrderId=external_order_id)
+
+        if tables:
+            for table in tables:
+                waiter_name = ""
+
+                if language == "English":
+                    waiter_name = table.tableId.waiterId.name
+
+                else:
+                    waiter_name = table.tableId.waiterId.name_locale
+
+                table_details.append({
+                    "tableId": table.tableId.pk,
+                    "tableNumber": table.tableId.tableNumber,
+                    "waiterId": table.tableId.waiterId.pk,
+                    "waiterName": waiter_name,
+                    "status": table.tableId.status,
+                    "tableCapacity": table.tableId.tableCapacity,
+                    "guestCount": table.tableId.guestCount
+                })
+
+        order_items = defaultdict(list)
+
+        koms_order_details = Order_content.objects.filter(orderId = koms_order_id)
+
+        for order in koms_order_details:
+            image_list = []
+
+            item = ProductCategoryJoint.objects.filter(product__PLU = order.SKU, product__vendorId = vendor_id).first()
+            
+            if item:
+                images = ProductImage.objects.filter(product = item.product.pk)
+
+                for image in images:
+                    image_list.append(image.url)
+
+            modifier_list = defaultdict(list)
+            modifier_group_list = defaultdict(list)
+            modifier_mapping = defaultdict(list)
+
+            modifiers = Order_modifer.objects.filter(contentID = order.pk, status = "1")
+
+            if modifiers:    
+                for modifier in modifiers:
+                    if modifier.group == None:
+                        modifier_info = ProductModifier.objects.get(modifierSKU = modifier.SKU, vendorId = vendor_id)
+                        modifier_group = ProductModifierAndModifierGroupJoint.objects.filter(modifier = modifier_info.pk).first ()
+                        modifier_mapping[modifier_group.modifierGroup.pk].append(modifier.pk)
+                    else:
+                        modifier_mapping[modifier.group].append(modifier.pk)
+            
+            for key, values in modifier_mapping.items():
+                for value in values:
+                    modifier = Order_modifer.objects.get(pk=value)
+                    modifier_info = ProductModifier.objects.get(modifierPLU = modifier.SKU, vendorId = vendor_id)
+
+                    modifier_name = ""
+
+                    if language == "English":
+                        modifier_name = modifier_info.modifierName
+
+                    else:
+                        modifier_name = modifier_info.modifierName_locale
+                    
+                    modifier_list[key].append({
+                        'modifierId': modifier.pk,
+                        'name': modifier_name,
+                        'plu': modifier_info.modifierPLU,
+                        'sku': modifier_info.modifierSKU,
+                        'quantity': modifier.quantity if modifier.quantity else 0,
+                        'cost': modifier_info.modifierPrice,
+                        'status': True, # Required for flutter model
+                        'image': modifier_info.modifierImg
+                    })
+
+                modifier_group_info = ProductModifierGroup.objects.get(pk = key, vendorId = vendor_id)
+
+                modifier_group_name = ""
+
+                if language == "English":
+                    modifier_group_name = modifier_group_info.name
+
+                else:
+                    modifier_group_name = modifier_group_info.name_locale
+                
+                modifier_group_list[order_id].append({
+                    "name": modifier_group_name,
+                    "plu": modifier_group_info.PLU,
+                    "min": modifier_group_info.min,
+                    "max": modifier_group_info.max,
+                    "id": modifier_group_info.pk,
+                    "active": modifier_group_info.active,
+                    "modifiers": modifier_list[key]
+                })
+
+            product_name = ""
+            category_name = ""
+
+            if language == "English":
+                product_name = item.product.productName
+                category_name = item.category.categoryName
+
+            else:
+                product_name = item.product.productName_locale
+                category_name = item.category.categoryName_locale
+            
+            order_items[order_id].append({
+                "order_content_id": order.pk,
+                "productId": item.product.pk,
+                "quantity": order.quantity,
+                "plu": order.SKU,
+                "name": product_name,
+                "isTaxable": item.product.taxable,
+                "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                "categoryName": category_name,
+                "note": order.note if order.note else "",
+                "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
+                "status": int(order.status),
+                "modifiersGroup": modifier_group_list[order_id],
+            })
+            
+        total_points_redeemed = 0
         
-    else:
-        return JsonResponse({"error": "Order details not found"}, status=400)
+        loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
+
+        if loyalty_program:
+            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=core_order.customerId.pk, order=order.pk)
+
+            if loyalty_points_redeem_history.exists():
+                total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+
+                if not total_points_redeemed:
+                    total_points_redeemed = 0
+
+        order_info["staging_orderId"] = int(koms_order_id)
+        order_info["core_orderId"] = order_id
+        order_info["orderId"] = external_order_id
+        order_info["customerNote"] = koms_order.order_note if koms_order.order_note else ""
+        order_info["tax"] = core_order.tax if core_order.tax else 0.0
+        order_info["discount"] = core_order.discount if core_order.discount else 0.0
+        order_info["delivery_charge"] = core_order.delivery_charge
+        order_info["subtotal"] = core_order.subtotal
+        order_info["total_points_redeemed"] = total_points_redeemed
+        order_info["finalTotal"] = core_order.TotalAmount
+        order_info["order_datetime"] = core_order.OrderDate
+        order_info["arrival_time"] = core_order.arrivalTime
+        order_info["type"] = koms_order.order_type
+        order_info["products"] = order_items[order_id]
+        
+        if payment_id:
+            payment = OrderPayment.objects.filter(pk = payment_id).last()
+
+            payment_details["paymentId"] = payment.pk if payment else 0
+            payment_details["paymentBy"] = payment.paymentBy if payment else ''
+            payment_details["paymentKey"] = payment.paymentKey if payment else ''
+            payment_details["amount_paid"] = payment.paid if payment else 0.0
+            payment_details["paymentType"] = payment_type_english[payment.type] if payment else payment_type_english[1]
+            payment_details["paymentStatus"] = payment.status if payment else False
+            
+            order_info["core_orderId"] = payment.orderId.pk
+            order_info["orderId"] = payment.orderId.externalOrderId
+            order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
+            order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
+            order_info["delivery_charge"] = payment.orderId.delivery_charge
+            order_info["subtotal"] = payment.orderId.subtotal
+            order_info["finalTotal"] = payment.orderId.TotalAmount
+            
+        if core_order.platform == None:
+            platform_id = 0
+            platform_name = ""
+
+        else:
+            platform_id = core_order.platform.pk
+            platform_name = ""
+
+            if language == "English":
+                platform_name = core_order.platform.Name
+
+            else:
+                platform_name = core_order.platform.Name_locale
+
+        platform_details["id"] = platform_id
+        platform_details["name"] = platform_name
+
+        return JsonResponse({
+            "payment_details": payment_details,
+            "customer_details": customer_details,
+            "table_details": table_details,
+            "platform_details": platform_details,
+            "order_info": order_info
+        })
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
