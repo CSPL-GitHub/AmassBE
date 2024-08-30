@@ -1925,6 +1925,9 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         current_date = datetime.today().strftime("%Y-%m-%d")
         
         if (s_date != None) and (e_date != None):
+            s_date = str(s_date).replace("T", "-")
+            e_date = str(e_date).replace("T", "-")
+            
             order_data = KOMSOrder.objects.filter(arrival_time__date__range = (s_date, e_date), vendorId = vendor_id)
         
         else:
