@@ -1459,7 +1459,7 @@ def dashboard(request):
 
                     if filtered_orders.count() != 0:
                         sales_order_list.append({
-                            "date": unique_date,
+                            "date": f"{unique_date} 00:00",
                             "total_sale": total_sale,
                             "total_orders_count": filtered_orders.count(),
                             "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
