@@ -1984,33 +1984,34 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
                     
-        if not order_data.exists():
-            return {
-                'page_number': 0,
-                'total_pages': 0,
+        if order_data.exists():
+            order_data = order_data.order_by("-master_order__OrderDate")
+            
+            paginator = Paginator(order_data, 10)
+
+            page_obj = paginator.get_page(page_number)
+
+            orders_for_page = page_obj.object_list
+
+            for order in orders_for_page:
+                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
+
+                order_details[order.pk] = order_info
+
+            response_data = {
+                'page_number': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'data_count': paginator.count,
+                'order_details': order_details,
+            }
+
+        else:
+            response_data = {
+                'page_number': 1,
+                'total_pages': 1,
                 'data_count': 0,
                 'order_details': {},
             }
-        
-        order_data = order_data.order_by("-master_order__OrderDate")
-        
-        paginator = Paginator(order_data, 10)
-
-        page_obj = paginator.get_page(page_number)
-
-        orders_for_page = page_obj.object_list
-
-        for order in orders_for_page:
-            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
-
-            order_details[order.pk] = order_info
-
-        response_data = {
-            'page_number': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'data_count': paginator.count,
-            'order_details': order_details,
-        }
         
         webSocketPush(
             message = response_data,
@@ -2136,39 +2137,40 @@ def get_order_data(request):
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
 
-        if not order_data.exists():
-            return Response({
-                'page_number': 0,
-                'total_pages': 0,
-                'data_count': 0,
-                'order_details': {},
-            }, status = status.HTTP_200_OK)
-        
-        order_details = {}
+        if order_data.exists():
+            order_details = {}
 
-        if get_all_vendor_data == True:
-            order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
+            if get_all_vendor_data == True:
+                order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
+
+            else:
+                order_data = order_data.order_by("-master_order__OrderDate")
+                
+            paginator = Paginator(order_data, 10)
+
+            page_obj = paginator.get_page(page_number)
+
+            orders_for_page = page_obj.object_list
+
+            for order in orders_for_page:
+                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
+
+                order_details[order.pk] = order_info
+
+            response_data = {
+                'page_number': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'data_count': paginator.count,
+                'order_details': order_details,
+            }
 
         else:
-            order_data = order_data.order_by("-master_order__OrderDate")
-            
-        paginator = Paginator(order_data, 10)
-
-        page_obj = paginator.get_page(page_number)
-
-        orders_for_page = page_obj.object_list
-
-        for order in orders_for_page:
-            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
-
-            order_details[order.pk] = order_info
-
-        response_data = {
-            'page_number': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'data_count': paginator.count,
-            'order_details': order_details,
-        }
+            response_data = {
+                'page_number': 1,
+                'total_pages': 1,
+                'data_count': 0,
+                'order_details': {},
+            }
         
         return Response(response_data, status = status.HTTP_200_OK)
     
