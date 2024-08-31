@@ -7,7 +7,6 @@ from rest_framework.views import APIView
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import viewsets
-from koms.serializers.order_point_serializer import Order_point_serializer
 from koms.serializers.order_content_serializer import Order_content_serializer
 from koms.serializers.order_modifer_serializer import Order_modifer_serializer, OrderModifierWriterSerializer
 from koms.serializers.order_serializer import Order_serializer, OrderSerializerWriterSerializer
@@ -16,7 +15,7 @@ from koms.serializers.stations_serializer import Stations_serializer, StationsRe
 from koms.serializers.staff_serializer import StaffReaderSerializer,StaffWriterSerializer
 from static.order_status_const import PENDING, PENDINGINT, STATION, STATUSCOUNT, MESSAGE
 from .models import (
-    Order_point, Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
+    Order, Order_content, Order_modifer, Order_tables, Station, Staff, UserSettings,
     KOMSOrderStatus, Content_assign, OrderHistory, massage_history, Message_type,
 )
 from django.http.response import JsonResponse
@@ -56,13 +55,7 @@ def updateCoreOrder(order):
             # return Response(rs[0], status=rs[1])
     except Exception as err :
         print(f"updateCoreOrder {err=}, {type(err)=}")
-        
 
-@api_view(["GET", "POST"])
-def orderPoint(request,vendorId):
-    order_points = Order_point.objects.all(vendorId=vendorId)
-    serializer = Order_point_serializer(order_points, many=True)
-    return Response(serializer.data)
 
 @api_view(["GET", "POST"])
 def orderList(request):
@@ -670,24 +663,34 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             "platform": payment_type.platform,
             "status": payment_type.status,
             "mode": payment_mode,
-            "split_payments":[]
+            "split_payments": [],
+            "splitType": payment_type.splitType
         }
+        
         split_payments_list = []
-        for split_order in coreOrder.objects.filter(masterOrder=master_order.pk):
+
+        core_orders = coreOrder.objects.filter(masterOrder = master_order.pk)
+        
+        for split_order in core_orders:
             split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
+            
             split_payments_list.append({
                 "paymentId": split_payment.pk,
                 "paymentBy": split_order.customerId.FirstName,
+                "customer_name": split_order.customerId.FirstName,
+                "customer_mobile": split_order.customerId.Phone_Number,
+                "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
+                "paymentSplitPer": (split_payment.paid/master_order.TotalAmount)*100,
                 "paymentStatus": split_payment.status,
                 "amount_subtotal": split_order.subtotal,
                 "amount_tax": split_order.tax,
                 "status": split_payment.status,
                 "platform": split_payment.platform,
-                "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
-
+                "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
+                "splitType": payment_type.splitType
             })
         
         payment_details["split_payments"] = split_payments_list

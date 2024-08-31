@@ -19,12 +19,12 @@ class VendorAdmin(admin.ModelAdmin):
         'vendor_type', 'Name', 'phone_number', 'Email',
         'address_line_1', 'address_line_2', 'city', 'state', 'country',
         'currency', 'currency_symbol', 'primary_language', 'secondary_language',
-        'logo', 'is_active', 'is_franchise_owner', 'franchise', 'gst_number',
+        'logo', 'is_active', 'is_franchise_owner', 'franchise', 'franchise_location', 'gst_number',
         'contact_person_name', 'contact_person_phone_number',
     )
 
-    list_display = ('pk', 'Name', 'phone_number', 'Email', 'is_active',)
-    list_filter = ('is_active', 'vendor_type', 'state', 'city', )
+    list_display = ('pk', 'Name', 'phone_number', 'is_active', 'is_franchise_owner', 'franchise_location',)
+    list_filter = ('is_active', 'vendor_type', 'is_franchise_owner', 'state', 'city',)
     search_fields = (
         'Name', 'phone_number', 'Email', 'address_line_1', 'address_line_2', 'city', 'state',
         'contact_person_name', 'contact_person_phone_number',

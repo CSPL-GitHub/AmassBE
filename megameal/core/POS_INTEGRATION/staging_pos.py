@@ -1,4 +1,4 @@
-from core.models import Platform, ProductModifier, Product, Tax, Product_Taxt_Joint, Vendor
+from core.models import Platform, ProductModifier, Product, Tax, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import (
     API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email,
@@ -438,21 +438,17 @@ class StagingIntegration():
             # ++++++ Sub and Tax
             appliedTaxes = []
             coreResponse["item"]["itemLevelTax"] = []
-            try:
-                taxForProduct = Product_Taxt_Joint.objects.filter(
-                    vendorId=vendor, productId=product)
-                if taxForProduct:
-                    for taxOfProduct in taxForProduct:
-                        appliedTaxes.append(taxOfProduct.taxId)
-                        coreResponse["item"]["itemLevelTax"].append(
-                            taxOfProduct.taxId.to_dict())
-            except Product_Taxt_Joint.DoesNotExist:
-                print("No tax found for product")
 
             try:
                 taxForProduct = Tax.objects.filter(
-                    vendorId=vendor, isDeleted=False, enabled=True, taxLevel=TaxLevel.ORDER)
+                    vendorId = vendor,
+                    isDeleted = False,
+                    enabled = True,
+                    taxLevel = TaxLevel.ORDER
+                )
+
                 appliedTaxes.extend(list(taxForProduct))
+
             except Tax.DoesNotExist:
                 print("No tax found for order")
 

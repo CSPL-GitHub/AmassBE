@@ -3,6 +3,8 @@ from core.utils import TaxLevel, OrderAction
 from pos.model_choices import platform_choices
 from pos.language import platform_locale
 from django.utils.text import slugify
+from django.core.exceptions import ValidationError
+from django.utils.translation import gettext_lazy as _
 import string
 import secrets
 
@@ -35,7 +37,16 @@ class Vendor(models.Model):
     is_active = models.BooleanField(default=False)
     is_franchise_owner = models.BooleanField(default=False)
     franchise = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True)
+    franchise_location = models.CharField(max_length=200, null=True, blank=True)
     logo = models.ImageField(upload_to='vendor_logo', null=True, blank=True)
+    
+    def clean(self):
+        super().clean()
+
+        if self.franchise and not self.franchise_location:
+            raise ValidationError({
+                'franchise_location': _("Franchise location must be provided if a franchise is selected."),
+            })
 
 
     def __str__(self):
@@ -267,29 +278,6 @@ class ProductModifierAndModifierGroupJoint(models.Model):
         unique_together = ('modifier', 'modifierGroup','vendor')
 
 
-class Product_Option(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    name=models.CharField(max_length=122)
-    optionId=models.CharField(max_length=122)
-    isDeleted=models.BooleanField(default=False)
-
-
-class Product_Option_Value(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    optionsName=models.CharField(max_length=122)
-    itemOptionId=models.CharField(max_length=122)
-    sortOrder=models.IntegerField(default=0)
-    optionId=models.ForeignKey(Product_Option,on_delete=models.CASCADE)
-    isDeleted=models.BooleanField(default=False)
-
-
-class Product_Option_Joint(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    optionId=models.ForeignKey(Product_Option,on_delete=models.CASCADE)
-    optionValueId=models.ForeignKey(Product_Option_Value,on_delete=models.CASCADE)
-
-
 class Tax(models.Model):
     name = models.CharField(max_length=122)
     name_locale = models.CharField(max_length=122, null=True, blank=True)
@@ -319,12 +307,6 @@ class Tax(models.Model):
             'enabled': self.enabled,
             'taxLevel':self.taxLevel
         }
-
-
-class Product_Taxt_Joint(models.Model):
-    vendorId=models.ForeignKey(Vendor,on_delete=models.CASCADE)
-    productId=models.ForeignKey(Product,on_delete=models.CASCADE)
-    taxId=models.ForeignKey(Tax,on_delete=models.CASCADE)
 
 
 class Platform(models.Model):

@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import timedelta
 import os
 
 
@@ -24,6 +25,8 @@ ALLOWED_HOSTS = ['*']
 
 # Required for excel file handling in core app
 HOST = os.environ.get("HOST", default="http://localhost:8001/")
+# HOST = os.environ.get("HOST", default="http://localhost:8003/")
+# HOST = os.environ.get("HOST", default="http://localhost:8004/")
 
 
 INSTALLED_APPS = [
@@ -153,6 +156,23 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': (
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ),
+}
+
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    'ROTATE_REFRESH_TOKENS': False,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'ALGORITHM': 'HS256',
+    'SIGNING_KEY': SECRET_KEY,
+    'AUTH_HEADER_TYPES': ('Bearer',),
+}
+
+
 # Internationalization
 # https://docs.djangoproject.com/en/4.1/topics/i18n/
 
@@ -205,6 +225,9 @@ PROJECT_APP = os.path.basename(BASE_DIR)
 
 allowed_origins = [
     "http://0.0.0.1:8001",
+    "http://0.0.0.1:8002",
+    "http://0.0.0.1:8003",
+    "http://0.0.0.1:8004",
 ]
 
 CORS_ORIGIN_ALLOW = True
