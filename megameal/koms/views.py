@@ -663,11 +663,17 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             "platform": payment_type.platform,
             "status": payment_type.status,
             "mode": payment_mode,
-            "split_payments":[]
+            "split_payments": [],
+            "splitType": payment_type.splitType
         }
+        
         split_payments_list = []
-        for split_order in coreOrder.objects.filter(masterOrder=master_order.pk):
+
+        core_orders = coreOrder.objects.filter(masterOrder = master_order.pk)
+        
+        for split_order in core_orders:
             split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
+            
             split_payments_list.append({
                 "paymentId": split_payment.pk,
                 "paymentBy": split_order.customerId.FirstName,
@@ -677,13 +683,14 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "paymentKey": split_payment.paymentKey,
                 "amount_paid": split_payment.paid,
                 "paymentType": split_payment.type,
+                "paymentSplitPer": (split_payment.paid/master_order.TotalAmount)*100,
                 "paymentStatus": split_payment.status,
                 "amount_subtotal": split_order.subtotal,
                 "amount_tax": split_order.tax,
                 "status": split_payment.status,
                 "platform": split_payment.platform,
-                "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]]
-
+                "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
+                "splitType": payment_type.splitType
             })
         
         payment_details["split_payments"] = split_payments_list
