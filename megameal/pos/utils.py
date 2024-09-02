@@ -920,8 +920,8 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
             if split_payment:
                 split_payments_list.append({
                     "paymentId": split_payment.pk,
-                    "paymentBy": split_order.customerId.FirstName,
-                    "customer_name": split_order.customerId.FirstName,
+                    "paymentBy": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
+                    "customer_name": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}" ,
                     "customer_mobile": split_order.customerId.Phone_Number,
                     "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
                     "paymentKey": split_payment.paymentKey,
