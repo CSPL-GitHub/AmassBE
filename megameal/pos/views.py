@@ -55,7 +55,7 @@ from pos.filters import (
     StationFilter, ChefFilter,
 )
 from core.excel_file_upload import process_excel
-from core.utils import OrderStatus, OrderType, PaymentType
+from core.utils import OrderStatus, OrderType
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
     get_department_wise_categories, get_order_info_for_socket,
@@ -67,7 +67,7 @@ from inventory.utils import (
 )
 from pos.language import (
     local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
-    koms_order_status_english, check_key_exists, table_created_locale, table_deleted_locale,
+    koms_order_status_english, payment_type_number, check_key_exists, table_created_locale, table_deleted_locale,
 )
 import pandas
 import openpyxl
@@ -2199,11 +2199,18 @@ def createOrder(request):
         
         orderid = vendor_id + str(platform.pk) + datetime.now().strftime("%H%M%S%f")[:15]
 
+        payment_type_string = request.data.get("payment_details").get("paymentType")
+
+        if payment_type_string:
+            payment_type_string = payment_type_string.capitalize()
+
+        payment_type = payment_type_number[payment_type_string] if payment_type_string else payment_type_number["Cash"]
+        
         result = {
             "language": language,
             "internalOrderId": orderid,
             "vendorId": vendor_id,
-            "externalOrderId":orderid,
+            "externalOrderId": orderid,
             "orderType": request.data.get("type"),
             "pickupTime": '',
             "arrivalTime": '',
@@ -2229,22 +2236,22 @@ def createOrder(request):
                 "vendorId": vendor_id
             },
             "discount":{
-                "value":request.data.get('discount'),
-                "calType":2
+                "value": request.data.get('discount'),
+                "calType": 2
             },
             "payment": {
                 "tipAmount": request.data.get('tip',0.0),
                 "payConfirmation": request.data.get("payment_details").get("paymentKey") if request.data.get("payment_details").get("paymentKey") else "",
                 "payAmount": request.data.get("finalTotal",0.0),
-                "payType": PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
-                "mode": PaymentType.get_payment_number(request.data.get("payment_details").get("paymentType")) if request.data.get("payment_details").get("paymentType") else 1,
+                "payType": payment_type,
+                "mode": payment_type,
                 "default": request.data.get("payment_details").get("paymentStatus") if request.data.get("payment_details").get("paymentStatus") else  False,
                 "platform": request.data.get("payment_details").get("platform") if request.data.get("payment_details").get("platform") else "N/A",
                 "custProfileId": "",
                 "custPayProfileId": "",
                 "payData": "",
-                "CardId":"NA",
-                "expDate":"",
+                "CardId": "NA",
+                "expDate": "",
                 "transcationId": request.data.get("payment_details").get("paymentKey"),
                 "lastDigits": "",
                 "billingZip": ""
@@ -2491,7 +2498,7 @@ def order_details(request):
         payment_details["paymentBy"] = payment.paymentBy if payment else ''
         payment_details["paymentKey"] = payment.paymentKey if payment else ''
         payment_details["amount_paid"] = payment.paid if payment else 0.0
-        payment_details["paymentType"] = payment_type_english[payment.type] if payment else payment_type_english[1]
+        payment_details["paymentType"] = payment_type_english[payment.type] if payment else "Cash"
         payment_details["paymentStatus"] = payment.status if payment else False
 
         tables = Order_tables.objects.filter(orderId__externalOrderId=external_order_id)
@@ -2652,7 +2659,7 @@ def order_details(request):
             payment_details["paymentBy"] = payment.paymentBy if payment else ''
             payment_details["paymentKey"] = payment.paymentKey if payment else ''
             payment_details["amount_paid"] = payment.paid if payment else 0.0
-            payment_details["paymentType"] = payment_type_english[payment.type] if payment else payment_type_english[1]
+            payment_details["paymentType"] = payment_type_english[payment.type] if payment else "Cash"
             payment_details["paymentStatus"] = payment.status if payment else False
             
             order_info["core_orderId"] = payment.orderId.pk
@@ -4982,40 +4989,37 @@ def get_orders_of_customer(request):
                 payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
                 
                 if payment_details:
-                    if PaymentType.get_payment_str(payment_details.type) == 'CASH':
+                    payment_type = payment_details.type
+
+                    if payment_type == payment_type_number["Cash"]:
                         payment_data['paymentKey'] = ''
                         payment_data['platform'] = ''
-                        payment_data["mode"] = payment_type_english[1]
+                        payment_data["mode"] = "Cash"
 
                         if language != "English":
-                            payment_data["mode"] = language_localization[payment_type_english[1]]
+                            payment_data["mode"] = language_localization["Cash"]
 
                     else:
                         payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
                         payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                        payment_data["mode"] = payment_type_english[payment_details.type]
+                        payment_data["mode"] = payment_type_english[payment_type]
 
                         if language != "English":
-                            payment_data["mode"] = language_localization[payment_type_english[payment_details.type]]
+                            payment_data["mode"] = language_localization[payment_type_english[payment_type]]
                     
                     payment_data["status"] = payment_details.status
 
                 else:
-                    payment_mode = payment_type_english[1]
-
-                    if language != "English":
-                        payment_mode = language_localization[payment_type_english[1]]
-
                     payment_data = {
                         "paymentKey": "",
                         "platform": "",
                         "status": False,
-                        "mode": payment_mode
+                        "mode": "Cash" if language != "English" else language_localization["Cash"]
                     }
 
                 table_numbers_list = ""
 
-                table_details = Order_tables.objects.filter(orderId_id=koms_order.pk)
+                table_details = Order_tables.objects.filter(orderId = koms_order.pk)
 
                 if table_details:
                     for table in table_details:
@@ -6933,12 +6937,12 @@ def finance_report(request):
         orderId__masterOrder=None
     ).exclude(orderId__Status=OrderStatus.get_order_status_value('CANCELED'))
 
-    delivery_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('DELIVERY'))
-    pickup_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('PICKUP'))
-    dinein_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('DINEIN'))
-    cash_payment_orders = orders.filter(type=PaymentType.get_payment_number('CASH'))
-    online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
-    card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
+    delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
+    pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
+    dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
+    cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
+    online_payment_orders = orders.filter(type = payment_type_number["Online"])
+    card_payment_orders = orders.filter(type = payment_type_number["Card"])
     
     total_orders = orders.count()
     delivery_orders_count = delivery_orders.count()
@@ -7304,12 +7308,12 @@ def footfall_revenue_report(request):
             actual_instance = datetime.strptime(str(instance['order_hour']), '%H').strftime('%I%p') + ' - ' + \
             datetime.strptime(str(instance['order_hour'] + 1), '%H').strftime('%I%p')
 
-        delivery_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('DELIVERY'))
-        pickup_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('PICKUP'))
-        dinein_orders = orders.filter(orderId__orderType=OrderType.get_order_type_value('DINEIN'))
-        cash_payment_orders = orders.filter(type=PaymentType.get_payment_number('CASH'))
-        online_payment_orders = orders.filter(type=PaymentType.get_payment_number('ONLINE'))
-        card_payment_orders = orders.filter(type=PaymentType.get_payment_number('CARD'))
+        delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
+        pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
+        dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
+        cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
+        online_payment_orders = orders.filter(type = payment_type_number["Online"])
+        card_payment_orders = orders.filter(type = payment_type_number["Card"])
 
         total_orders = orders.count()
         delivery_orders_count = delivery_orders.count()
@@ -9227,49 +9231,71 @@ def delete_core_user_category(request):
 @api_view(["POST", "PATCH"])
 def splitOrderPayment(request):
     data = request.data
-    vendorId = request.GET.get('vendorId', None)
+
+    vendorId = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
+
     if vendorId is None:
         return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    
     try:
         vendorId = int(vendorId)
+
     except ValueError:
         return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+    
     vendor_instance = Vendor.objects.filter(pk=vendorId).first()
+
     if not vendor_instance:
         return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
     order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
+
     coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
+
     payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+
     if not payment:
         return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
     
-    payment.type = PaymentType.SPLIT
+    payment.type = payment_type_number["Split"]
+
     payment.splitType = data.get('splitBy', None)
+
     payment.save()
-    old_splits = Order.objects.filter(masterOrder=coreOrder.pk).delete()
+
+    Order.objects.filter(masterOrder = coreOrder.pk).delete()
+
     count = 1
+
     for splitPayment in data["payments"]:
-        split_customer = Customer.objects.filter(pk=splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+        split_customer = Customer.objects.filter(pk = splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+
         split_order = Order(
-                Status=OrderStatus.OPEN,
+                Status = OrderStatus.OPEN,
                 masterOrder = coreOrder,
-                TotalAmount=splitPayment.get("amount_paid",0.0),
-                OrderDate=timezone.now(),
-                Notes=data.get("note"),
-                externalOrderId=coreOrder.externalOrderId + f"_{count}",
-                orderType=coreOrder.orderType,
-                arrivalTime=timezone.now(),
-                tax= splitPayment.get("amount_tax") or 0.0 ,
-                discount=0.0,
-                tip=0.0,
-                delivery_charge=0.0,
-                subtotal=(splitPayment.get("amount_paid",0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
-                customerId=split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
-                vendorId=vendor_instance,
-                platform=coreOrder.platform
+                TotalAmount = splitPayment.get("amount_paid",0.0),
+                OrderDate = timezone.now(),
+                Notes = data.get("note"),
+                externalOrderId = coreOrder.externalOrderId + f"_{count}",
+                orderType = coreOrder.orderType,
+                arrivalTime = timezone.now(),
+                tax = splitPayment.get("amount_tax") or 0.0 ,
+                discount = 0.0,
+                tip = 0.0,
+                delivery_charge = 0.0,
+                subtotal = (splitPayment.get("amount_paid", 0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
+                customerId = split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
+                vendorId = vendor_instance,
+                platform = coreOrder.platform
             ).save()
+        
         count = count + 1
+
+        payment_type = splitPayment.get("paymentType", "Cash")
+
+        payment_type = payment_type.capitalize()
+
         OrderPayment(
             orderId = split_order,
             paymentBy = coreOrder.customerId.Email or "",
@@ -9278,9 +9304,11 @@ def splitOrderPayment(request):
             due = 0.0,
             tip = splitPayment.get('tip',0.0),
             status = splitPayment.get("paymentStatus") or  False,
-            type = PaymentType.get_payment_number(splitPayment.get("paymentType") or "CASH"),
+            type = payment_type_number[payment_type],
             platform = splitPayment.get("platform") or "",
             splitType = data.get('splitBy', None),
         ).save()
+
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+
     return Response({})

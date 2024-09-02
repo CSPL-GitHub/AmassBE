@@ -1,7 +1,7 @@
 from core.models import Platform, ProductModifier, Product, Tax, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import (
-    API_Messages, DiscountCal, OrderStatus, OrderType, PaymentType, TaxLevel, UpdatePoint, send_order_confirmation_email,
+    API_Messages, DiscountCal, OrderStatus, OrderType, TaxLevel, UpdatePoint, send_order_confirmation_email,
 )
 from koms.models import Order as KOMSorder
 from core.models import EmailLog
@@ -217,7 +217,7 @@ class StagingIntegration():
                     due=0.0,
                     tip=data["payment"]["tipAmount"],
                     status=data["payment"].get('default', False),
-                    type=data["payment"].get('mode', PaymentType.CASH),
+                    type=data["payment"].get('mode', "Cash"),
                     platform=data["payment"].get('platform', "")
                 ).save()
             # ++++++++++++
