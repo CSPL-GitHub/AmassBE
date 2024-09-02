@@ -1,6 +1,6 @@
 from django.db import models
 from core.models import Platform, Vendor
-from core.utils import DiscountCal, OrderStatus, OrderType ,PaymentType
+from core.utils import DiscountCal, OrderStatus, OrderType
 import string
 import secrets
 
@@ -95,26 +95,22 @@ class OriginalOrder(models.Model):
 
 
 class OrderPayment(models.Model):
-    orderId = models.ForeignKey(Order, on_delete=models.CASCADE)
-    masterPaymentId = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
-    paymentBy=models.CharField(max_length=122)
-    paymentKey=models.CharField(max_length=255, null=True, blank=True)
-    paid=models.FloatField()
-    due=models.FloatField()
-    tip=models.FloatField(default=0.0)
-    type= models.IntegerField(choices=PaymentType.choices, default=PaymentType.CASH)
+    orderId = models.ForeignKey(Order, on_delete = models.CASCADE)
+    masterPaymentId = models.ForeignKey("self", null = True, blank = True, on_delete = models.CASCADE)
+    paymentBy = models.CharField(max_length = 122)
+    paymentKey = models.CharField(max_length = 255, null = True, blank = True)
+    paid = models.FloatField()
+    due = models.FloatField()
+    tip = models.FloatField(default = 0.0)
+    type = models.IntegerField(choices=((1, "Cash"), (2, "Online"), (3, "Card"), (4, "Split")), default = 1)
     splitType = models.CharField(
-        max_length=50,
-        choices=(
-            ("by_percent", "by_percent"),
-            ("by_person", "by_person"),
-            ("by_product", "by_product"),
-        ),
-        null=True,
-        blank=True,
+        max_length = 50,
+        choices = (("by_percent", "by_percent"), ("by_person", "by_person"), ("by_product", "by_product")),
+        null = True,
+        blank = True,
     )
-    status = models.BooleanField(default=False)
-    platform = models.CharField(max_length=122,default="")
+    status = models.BooleanField(default = False)
+    platform = models.CharField(max_length = 122, default = "")
 
 
 class OrderItem(models.Model):

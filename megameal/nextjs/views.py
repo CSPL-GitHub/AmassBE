@@ -9,7 +9,6 @@ from order.serializer import Addressserializers, Customerserializers
 from nextjs.models import *
 from django.db.models import Q
 from django.db import transaction
-from core.utils import PaymentType
 from order import order_helper
 from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, VendorSocialMedia
 from pos.models import POSSetting
@@ -358,11 +357,11 @@ def CreateOrder(request):
         result['externalOrderId'] = orderid
         result["platform"] = "Website"
         result["language"] = language
-        result["payment"]["mode"] = PaymentType.CASH
+        result["payment"]["mode"] = "Cash"
 
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
-            result["payment"]["mode"] = PaymentType.ONLINE
+            result["payment"]["mode"] = "Online"
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
 
@@ -444,11 +443,11 @@ def CreateOrderApp(request):
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
         result["platform"] = "Mobile App"
-        result["payment"]["mode"] = PaymentType.CASH
+        result["payment"]["mode"] = "Cash"
         
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
-            result["payment"]["mode"] = PaymentType.ONLINE
+            result["payment"]["mode"] = "Online"
             result["payment"]["platform"] = result["payment"]["payType"]
             result["payment"]["default"] = True
         
