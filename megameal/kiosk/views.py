@@ -1,7 +1,7 @@
 import datetime
 import socket
 from order import order_helper
-from core.utils import API_Messages, PaymentType
+from core.utils import API_Messages
 from order.models import Order_Discount
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
@@ -393,7 +393,7 @@ def createOrder(request, vendorId=1):
                     "transcationId":request.data.get("paymentId"),
                     "lastDigits":"123",
                     "billingZip":"",
-                    "mode":PaymentType.ONLINE
+                    "mode": "Online"
                 }
             }
         if request.data.get('promocodes'):
