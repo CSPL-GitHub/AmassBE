@@ -1,10 +1,10 @@
 from core.models import Platform, ProductModifier, Product, Tax, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import (
-    API_Messages, DiscountCal, OrderStatus, OrderType, TaxLevel, UpdatePoint, send_order_confirmation_email,
+    API_Messages, DiscountCal, OrderType, TaxLevel, send_order_confirmation_email,
 )
-from koms.models import Order as KOMSorder
 from core.models import EmailLog
+from pos.language import master_order_status_number
 from megameal.settings import EMAIL_HOST_USER
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -107,21 +107,21 @@ class StagingIntegration():
                 if data.get("discount").get('value'):
                     discount=data.get("discount").get('value')
             order = Order(
-                Status=OrderStatus.OPEN,
-                TotalAmount=0.0,
-                OrderDate=timezone.now(),
-                Notes=data.get("note"),
-                externalOrderId=data.get("externalOrderId"),
-                orderType=OrderType.get_order_type_value(data.get("orderType")),
-                arrivalTime=timezone.now(),
-                tax=0.0,
-                discount=discount,
-                tip=0.0,
-                delivery_charge=0.0,
-                subtotal=0.0,
-                customerId=coreCustomer,
-                vendorId=vendor_instance,
-                platform=platform_instance
+                Status = master_order_status_number["Open"],
+                TotalAmount = 0.0,
+                OrderDate = timezone.now(),
+                Notes = data.get("note"),
+                externalOrderId = data.get("externalOrderId"),
+                orderType = OrderType.get_order_type_value(data.get("orderType")),
+                arrivalTime = timezone.now(),
+                tax = 0.0,
+                discount = discount,
+                tip = 0.0,
+                delivery_charge = 0.0,
+                subtotal = 0.0,
+                customerId = coreCustomer,
+                vendorId = vendor_instance,
+                platform = platform_instance
             ).save()
             request["internalOrderId"] = order.pk
             request["master_id"] = order.pk
@@ -483,32 +483,21 @@ class StagingIntegration():
 
     def updateOrderStatus(self,request):
      try:
-        import  koms.views as koms_views
-        orderStatus=OrderStatus.get_order_status_value(request["status"])
+        orderStatus = master_order_status_number[request["status"]]
+
         try:
-            updateOrderStatus=Order.objects.get(pk=request['orderId'])
+            updateOrderStatus = Order.objects.get(pk = request['orderId'])
+
         except Exception as err:
-            updateOrderStatus=Order.objects.get(externalOrderId=request['orderId'])
-        request["externalOrderId"]=updateOrderStatus.externalOrderId
-        # if request["updatePoint"]==UpdatePoint.KOMS:
-        #     if orderStatus==OrderStatus.COMPLETED:
-        #         orderStatus=OrderStatus.PREPARED
-        #         request["status"]=OrderStatus.PREPARED.label
-        updateOrderStatus.Status=orderStatus
+            updateOrderStatus = Order.objects.get(externalOrderId = request['orderId'])
+
+        request["externalOrderId"] = updateOrderStatus.externalOrderId
+
+        updateOrderStatus.Status = orderStatus
         updateOrderStatus.save()
-        if request["updatePoint"]!=UpdatePoint.KOMS:
-            if request["updatePoint"]==UpdatePoint.WOOCOMERCE:
-                order=KOMSorder.objects.filter(externalOrderId=updateOrderStatus.pk)    
-                if orderStatus==OrderStatus.COMPLETED:
-                    order.update(order_status=3)
-                if orderStatus==OrderStatus.CANCELED:
-                    order.update(order_status=5)
-                if orderStatus==OrderStatus.OPEN:
-                    order.update(order_status=1)
-                for i in order:
-                    koms_views.waiteOrderUpdate(orderid=i.pk,vendorId=i.vendorId.pk)
-            print('KOMS update')
-        return {API_Messages.STATUS:API_Messages.SUCCESSFUL,API_Messages.RESPONSE:"Order status updated"}
+
+        return {API_Messages.STATUS:API_Messages.SUCCESSFUL, API_Messages.RESPONSE:"Order status updated"}
+     
      except Exception as err:
-        return {API_Messages.STATUS:API_Messages.ERROR,API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
+        return {API_Messages.STATUS:API_Messages.ERROR, API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
     

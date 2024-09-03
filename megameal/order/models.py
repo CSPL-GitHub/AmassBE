@@ -1,6 +1,6 @@
 from django.db import models
 from core.models import Platform, Vendor
-from core.utils import DiscountCal, OrderStatus, OrderType
+from core.utils import DiscountCal, OrderType
 from pos.language import master_order_status_name
 import string
 import secrets
