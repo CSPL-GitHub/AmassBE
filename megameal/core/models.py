@@ -1,6 +1,5 @@
 from django.db import models
 from core.utils import TaxLevel, OrderAction
-from pos.model_choices import platform_choices
 from pos.language import platform_locale
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
@@ -51,6 +50,35 @@ class Vendor(models.Model):
 
     def __str__(self):
         return f"{self.Name}({self.pk})"
+
+
+class Platform(models.Model):
+    Name = models.CharField(max_length=20, choices=(
+        ('POS', 'POS'), ('WOMS', 'WOMS'), ('KOMS', 'KOMS'), ('Kiosk', 'Kiosk'),
+        ('Inventory', 'Inventory'), ('Mobile App', 'Mobile App'), ('Website', 'Website'),
+    ))
+    Name_locale = models.CharField(max_length=100, choices=platform_locale)
+    orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
+    baseUrl = models.CharField(max_length=122, blank=True)
+    secreateKey = models.CharField(max_length=122, blank=True)
+    secreatePass = models.CharField(max_length=122, blank=True)
+    expiryDate = models.DateTimeField(auto_now=False)
+    isActive = models.BooleanField(default=False)
+    VendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    
+    def to_dict(self):
+        return {
+            'Name': self.Name,
+            'baseUrl': self.baseUrl,
+            'secreateKey': self.secreateKey,
+            'secreatePass': self.secreatePass,
+            'VendorId': self.VendorId,
+            'isActive':self.isActive,
+            'expiryDate':self.expiryDate,
+        }
+    
+    def __str__(self):
+        return self.Name
 
 
 class VendorSocialMedia(models.Model):
@@ -306,33 +334,7 @@ class Tax(models.Model):
             'percentage': self.percentage,
             'enabled': self.enabled,
             'taxLevel':self.taxLevel
-        }
-
-
-class Platform(models.Model):
-    Name = models.CharField(max_length=20, choices=platform_choices)
-    Name_locale = models.CharField(max_length=100, choices=platform_locale)
-    orderActionType = models.IntegerField(choices=OrderAction.choices, null=True, blank=True)
-    baseUrl = models.CharField(max_length=122, blank=True)
-    secreateKey = models.CharField(max_length=122, blank=True)
-    secreatePass = models.CharField(max_length=122, blank=True)
-    expiryDate = models.DateTimeField(auto_now=False)
-    isActive = models.BooleanField(default=False)
-    VendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE)
-    
-    def to_dict(self):
-        return {
-            'Name': self.Name,
-            'baseUrl': self.baseUrl,
-            'secreateKey': self.secreateKey,
-            'secreatePass': self.secreatePass,
-            'VendorId': self.VendorId,
-            'isActive':self.isActive,
-            'expiryDate':self.expiryDate,
-        }
-    
-    def __str__(self):
-        return self.Name 
+        } 
 
 
 from order.models import Customer, Order # Placed here due to circular import error

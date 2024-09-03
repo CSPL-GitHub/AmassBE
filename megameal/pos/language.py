@@ -5,6 +5,46 @@ import pytz
 local_timezone = pytz.timezone('Asia/Kolkata')
 
 
+master_order_status_number = {
+    'Open': 1,
+    'Completed': 2,
+    'Canceled': 3,
+    'Inprogress': 4,
+    'Prepared': 5,
+}
+
+
+master_order_status_name = {
+    1: 'Open',
+    2: 'Completed',
+    3: 'Canceled',
+    4: 'Inprogress',
+    5: 'Prepared',
+}
+
+
+koms_order_status_number = {
+    'Pending': 1,
+    'Processing': 2,
+    'Ready': 3,
+    'Onhold': 4,
+    'Canceled': 5,
+    'Recall': 6,
+    'High': 7,
+    'Assign': 8,
+    'Incoming': 9,
+    'Close': 10
+}
+
+
+payment_type_number = {
+    'Cash': 1,
+    'Online': 2,
+    'Card': 3,
+    'Split': 4
+}
+
+
 order_type_english = {
     "All": "All",
     1: "Pickup",

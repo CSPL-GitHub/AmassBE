@@ -1,6 +1,7 @@
 from django.db import models
 from core.models import Platform, Vendor
-from core.utils import DiscountCal, OrderStatus, OrderType ,PaymentType
+from core.utils import DiscountCal, OrderType
+from pos.language import master_order_status_name
 import string
 import secrets
 
@@ -50,7 +51,9 @@ class Address(models.Model):
 
 class Order(models.Model):
     Status = models.IntegerField(
-        choices=OrderStatus.choices, default=OrderStatus.OPEN)
+    choices = ((1, 'Open'), (2, 'Completed'), (3, 'Canceled'), (4, 'Inprogress'), (5, 'Prepared'),),
+        default = 1
+    )
     masterOrder = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
     TotalAmount = models.FloatField()
     OrderDate = models.DateTimeField(auto_now=False)
@@ -63,10 +66,10 @@ class Order(models.Model):
     tip = models.FloatField(default=0.0)
     delivery_charge = models.FloatField()
     subtotal = models.FloatField()
-    due=models.FloatField(default=0.0)
+    due = models.FloatField(default=0.0)
     customerId = models.ForeignKey(Customer, on_delete=models.CASCADE, null=True, blank=True)
     vendorId = models.ForeignKey(Vendor, on_delete=models.CASCADE, null=True, blank=True)
-    platform=models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
+    platform = models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -75,7 +78,7 @@ class Order(models.Model):
     def to_dict(self):
         return {
             'orderId': self.pk,
-            'status': OrderStatus(self.Status).label,
+            'status': master_order_status_name[self.Status],
             "externalOrderId": self.externalOrderId
         }
     
@@ -95,26 +98,22 @@ class OriginalOrder(models.Model):
 
 
 class OrderPayment(models.Model):
-    orderId = models.ForeignKey(Order, on_delete=models.CASCADE)
-    masterPaymentId = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
-    paymentBy=models.CharField(max_length=122)
-    paymentKey=models.CharField(max_length=255, null=True, blank=True)
-    paid=models.FloatField()
-    due=models.FloatField()
-    tip=models.FloatField(default=0.0)
-    type= models.IntegerField(choices=PaymentType.choices, default=PaymentType.CASH)
+    orderId = models.ForeignKey(Order, on_delete = models.CASCADE)
+    masterPaymentId = models.ForeignKey("self", null = True, blank = True, on_delete = models.CASCADE)
+    paymentBy = models.CharField(max_length = 122)
+    paymentKey = models.CharField(max_length = 255, null = True, blank = True)
+    paid = models.FloatField()
+    due = models.FloatField()
+    tip = models.FloatField(default = 0.0)
+    type = models.IntegerField(choices=((1, "Cash"), (2, "Online"), (3, "Card"), (4, "Split")), default = 1)
     splitType = models.CharField(
-        max_length=50,
-        choices=(
-            ("by_percent", "by_percent"),
-            ("by_person", "by_person"),
-            ("by_product", "by_product"),
-        ),
-        null=True,
-        blank=True,
+        max_length = 50,
+        choices = (("by_percent", "by_percent"), ("by_person", "by_person"), ("by_product", "by_product")),
+        null = True,
+        blank = True,
     )
-    status = models.BooleanField(default=False)
-    platform = models.CharField(max_length=122,default="")
+    status = models.BooleanField(default = False)
+    platform = models.CharField(max_length = 122, default = "")
 
 
 class OrderItem(models.Model):
