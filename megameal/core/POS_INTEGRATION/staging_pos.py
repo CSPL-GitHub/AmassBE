@@ -479,25 +479,4 @@ class StagingIntegration():
             log(level=1, msg=f"Unexpected {err=}, {type(err)=}")
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
         return coreResponse
-
-
-    def updateOrderStatus(self,request):
-     try:
-        orderStatus = master_order_status_number[request["status"]]
-
-        try:
-            updateOrderStatus = Order.objects.get(pk = request['orderId'])
-
-        except Exception as err:
-            updateOrderStatus = Order.objects.get(externalOrderId = request['orderId'])
-
-        request["externalOrderId"] = updateOrderStatus.externalOrderId
-
-        updateOrderStatus.Status = orderStatus
-        updateOrderStatus.save()
-
-        return {API_Messages.STATUS:API_Messages.SUCCESSFUL, API_Messages.RESPONSE:"Order status updated"}
-     
-     except Exception as err:
-        return {API_Messages.STATUS:API_Messages.ERROR, API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
     
