@@ -1,6 +1,5 @@
 from core.POS_INTEGRATION.staging_pos import StagingIntegration
 from core.models import Platform
-from order.models import Order
 from core.utils import API_Messages, OrderAction
 from core.PLATFORM_INTEGRATION.koms_order import KomsEcom
 from django.db import transaction
@@ -72,38 +71,5 @@ class OrderHelper():
         except Exception as err:
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
             print("Order Erroo+++++++++++++++++++++")
-            print(f"Unexpected {err=}, {type(err)=}")
-            return coreResponse,500
-
-    def orderStatusUpdate(data,vendorId):
-        # +++++ response template
-        print("order update started ++++++++++++++++++++++++++++++++++++")
-        coreResponse = {
-            API_Messages.STATUS: API_Messages.ERROR,
-            "msg": "Something went wrong"
-        }
-
-        try:
-            order = Order.objects.filter(vendorId_id=vendorId,id=data.get("orderId")).first()
-            
-            if not order:
-                order = Order.objects.filter(vendorId_id=vendorId,externalOrderId=data.get("orderId")).first()
-            
-            # ++++++---- Stage The Order
-            
-            stagingPos = StagingIntegration()
-            
-            stageOrder = stagingPos.updateOrderStatus(request=data)
-            
-            if stageOrder[API_Messages.STATUS] == API_Messages.SUCCESSFUL:
-                return stageOrder,200
-                    
-            else:
-                print("Order Status Update Error in stage++++++++++++++++++")
-                return stageOrder,500
-
-        except Exception as err:
-            coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
-            print("Order Status Update Error+++++++++++++++++++++")
             print(f"Unexpected {err=}, {type(err)=}")
             return coreResponse,500
