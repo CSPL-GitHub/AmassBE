@@ -5,6 +5,24 @@ import pytz
 local_timezone = pytz.timezone('Asia/Kolkata')
 
 
+master_order_status_number = {
+    'Open': 1,
+    'Completed': 2,
+    'Canceled': 3,
+    'Inprogress': 4,
+    'Prepared': 5,
+}
+
+
+master_order_status_name = {
+    1: 'Open',
+    2: 'Completed',
+    3: 'Canceled',
+    4: 'Inprogress',
+    5: 'Prepared',
+}
+
+
 koms_order_status_number = {
     'Pending': 1,
     'Processing': 2,
