@@ -1061,9 +1061,13 @@ def pos_user_login(request):
             if not vendor_instance:
                 return JsonResponse({"message": "Invalid Vendor for the user or Vendo not active"}, status = status.HTTP_400_BAD_REQUEST)
 
-            platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+            platforms = Platform.objects.filter(VendorId = vendor_id)
 
-            if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+            woms_platform = platforms.filter(Name="WOMS", isActive=True).first()
+
+            pos_platform = platforms.filter(Name="POS", isActive=True).first()
+
+            if (not pos_platform) or (pos_platform.expiryDate.date() < timezone.now().date()):
                 return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
 
             user_category = pos_user.core_user_category
@@ -1133,6 +1137,8 @@ def pos_user_login(request):
                 "user_id": pos_user.pk,
                 "first_name": pos_user.first_name,
                 "last_name": pos_user.last_name,
+                "pos_platform_id": pos_platform.pk,
+                "woms_platform_id": woms_platform.pk if woms_platform else 0,
                 "primary_language": vendor_instance.primary_language,
                 "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
                 "currency": vendor_instance.currency,
