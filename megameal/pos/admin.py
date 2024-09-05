@@ -59,7 +59,8 @@ class POSPermissionAdmin(admin.ModelAdmin):
         "show_order_history_page", "show_product_menu", "show_store_time_setting", "show_tax_setting",
         "show_delivery_charge_setting", "show_loyalty_points_setting", "show_cash_register_setting",
         "show_customer_setting", "show_printer_setting", "show_payment_machine_setting", "show_banner_setting",
-        "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting",  
+        "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting",
+        "show_franchise_list",  
     )
 
     list_display = ("core_user_category", "vendor",)
