@@ -2080,7 +2080,7 @@ def get_order_data(request):
         if get_all_vendor_data == True:
             vendor_ids = tuple(Vendor.objects.filter(franchise = vendor_id).values_list("pk", flat = True))
 
-        elif (get_all_vendor_data == False) and (franchise_vendor_id != None):
+        elif (get_all_vendor_data == False) and franchise_vendor_id:
             vendor_ids = (franchise_vendor_id,)
             vendor_id = franchise_vendor_id
 
