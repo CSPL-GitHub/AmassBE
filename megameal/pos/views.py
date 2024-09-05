@@ -1441,12 +1441,14 @@ def dashboard(request):
 
                     total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
 
+                    cancelled_order_count = filtered_orders.filter(Status = canceled_status_code).count()
+
                     if filtered_orders.count() != 0:
                         sales_order_list.append({
                             "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
                             "total_sale": total_sale_hourly,
                             "total_orders_count": filtered_orders.count(),
-                            "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                            "cancelled_orders_count": cancelled_order_count,
                         })
 
                     current_datetime = current_datetime + timedelta(hours=1)
@@ -1466,12 +1468,14 @@ def dashboard(request):
 
                     total_sale = "{:.2f}".format(subtotal_sum - discount_sum)
 
+                    cancelled_order_count = filtered_orders.filter(Status = canceled_status_code).count()
+
                     if filtered_orders.count() != 0:
                         sales_order_list.append({
                             "date": f"{unique_date} 00:00",
                             "total_sale": total_sale,
                             "total_orders_count": filtered_orders.count(),
-                            "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                            "cancelled_orders_count": cancelled_order_count,
                         })
         
         order_items = Order_content.objects.filter(
@@ -2080,7 +2084,7 @@ def get_order_data(request):
         if get_all_vendor_data == True:
             vendor_ids = tuple(Vendor.objects.filter(franchise = vendor_id).values_list("pk", flat = True))
 
-        elif (get_all_vendor_data == False) and (franchise_vendor_id != None):
+        elif (get_all_vendor_data == False) and franchise_vendor_id:
             vendor_ids = (franchise_vendor_id,)
             vendor_id = franchise_vendor_id
 
