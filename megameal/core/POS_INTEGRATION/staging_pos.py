@@ -483,7 +483,11 @@ class StagingIntegration():
 
     def updateOrderStatus(self,request):
      try:
-        orderStatus = master_order_status_number[request["status"]]
+        order_status = request["status"]
+
+        order_status = order_status.capitalize()
+
+        orderStatus = master_order_status_number[order_status]
 
         try:
             updateOrderStatus = Order.objects.get(pk = request['orderId'])
