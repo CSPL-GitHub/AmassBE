@@ -1107,6 +1107,7 @@ def pos_user_login(request):
                 "show_reports": pos_permission.show_reports,
                 "show_sop": pos_permission.show_sop,
                 "show_language_setting": pos_permission.show_language_setting,
+                "show_franchise_list": pos_permission.show_franchise_list,
                 "core_user_category": pos_permission.core_user_category.pk,
                 "vendor": pos_permission.vendor.pk,
             }
@@ -1215,6 +1216,7 @@ def get_pos_permissions(request):
         "show_reports": pos_permission.show_reports,
         "show_sop": pos_permission.show_sop,
         "show_language_setting": pos_permission.show_language_setting,
+        "show_franchise_list": pos_permission.show_franchise_list,
         "core_user_category": pos_permission.core_user_category.pk,
         "vendor": pos_permission.vendor.pk,
     }
