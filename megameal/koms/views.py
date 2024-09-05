@@ -1065,13 +1065,13 @@ def updateCoreOrder(order):
         ):
             vendor_id = order.vendorId_id
 
-            core_order_status = "CANCELED"
+            core_order_status = master_order_status_number["Canceled"]
 
             if koms_order_status == koms_order_status_number['Ready']:
-                core_order_status = "PREPARED"
+                core_order_status = master_order_status_number["Prepared"]
 
             if koms_order_status == koms_order_status_number['Close']:
-                core_order_status = "COMPLETED"
+                core_order_status = master_order_status_number["Completed"]
 
             order_data = getOrder(ticketId = order.pk, vendorId = vendor_id)
             
@@ -1082,7 +1082,7 @@ def updateCoreOrder(order):
             if not order:
                 order = coreOrder.objects.filter(vendorId_id = vendor_id, externalOrderId = order_id).first()
             
-            order.Status = master_order_status_number[core_order_status]
+            order.Status = core_order_status
 
             order.save()
             
