@@ -634,7 +634,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
         
         customer_details = {
             "id": master_order.customerId.pk,
-            "name": master_order.customerId.FirstName + " " + master_order.customerId.LastName,
+            "name": f"{master_order.customerId.FirstName or ''} {master_order.customerId.LastName or ''}",
             "mobile": master_order.customerId.Phone_Number,
             "email": master_order.customerId.Email,
             "shipping_address": customer_address
