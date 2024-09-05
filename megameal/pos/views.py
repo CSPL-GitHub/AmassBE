@@ -1441,12 +1441,14 @@ def dashboard(request):
 
                     total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
 
+                    cancelled_order_count = filtered_orders.filter(Status = canceled_status_code).count()
+
                     if filtered_orders.count() != 0:
                         sales_order_list.append({
                             "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
                             "total_sale": total_sale_hourly,
                             "total_orders_count": filtered_orders.count(),
-                            "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
+                            "cancelled_orders_count": cancelled_order_count,
                         })
 
                     current_datetime = current_datetime + timedelta(hours=1)
