@@ -115,6 +115,7 @@ class POSPermission(models.Model):
     show_reports = models.BooleanField(default=False)
     show_sop = models.BooleanField(default=False)
     show_language_setting = models.BooleanField(default=False)
+    show_franchise_list = models.BooleanField(default=False)
     core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
 
