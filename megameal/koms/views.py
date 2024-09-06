@@ -13,13 +13,16 @@ from woms.models import HotelTable, Waiter
 from koms.models import Order, Order_content, Order_modifer, Order_tables, Station, Staff, Content_assign
 from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
 from pos.language import master_order_status_number
-from core.utils import API_Messages, OrderType
+from core.utils import API_Messages
 from koms.serializers.order_serializer import Order_serializer, OrderSerializerWriterSerializer
 from koms.serializers.staff_serializer import StaffReaderSerializer
 from koms.serializers.order_content_serializer import Order_content_serializer
 from koms.serializers.order_modifer_serializer import OrderModifierWriterSerializer
 from koms.serializers.content_assign_serializer import Content_assign_serializer
-from pos.language import order_has_arrived_locale, payment_type_english, language_localization, local_timezone, koms_order_status_number
+from pos.language import (
+    order_has_arrived_locale, payment_type_english, language_localization, local_timezone,
+    koms_order_status_number, order_type_number,
+)
 from inventory.utils import sync_order_content_with_inventory
 import secrets
 
@@ -696,7 +699,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
         waiters = set(waiters) - set(waiter_heads)
 
-        if data['orderType'] == OrderType.DINEIN:
+        if data['orderType'] == order_type_number["Dinein"]:
             for waiter_id in waiters:
                 webSocketPush(
                     message = {"result": data, "UPDATE": "UPDATE"},

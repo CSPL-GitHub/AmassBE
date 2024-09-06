@@ -1,6 +1,6 @@
 from django.db import models
 from core.models import Platform, Vendor
-from core.utils import DiscountCal, OrderType
+from core.utils import DiscountCal
 from pos.language import master_order_status_name
 import string
 import secrets
@@ -57,9 +57,9 @@ class Order(models.Model):
     masterOrder = models.ForeignKey("self", null=True, blank=True,on_delete=models.CASCADE)
     TotalAmount = models.FloatField()
     OrderDate = models.DateTimeField(auto_now=False)
-    Notes = models.CharField(max_length=122, default='', null=True)
-    externalOrderId = models.CharField(max_length=122, null=True)
-    orderType = models.IntegerField(choices=OrderType.choices)
+    Notes = models.CharField(max_length=122, default='', null=True, blank=True)
+    externalOrderId = models.CharField(max_length=122, null=True, blank=True)
+    orderType = models.IntegerField(choices = ((1, 'Pickup'), (2, 'Delivery'), (3, 'Dinein')))
     arrivalTime = models.DateTimeField(auto_now=False)
     tax = models.FloatField()
     discount = models.FloatField()

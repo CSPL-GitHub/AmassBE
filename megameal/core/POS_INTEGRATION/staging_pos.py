@@ -1,10 +1,10 @@
 from core.models import Platform, ProductModifier, Product, Tax, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import (
-    API_Messages, DiscountCal, OrderType, TaxLevel, send_order_confirmation_email,
+    API_Messages, DiscountCal, TaxLevel, send_order_confirmation_email,
 )
 from core.models import EmailLog
-from pos.language import master_order_status_number
+from pos.language import master_order_status_number, order_type_number
 from megameal.settings import EMAIL_HOST_USER
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -106,13 +106,18 @@ class StagingIntegration():
             if data.get("discount"):
                 if data.get("discount").get('value'):
                     discount=data.get("discount").get('value')
+
+            order_type = (data.get("orderType")).capitalize()
+
+            order_type = order_type_number[order_type]
+            
             order = Order(
                 Status = master_order_status_number["Open"],
                 TotalAmount = 0.0,
                 OrderDate = timezone.now(),
                 Notes = data.get("note"),
                 externalOrderId = data.get("externalOrderId"),
-                orderType = OrderType.get_order_type_value(data.get("orderType")),
+                orderType = order_type,
                 arrivalTime = timezone.now(),
                 tax = 0.0,
                 discount = discount,
@@ -123,6 +128,7 @@ class StagingIntegration():
                 vendorId = vendor_instance,
                 platform = platform_instance
             ).save()
+
             request["internalOrderId"] = order.pk
             request["master_id"] = order.pk
             # +++++++

@@ -1,6 +1,5 @@
 from django.template.defaultfilters import slugify
 from django.db.models import Count, Q, Sum
-from core.utils import OrderStatus, OrderType
 from core.models import (
     Product, ProductImage, ProductCategory, ProductCategoryJoint,
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
@@ -10,7 +9,7 @@ from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistor
 from pos.models import Department, CoreUserCategory
 from koms.models import Station
 from koms.views import getOrder
-from pos.language import language_localization, payment_type_english
+from pos.language import language_localization, order_type_number, master_order_status_number, payment_type_english
 from django.conf import settings
 import pandas as pd
 import os
@@ -23,13 +22,13 @@ def order_count(start_date, end_date, order_type, vendor_id):
     orders = Order.objects.filter(OrderDate__date__range=(start_date, end_date),  vendorId=vendor_id)
 
     if order_type == "delivery":
-        orders = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY'))
+        orders = orders.filter(orderType = order_type_number["Delivery"])
     
     elif order_type == "pickup":
-        orders = orders.filter(orderType=OrderType.get_order_type_value('PICKUP'))
+        orders = orders.filter(orderType = order_type_number["Pickup"])
 
     elif order_type == "dinein":
-        orders = orders.filter(orderType=OrderType.get_order_type_value('DINEIN'))
+        orders = orders.filter(orderType = order_type_number["Dinein"])
 
     elif order_type == "online":
         if platform:
@@ -60,13 +59,13 @@ def order_count(start_date, end_date, order_type, vendor_id):
             return count_details
     
     count_details = orders.aggregate(
-        total_orders=Count('id'),
-        complete_orders=Count('id', filter=Q(Status=OrderStatus.get_order_status_value('COMPLETED'))),
-        cancelled_orders=Count('id', filter=Q(Status=OrderStatus.get_order_status_value('CANCELED'))),
-        processing_orders=Count('id', filter=Q(Status__in=[
-            OrderStatus.get_order_status_value('OPEN'),
-            OrderStatus.get_order_status_value('INPROGRESS'),
-            OrderStatus.get_order_status_value('PREPARED')
+        total_orders = Count('id'),
+        complete_orders = Count('id', filter = Q(Status = master_order_status_number["Complete"])),
+        cancelled_orders = Count('id', filter = Q(Status = master_order_status_number["Canceled"])),
+        processing_orders = Count('id', filter = Q(Status__in = [
+            master_order_status_number["Open"],
+            master_order_status_number["Inprogress"],
+            master_order_status_number["Prepared"]
         ]))
     )
     

@@ -13,7 +13,6 @@ master_order_status_number = {
     'Prepared': 5,
 }
 
-
 master_order_status_name = {
     1: 'Open',
     2: 'Completed',
@@ -36,23 +35,6 @@ koms_order_status_number = {
     'Close': 10
 }
 
-
-payment_type_number = {
-    'Cash': 1,
-    'Online': 2,
-    'Card': 3,
-    'Split': 4
-}
-
-
-order_type_english = {
-    "All": "All",
-    1: "Pickup",
-    2: "Delivery",
-    3: "DineIn"
-}
-
-
 koms_order_status_english = {
     "All": "All",
     1: 'Pending',
@@ -68,18 +50,39 @@ koms_order_status_english = {
 }
 
 
-payment_status_english = {
-    'True': 'Paid',
-    'False': 'Pending',
-    'Unknown': 'Unknown'
+payment_type_number = {
+    'Cash': 1,
+    'Online': 2,
+    'Card': 3,
+    'Split': 4
 }
-
 
 payment_type_english = {
     1: 'Cash',
     2: 'Online',
     3: 'Card',
     4: 'Split'
+}
+
+
+order_type_number = {
+    "Pickup": 1,
+    "Delivery": 2,
+    "Dinein": 3
+}
+
+order_type_english = {
+    "All": "All",
+    1: "Pickup",
+    2: "Delivery",
+    3: "DineIn"
+}
+
+
+payment_status_english = {
+    'True': 'Paid',
+    'False': 'Pending',
+    'Unknown': 'Unknown'
 }
 
 

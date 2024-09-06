@@ -55,7 +55,6 @@ from pos.filters import (
     StationFilter, ChefFilter,
 )
 from core.excel_file_upload import process_excel
-from core.utils import OrderType
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
     get_department_wise_categories, get_order_info_for_socket,
@@ -67,8 +66,8 @@ from inventory.utils import (
 )
 from pos.language import (
     local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
-    master_order_status_number, koms_order_status_english, payment_type_number, check_key_exists,
-    table_created_locale, table_deleted_locale,
+    master_order_status_number, koms_order_status_english, order_type_number, payment_type_number,
+    check_key_exists, table_created_locale, table_deleted_locale,
 )
 import pandas
 import openpyxl
@@ -1408,9 +1407,9 @@ def dashboard(request):
         total_orders_inprogress = orders.filter(Status__in = [inprogress_status_code, open_status_code, prepared_status_code]).count()
         total_orders_inprogress = total_orders_inprogress - new_orders_count
         
-        total_orders_pickedup = orders.filter(orderType = OrderType.get_order_type_value('PICKUP')).count()
-        total_orders_delivered = orders.filter(orderType = OrderType.get_order_type_value('DELIVERY')).count()
-        total_orders_dined = orders.filter(orderType = OrderType.get_order_type_value('DINEIN')).count()
+        total_orders_pickedup = orders.filter(orderType = order_type_number["Pickup"]).count()
+        total_orders_delivered = orders.filter(orderType = order_type_number["Delivery"]).count()
+        total_orders_dined = orders.filter(orderType = order_type_number["Dinein"]).count()
         
         online_orders_count = orders.filter(platform__Name__in = ('Mobile App', 'Website')).count()
         
@@ -5765,17 +5764,17 @@ def top_selling_products_report(request):
     elif order_type == "delivery":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
+            orderId__master_order__orderType = order_type_number["Delivery"],
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
             orderId__vendorId = vendor_id,
-        ).exclude(status=5)
+        ).exclude(status = 5)
 
     elif order_type == "pickup":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
+            orderId__master_order__orderType = order_type_number["Pickup"],
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
@@ -5785,7 +5784,7 @@ def top_selling_products_report(request):
     elif order_type == "dinein":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
+            orderId__master_order__orderType = order_type_number["Dinein"],
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
@@ -6004,7 +6003,7 @@ def most_repeating_customers_report(request):
     
     elif order_type == "delivery":
         orders = Order.objects.filter(
-            orderType = OrderType.get_order_type_value('DELIVERY'),
+            orderType = order_type_number["Delivery"],
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id,
@@ -6012,7 +6011,7 @@ def most_repeating_customers_report(request):
     
     elif order_type == "pickup":
         orders = Order.objects.filter(
-            orderType = OrderType.get_order_type_value('PICKUP'),
+            orderType = order_type_number["Pickup"],
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id
@@ -6020,7 +6019,7 @@ def most_repeating_customers_report(request):
 
     elif order_type == "dinein":
         orders = Order.objects.filter(
-            orderType = OrderType.get_order_type_value('DINEIN'),
+            orderType = order_type_number["Dinein"],
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id
@@ -6084,7 +6083,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
+                    orderId__master_order__orderType = order_type_number["Delivery"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6095,7 +6094,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
+                    orderId__master_order__orderType = order_type_number["Pickup"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6106,7 +6105,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
+                    orderId__master_order__orderType = order_type_number["Dinein"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6177,9 +6176,9 @@ def most_repeating_customers_report(request):
             )
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
-            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
-            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
+            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
+            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
+            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
 
             if platform:
                 online_orders_count = customer_orders.filter(platform=platform.pk).count()
@@ -6368,7 +6367,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
+                    orderId__master_order__orderType = order_type_number["Delivery"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6379,7 +6378,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
+                    orderId__master_order__orderType = order_type_number["Pickup"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6390,7 +6389,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
+                    orderId__master_order__orderType = order_type_number["Dinein"],
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6452,9 +6451,9 @@ def most_repeating_customers_report(request):
 
             total_orders_count = customer_orders.count()
 
-            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
-            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
-            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
+            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
+            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
+            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
 
             if platform:
                 online_orders_count = customer_orders.filter(platform=platform.pk).count()
@@ -6663,9 +6662,9 @@ def customers_redeemed_most_points_report(request):
             customer_orders = orders.filter(customerId=customer["customer"])
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
-            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
-            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
+            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
+            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
+            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
             
             online_orders_count = 0
             offline_orders_count = 0
@@ -6827,17 +6826,17 @@ def customers_redeemed_most_points_report(request):
             customer_orders = orders.filter(customerId=customer["customer"])
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
-            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
-            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
+            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
+            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
+            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
 
             if platform:
-                online_orders_count = customer_orders.filter(platform=platform.pk).count()
-                offline_orders_count = customer_orders.exclude(platform=platform.pk).count()
+                online_orders_count = customer_orders.filter(platform = platform.pk).count()
+                offline_orders_count = customer_orders.exclude(platform = platform.pk).count()
             
-            customer_info = Customer.objects.filter(pk=customer["customer"]).first()
+            customer_info = Customer.objects.filter(pk = customer["customer"]).first()
 
-            customer_address = Address.objects.filter(customer=customer["customer"], type='shipping_address', is_selected=True).first()
+            customer_address = Address.objects.filter(customer = customer["customer"], type = 'shipping_address', is_selected = True).first()
 
             if customer_info.FirstName and customer_info.LastName:
                 customer_name = customer_info.FirstName + " " + customer_info.LastName
@@ -6948,9 +6947,9 @@ def finance_report(request):
         orderId__masterOrder = None
     ).exclude(orderId__Status = master_order_status_number["Canceled"])
 
-    delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
-    pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
-    dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
+    delivery_orders = orders.filter(orderId__orderType = order_type_number["Delivery"])
+    pickup_orders = orders.filter(orderId__orderType = order_type_number["Pickup"])
+    dinein_orders = orders.filter(orderId__orderType = order_type_number["Dinein"])
     cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
     online_payment_orders = orders.filter(type = payment_type_number["Online"])
     card_payment_orders = orders.filter(type = payment_type_number["Card"])
@@ -7319,9 +7318,9 @@ def footfall_revenue_report(request):
             actual_instance = datetime.strptime(str(instance['order_hour']), '%H').strftime('%I%p') + ' - ' + \
             datetime.strptime(str(instance['order_hour'] + 1), '%H').strftime('%I%p')
 
-        delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
-        pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
-        dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
+        delivery_orders = orders.filter(orderId__orderType = order_type_number["Delivery"])
+        pickup_orders = orders.filter(orderId__orderType = order_type_number["Pickup"])
+        dinein_orders = orders.filter(orderId__orderType = order_type_number["Dinein"])
         cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
         online_payment_orders = orders.filter(type = payment_type_number["Online"])
         card_payment_orders = orders.filter(type = payment_type_number["Card"])
@@ -7925,15 +7924,15 @@ def cancel_order_report(request):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
     if order_type == "delivery":
-        order_type_code = OrderType.get_order_type_value('DELIVERY')
+        order_type_code = order_type_number["Delivery"]
 
     elif order_type == "pickup":
-        order_type_code = OrderType.get_order_type_value('PICKUP')
+        order_type_code = order_type_number["Pickup"]
 
     elif order_type == "dinein":
-        order_type_code = OrderType.get_order_type_value('DINEIN')
+        order_type_code = order_type_number["Dinein"]
     
-    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
+    platform = Platform.objects.filter(Name__in = ('Mobile App', 'Website'), isActive = True, VendorId = vendor_id).first()
     
     cancelled_orders = KOMSOrder.objects.filter(
         master_order__Status = master_order_status_number["Canceled"],
@@ -8156,13 +8155,13 @@ def pincode_report(request):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
     if order_type == "delivery":
-        order_type_code = OrderType.get_order_type_value('DELIVERY')
+        order_type_code = order_type_number["Delivery"]
 
     elif order_type == "pickup":
-        order_type_code = OrderType.get_order_type_value('PICKUP')
+        order_type_code = order_type_number["Pickup"]
 
     elif order_type == "dinein":
-        order_type_code = OrderType.get_order_type_value('DINEIN')
+        order_type_code = order_type_number["Dinein"]
     
     platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
