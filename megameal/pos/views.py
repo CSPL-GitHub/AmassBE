@@ -1530,15 +1530,15 @@ def dashboard(request):
             "total_sale": total_revenue,
             "total_orders": total_orders,
             "items_sold": total_items_sold,
+            "new_orders": new_orders_count,
+            "orders_inprogress": total_orders_inprogress,
             "orders_completed": total_orders_completed,
             "orders_canceled": total_orders_canceled,
-            "orders_inprogress": total_orders_inprogress,
+            "orders_onhold": onhold_orders_count,
             "orders_pickedup": total_orders_pickedup,
             "orders_delivered": total_orders_delivered,
             "orders_dined": total_orders_dined,
             "online_orders": online_orders_count,
-            "new_orders": new_orders_count,
-            "onhold_orders": onhold_orders_count,
             "sales_order": sales_order_list,
             "top_selling": list_of_items
         }
