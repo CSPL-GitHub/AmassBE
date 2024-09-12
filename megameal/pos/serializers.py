@@ -286,7 +286,7 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
         fields = (
             "id", "first_name", "last_name", "phone_number", "email", "current_address", "permanent_address",
             "username", "password", "profile_picture", "document_1", "document_2", "reports_to", "is_active",
-            "working_shift", "is_staff", "is_head", "core_user_category", "vendor",
+            "working_shift", "is_staff", "is_head", "core_user_category", "groups", "vendor",
         )
     
     def to_representation(self, instance):

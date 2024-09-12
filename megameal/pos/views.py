@@ -164,10 +164,10 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
                 return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
 
             elif group_id == '0':
-                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category__isnull=True, vendor=vendor_id).order_by('-pk')
             
             else:
-                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category=group_id, vendor=vendor_id).order_by('-pk')
         
         return CoreUser.objects.none()
 
