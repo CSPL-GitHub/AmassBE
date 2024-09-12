@@ -163,10 +163,10 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
                 return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
 
             elif group_id == '0':
-                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category__isnull=True, vendor=vendor_id).order_by('-pk')
             
             else:
-                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category=group_id, vendor=vendor_id).order_by('-pk')
         
         return CoreUser.objects.none()
 
@@ -1454,6 +1454,22 @@ def dashboard(request):
 
                     current_datetime = current_datetime + timedelta(hours=1)
 
+                if len(sales_order_list) == 1:
+                    date_value = sales_order_list[0]["date"]
+
+                    date_obj = datetime.strptime(date_value, '%Y-%m-%d %H:%M')
+
+                    date_obj = date_obj - timedelta(hours=1)
+
+                    date_value = date_obj.replace(minute=0).strftime('%Y-%m-%d %H:%M')
+
+                    sales_order_list.append({
+                        "date": date_value,
+                        "total_sale": "0.0",
+                        "total_orders_count": 0,
+                        "cancelled_orders_count": 0,
+                    })
+
             else:
                 unique_order_dates = sorted(set(orders.values_list('OrderDate__date', flat=True)))
                 
@@ -1476,6 +1492,22 @@ def dashboard(request):
                             "total_orders_count": filtered_orders.count(),
                             "cancelled_orders_count": filtered_orders.filter(Status=canceled_status_code).count(),
                         })
+
+                if len(sales_order_list) == 1:
+                    date_value = sales_order_list[0]["date"]
+
+                    date_obj = datetime.strptime(date_value, '%Y-%m-%d %H:%M')
+
+                    date_obj = date_obj - timedelta(days=1)
+
+                    date_value = date_obj.replace(hour=1, minute=0).strftime('%Y-%m-%d %H:%M')
+
+                    sales_order_list.append({
+                        "date": date_value,
+                        "total_sale": "0.0",
+                        "total_orders_count": 0,
+                        "cancelled_orders_count": 0,
+                    })
         
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
@@ -1527,15 +1559,15 @@ def dashboard(request):
             "total_sale": total_revenue,
             "total_orders": total_orders,
             "items_sold": total_items_sold,
+            "new_orders": new_orders_count,
+            "orders_inprogress": total_orders_inprogress,
             "orders_completed": total_orders_completed,
             "orders_canceled": total_orders_canceled,
-            "orders_inprogress": total_orders_inprogress,
+            "orders_onhold": onhold_orders_count,
             "orders_pickedup": total_orders_pickedup,
             "orders_delivered": total_orders_delivered,
             "orders_dined": total_orders_dined,
             "online_orders": online_orders_count,
-            "new_orders": new_orders_count,
-            "onhold_orders": onhold_orders_count,
             "sales_order": sales_order_list,
             "top_selling": list_of_items
         }
@@ -2065,6 +2097,7 @@ def get_order_data(request):
         language = request_data.get("language", "English")
         get_all_vendor_data = request_data.get("get_all_vendor_data")
         franchise_vendor_id = request_data.get("franchise_vendor_id")
+        is_range = request_data.get("is_range")
 
         if not vendor_id:
             return Response("Vendor ID cannot be empty", status = status.HTTP_400_BAD_REQUEST)
@@ -2114,8 +2147,10 @@ def get_order_data(request):
                     order_data = order_data.filter(order_status = order_status)
 
         else:
-            if is_dashboard == 1:
-                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
+            if (is_dashboard == 1) and (start_date == current_date) and (end_date == current_date):
+                if is_range == False:
+                    order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
+            
 
         if order_type != "All":
             order_data = order_data.filter(order_type = order_type)
