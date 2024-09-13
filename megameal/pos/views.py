@@ -164,10 +164,10 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
                 return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
 
             elif group_id == '0':
-                return CoreUser.objects.filter(groups__isnull=True, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category__isnull=True, vendor=vendor_id).order_by('-pk')
             
             else:
-                return CoreUser.objects.filter(groups=group_id, vendor=vendor_id).order_by('-pk')
+                return CoreUser.objects.filter(core_user_category=group_id, vendor=vendor_id).order_by('-pk')
         
         return CoreUser.objects.none()
 
@@ -1530,15 +1530,15 @@ def dashboard(request):
             "total_sale": total_revenue,
             "total_orders": total_orders,
             "items_sold": total_items_sold,
+            "new_orders": new_orders_count,
+            "orders_inprogress": total_orders_inprogress,
             "orders_completed": total_orders_completed,
             "orders_canceled": total_orders_canceled,
-            "orders_inprogress": total_orders_inprogress,
+            "orders_onhold": onhold_orders_count,
             "orders_pickedup": total_orders_pickedup,
             "orders_delivered": total_orders_delivered,
             "orders_dined": total_orders_dined,
             "online_orders": online_orders_count,
-            "new_orders": new_orders_count,
-            "onhold_orders": onhold_orders_count,
             "sales_order": sales_order_list,
             "top_selling": list_of_items
         }
