@@ -798,22 +798,22 @@ def get_tax(request):
     vendor_id = request.GET.get("vendorId")
 
     if not vendor_id:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
 
     except ValueError:
-        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
 
     tax_list = []
 
-    taxes = Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
+    taxes = Tax.objects.filter(vendor = vendor_id)
 
     if (platform == "Website") or (platform == "Mobile App"):
         for tax in taxes:
@@ -828,7 +828,7 @@ def get_tax(request):
                 "type": tax_name,
                 "rate": tax.percentage,
                 "value": round((tax.percentage / 100), 3),
-                "is_active": tax.enabled,
+                "is_active": tax.is_active,
             })
 
     else:
@@ -839,10 +839,10 @@ def get_tax(request):
                 "type_locale": tax.name_locale,
                 "rate": tax.percentage,
                 "value": round((tax.percentage / 100), 3),
-                "is_active": tax.enabled,
+                "is_active": tax.is_active,
             })
 
-    return JsonResponse({"taxes":tax_list})
+    return JsonResponse({"taxes": tax_list})
 
 
 @api_view(["POST"])
@@ -859,39 +859,35 @@ def create_tax(request):
         vendor_id = int(vendor_id)
         rate = float(rate)
         is_active = bool(is_active)
-
-        if tax_type not in ("SGST", "CGST"):
-            raise ValueError
     
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
 
-    existing_tax = Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
+    existing_tax = Tax.objects.filter(name = tax_type, vendor = vendor_id).first()
 
     if existing_tax:
-        return Response("Entry already created", status=status.HTTP_409_CONFLICT)
+        return Response("Entry already created", status = status.HTTP_409_CONFLICT)
 
     tax = Tax.objects.create(
-        name=tax_type,
-        percentage=rate,
-        enabled=is_active,
-        isDeleted=False,
-        vendorId=vendor_instance
+        name = tax_type,
+        percentage = rate,
+        is_active = is_active,
+        vendorId = vendor_instance
     )
 
     tax_info = {
         "type": tax.name,
         "rate": tax.percentage,
         "value": round((tax.percentage / 100), 3),
-        "is_active": tax.enabled,
+        "is_active": tax.is_active,
     }
 
-    return JsonResponse(tax_info, status=status.HTTP_201_CREATED)
+    return JsonResponse(tax_info, status = status.HTTP_201_CREATED)
 
 
 @api_view(["PUT"])
@@ -910,9 +906,6 @@ def update_tax(request):
         vendor_id = int(vendor_id)
         rate = float(rate)
         is_active = bool(is_active)
-
-        if tax_type not in ("SGST", "CGST"):
-            raise ValueError
     
     except ValueError:
         return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
@@ -929,18 +922,16 @@ def update_tax(request):
     
     tax.name = tax_type
     tax.percentage = rate
-    tax.enabled = is_active
+    tax.is_active = is_active
 
     tax.save()
 
-    tax_info = {
+    return JsonResponse({
         "type": tax.name,
         "rate": tax.percentage,
         "value": round((tax.percentage / 100), 3),
-        "is_active": tax.enabled,
-    }
-
-    return JsonResponse(tax_info)
+        "is_active": tax.is_active,
+    })
 
 
 @api_view(["DELETE"])
@@ -956,21 +947,21 @@ def delete_tax(request):
         vendor_id = int(vendor_id)
     
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
     
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+    vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
 
-    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
+    tax = Tax.objects.filter(pk = tax_id, vendorId = vendor_id).first()
 
     if not tax:
-        return Response("No record found", status=status.HTTP_404_NOT_FOUND)
+        return Response("No record found", status = status.HTTP_404_NOT_FOUND)
     
     tax.delete()
 
-    return Response(status=status.HTTP_204_NO_CONTENT)
+    return Response(status = status.HTTP_204_NO_CONTENT)
 
 
 @api_view(["POST"])
