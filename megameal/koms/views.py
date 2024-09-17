@@ -1520,7 +1520,7 @@ def updateTicketStatus(request):
                 
                 tax_total = 0
 
-                vendor_taxes = Tax.objects.filter(vendorId = vendor_id)
+                vendor_taxes = Tax.objects.filter(is_active = True, vendor = vendor_id)
                 
                 for tax in vendor_taxes:
                     tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
@@ -2107,7 +2107,7 @@ def additem(request):
 
         tax_total = 0
 
-        vendor_taxes = Tax.objects.filter(vendorId=vendor_id)
+        vendor_taxes = Tax.objects.filter(is_active = True, vendor = vendor_id)
 
         for tax in vendor_taxes:
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))
@@ -2256,7 +2256,7 @@ def editContent(request):
 
         tax_total = 0
 
-        taxes = Tax.objects.filter(vendorId=vendor_id)
+        taxes = Tax.objects.filter(is_active = True, vendor = vendor_id)
         
         for tax in taxes:
             tax_total = tax_total + (master_order_instance.subtotal * (tax.percentage / 100))

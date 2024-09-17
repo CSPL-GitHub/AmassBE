@@ -307,13 +307,11 @@ class ProductModifierAndModifierGroupJoint(models.Model):
 
 
 class Tax(models.Model):
-    name = models.CharField(max_length=122)
-    name_locale = models.CharField(max_length=122, null=True, blank=True)
+    name = models.CharField(max_length = 122)
+    name_locale = models.CharField(max_length = 122, null = True, blank = True)
     percentage = models.FloatField()
-    taxLevel = models.IntegerField(choices=TaxLevel.choices, default=TaxLevel.ORDER, null=True, blank=True)
-    enabled = models.BooleanField(default=True)
-    isDeleted = models.BooleanField(default=False)
-    vendorId = models.ForeignKey(Vendor,on_delete=models.CASCADE)
+    is_active = models.BooleanField(default = True)
+    vendor = models.ForeignKey(Vendor, on_delete = models.CASCADE)
 
     def save(self, *args, **kwargs):
         if not self.name_locale:
@@ -325,16 +323,6 @@ class Tax(models.Model):
 
     def __str__(self):
         return self.name
-    
-    def to_dict(self):
-        return {
-            'vendorId': self.vendorId.pk,
-            'isDeleted': self.isDeleted,
-            'name': self.name,
-            'percentage': self.percentage,
-            'enabled': self.enabled,
-            'taxLevel':self.taxLevel
-        } 
 
 
 from order.models import Customer, Order # Placed here due to circular import error

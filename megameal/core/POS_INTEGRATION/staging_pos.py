@@ -174,7 +174,7 @@ class StagingIntegration():
                 tax = data.get("tax")
 
             else:
-                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
+                taxes = Tax.objects.filter(is_active = True, vendor = vendorId)
 
                 if taxes.exists():
                     tax = order.tax+productTaxes
@@ -195,9 +195,7 @@ class StagingIntegration():
             try:
                 data["orderLevelTax"] = []
 
-                orderTaxes = Tax.objects.filter(
-                    vendorId=vendorId, isDeleted=False, taxLevel=TaxLevel.ORDER, enabled=True
-                )
+                orderTaxes = Tax.objects.filter(is_active = True, vendor = vendorId)
 
                 if orderTaxes:
                     for orderTax in orderTaxes:
@@ -232,7 +230,7 @@ class StagingIntegration():
             ((order.platform.Name == 'Website') or (order.platform.Name == 'Mobile App')):
                 tax_details = []
                 
-                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
+                taxes = Tax.objects.filter(is_active = True, vendor = vendorId)
 
                 if taxes:
                     for tax in taxes:
@@ -446,12 +444,7 @@ class StagingIntegration():
             coreResponse["item"]["itemLevelTax"] = []
 
             try:
-                taxForProduct = Tax.objects.filter(
-                    vendorId = vendor,
-                    isDeleted = False,
-                    enabled = True,
-                    taxLevel = TaxLevel.ORDER
-                )
+                taxForProduct = Tax.objects.filter(is_active = True, vendor = vendorId)
 
                 appliedTaxes.extend(list(taxForProduct))
 
