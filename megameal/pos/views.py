@@ -150,7 +150,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     queryset = CoreUser.objects.all().order_by('-pk')
     serializer_class = CoreUserModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('is_head',)
+    filterset_fields = ('is_head', 'core_user_category',)
     search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
     ordering_fields = ('id', 'first_name', 'last_name',)
     # permission_classes = [IsAuthenticated]
