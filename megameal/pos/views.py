@@ -149,7 +149,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     queryset = CoreUser.objects.all().order_by('-pk')
     serializer_class = CoreUserModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('first_name', 'last_name', 'email')
+    filterset_fields = ('is_head',)
     search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
     ordering_fields = ('id', 'first_name', 'last_name',)
     # permission_classes = [IsAuthenticated]
@@ -181,7 +181,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
         password = self.request.data.get('password')
 
         if password:
-            serializer.save(password=make_password(password))
+            serializer.save(password = make_password(password))
         else:
             serializer.save()
 
@@ -189,7 +189,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
         password = self.request.data.get('password')
 
         if password:
-            serializer.save(password=make_password(password))
+            serializer.save(password = make_password(password))
 
         else:
             serializer.save()
