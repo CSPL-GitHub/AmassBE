@@ -1,5 +1,5 @@
 from django.db import models
-from core.utils import TaxLevel, OrderAction
+from core.utils import OrderAction
 from pos.language import platform_locale
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError
