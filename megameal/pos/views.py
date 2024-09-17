@@ -50,10 +50,7 @@ from pos.serializers import (
 )
 from woms.views import get_table_data, filter_tables
 from koms.views import notify, allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, waiteOrderUpdate, webSocketPush
-from pos.filters import (
-    WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
-    StationFilter, ChefFilter,
-)
+from pos.filters import WaiterFilter, ChefFilter
 from core.excel_file_upload import process_excel
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
@@ -99,7 +96,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all().order_by('-pk')
     serializer_class = DepartmentModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
+    filterset_fields = ('is_active',)
     search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name',)
     # permission_classes = [IsAuthenticated]
@@ -108,7 +105,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendor')
 
         if vendor_id:
-            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
+            return Department.objects.filter(vendor = vendor_id).order_by('-pk')
         
         return Department.objects.none()
 
@@ -124,16 +121,15 @@ class WorkingShiftModelViewSet(viewsets.ModelViewSet):
     queryset = WorkingShift.objects.all().order_by('start_time')
     serializer_class = WorkingShiftModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('name',)
     search_fields = ('name', 'name_locale')
-    ordering_fields = ('id', 'name', 'start_time')
+    ordering_fields = ('id', 'start_time')
     # permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
 
         if vendor_id:
-            return WorkingShift.objects.filter(vendor=vendor_id).order_by('start_time')
+            return WorkingShift.objects.filter(vendor = vendor_id).order_by('start_time')
         
         return WorkingShift.objects.none()
 
@@ -149,7 +145,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     queryset = CoreUser.objects.all().order_by('-pk')
     serializer_class = CoreUserModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('is_head',)
+    filterset_fields = ('is_head', 'core_user_category',)
     search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
     ordering_fields = ('id', 'first_name', 'last_name',)
     # permission_classes = [IsAuthenticated]
@@ -158,17 +154,21 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendor')
         group_id = self.request.GET.get('group')
 
-        if vendor_id:
-            if not group_id:
-                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
+        queryset = CoreUser.objects.none()
 
-            elif group_id == '0':
-                return CoreUser.objects.filter(core_user_category__isnull=True, vendor=vendor_id).order_by('-pk')
-            
-            else:
-                return CoreUser.objects.filter(core_user_category=group_id, vendor=vendor_id).order_by('-pk')
-        
-        return CoreUser.objects.none()
+        if vendor_id:
+            queryset = CoreUser.objects.filter(vendor = vendor_id)
+
+            if group_id:
+                if group_id == '0':
+                    queryset = queryset.filter(core_user_category__isnull = True)
+                
+                else:
+                    queryset = queryset.filter(core_user_category = group_id)
+                
+            queryset = queryset.order_by('-pk')
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -234,7 +234,7 @@ class WaiterViewSet(viewsets.ModelViewSet):
 
 
 class FloorViewSet(viewsets.ModelViewSet):
-    queryset = Floor.objects.all().order_by('id')
+    queryset = Floor.objects.all()
     serializer_class = FloorSerializer
     # permission_classes = [IsAuthenticated]
 
@@ -242,52 +242,39 @@ class FloorViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
-
-            return queryset
+            return Floor.objects.filter(vendorId=vendor_id).order_by('id')
         
-        else:
-            return Floor.objects.none()
+        return Floor.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
         serializer = self.get_serializer(queryset, many=True)
-        data = {"floors": serializer.data}
         
-        return Response(data, status=status.HTTP_200_OK)
+        return JsonResponse({"floors": serializer.data})
     
 
 class HotelTableViewSet(viewsets.ModelViewSet):
     queryset = HotelTable.objects.all()
     serializer_class = HotelTableSerializer
-    filter_class = HotelTableFilter
-    filter_backends = [DjangoFilterBackend]
+    filter_backends = (DjangoFilterBackend,)
+    filterset_fields = ('floor',)
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
+            return HotelTable.objects.filter(vendorId = vendor_id).order_by('tableNumber')
 
-            return queryset
-        
-        else:
-            return HotelTable.objects.none()
+        return HotelTable.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        floor_id_query = request.GET.get('floor', None)
-
-        if floor_id_query:
-            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
-
         serializer = self.get_serializer(queryset, many=True)
-        data = {"tables": serializer.data}
         
-        return Response(data, status=status.HTTP_200_OK)
+        return JsonResponse({"tables": serializer.data})
     
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -437,45 +424,27 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 class ProductCategoryViewSet(viewsets.ModelViewSet):
     queryset = ProductCategory.objects.all()
     serializer_class = ProductCategorySerializer
-    filter_class = ProductCategoryFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    search_fields = ('categoryName', 'categoryName_locale',)
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
+            return ProductCategory.objects.filter(vendorId = vendor_id).order_by('-pk')
         
-        else:
-            queryset = ProductCategory.objects.none()
-        
-        queryset = queryset.order_by('-pk')
-
-        return queryset
+        return ProductCategory.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('categoryName', None)
-        language = request.GET.get('language', 'English')
-        
-        if name_query:
-            if language == "English":
-                queryset = queryset.filter(categoryName__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(categoryName_locale__icontains=name_query)
-
         page = self.paginate_queryset(queryset)
 
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(page, many=True)
 
-            return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response(serializer.data)
     
     def create(self, request, *args, **kwargs):
         try:
@@ -596,8 +565,9 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 class ModifierGroupViewSet(viewsets.ModelViewSet):
     queryset = ProductModifierGroup.objects.all()
     serializer_class = ModifierGroupSerializer
-    filter_class = ModifierGroupFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('active',)
+    search_fields = ('name', 'name_locale')
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
 
@@ -605,36 +575,18 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
+            return ProductModifierGroup.objects.filter(vendorId = vendor_id).order_by('-id')
         
-        else:
-            queryset = ProductModifierGroup.objects.none()
-        
-        queryset = queryset.order_by('-id')
-
-        return queryset
+        return ProductModifierGroup.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        # name_query = request.query_params.get('name', None)
-        name_query = request.GET.get('name', None)
-        
-        if name_query:
-            language = request.GET.get('language', "English")
-
-            if language == "English":
-                queryset = queryset.filter(name__icontains=name_query)
-            
-            else:
-                queryset = queryset.filter(name_locale__icontains=name_query)
-
         page = self.paginate_queryset(queryset)
 
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
+        serializer = self.get_serializer(page, many=True)
 
-            return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response(serializer.data)
         
     def create(self, request, *args, **kwargs):
         try:
@@ -734,8 +686,8 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
 class DiscountCouponModelViewSet(viewsets.ModelViewSet):
     queryset = Order_Discount.objects.all().order_by('-pk')
     serializer_class = DiscountCouponModelSerializer
-    filter_class = DiscountCouponFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('is_active',)
     search_fields = ("discountName", "discountCode", "value")
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
@@ -744,7 +696,7 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
+            return Order_Discount.objects.filter(vendorId = vendor_id).order_by("-pk")
         
         return Order_Discount.objects.none()
 
@@ -754,43 +706,32 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
 
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+        serializer = self.get_serializer(page, many=True)
+
+        return self.get_paginated_response(serializer.data)
 
 
 class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Station.objects.all().order_by('-pk')
+    queryset = Station.objects.all()
     serializer_class = StationModelSerializer
-    filter_class = StationFilter
-    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
-    search_fields = ('station_name',)
-    pagination_class = CustomPagination
+    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    search_fields = ('station_name', 'station_name_locale',)
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
+            return Station.objects.filter(vendorId = vendor_id).order_by("-pk")
         
         return Station.objects.none()
 
-    
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        page = self.paginate_queryset(queryset)
-
-        if page:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-        
         serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
+
+        return JsonResponse({"stations": serializer.data})
 
 
 class ChefModelViewSet(viewsets.ModelViewSet):
@@ -824,7 +765,7 @@ class ChefModelViewSet(viewsets.ModelViewSet):
 
 
 class BannerModelViewSet(viewsets.ModelViewSet):
-    queryset = Banner.objects.all().order_by('-pk')
+    queryset = Banner.objects.all()
     serializer_class = BannerModelSerializer
     # permission_classes = [IsAuthenticated]
     
@@ -835,9 +776,9 @@ class BannerModelViewSet(viewsets.ModelViewSet):
             platform_type = self.request.GET.get('platform_type')
             
             if platform_type:
-                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
+                return Banner.objects.filter(platform_type = platform_type, vendor = vendor_id).order_by("-pk")
             
-            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
+            return Banner.objects.filter(vendor = vendor_id).order_by("-pk")
         
         return Banner.objects.none()
     
@@ -845,9 +786,8 @@ class BannerModelViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
 
         serializer = self.get_serializer(queryset, many=True)
-        data = {"banners": serializer.data}
-        
-        return Response(data, status=status.HTTP_200_OK)
+
+        return JsonResponse({"banners": serializer.data})
 
 
 

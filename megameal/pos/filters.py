@@ -1,8 +1,6 @@
 import django_filters
-from woms.models import Waiter, HotelTable
-from core.models import ProductCategory, Product, ProductModifierGroup
-from order.models import Order_Discount
-from koms.models import Station, Staff
+from woms.models import Waiter
+from koms.models import Staff
 
 
 class WaiterFilter(django_filters.FilterSet):
@@ -11,48 +9,6 @@ class WaiterFilter(django_filters.FilterSet):
     class Meta:
         model = Waiter
         fields = ["name"]
-
-
-class HotelTableFilter(django_filters.FilterSet):
-    floor = django_filters.NumberFilter(field_name="floor", lookup_expr="exact")
-
-    class Meta:
-        model = HotelTable
-        fields = ["floor"]
-
-
-class ProductCategoryFilter(django_filters.FilterSet):
-    categoryName = django_filters.CharFilter(lookup_expr="icontains")
-
-    class Meta:
-        model = ProductCategory
-        fields = ("categoryName",)
-
-
-class ModifierGroupFilter(django_filters.FilterSet):
-    categoryName = django_filters.CharFilter(lookup_expr="icontains")
-
-    class Meta:
-        model = ProductModifierGroup
-        fields = ("name",)
-
-
-class DiscountCouponFilter(django_filters.FilterSet):
-    discountName = django_filters.CharFilter(lookup_expr="icontains")
-    discountCode = django_filters.CharFilter(lookup_expr="icontains")
-    value = django_filters.NumberFilter()
-
-    class Meta:
-        model = Order_Discount
-        fields = ("discountName", "discountCode", "value")
-
-
-class StationFilter(django_filters.FilterSet):
-    station_name = django_filters.CharFilter(lookup_expr="icontains")
-
-    class Meta:
-        model = Station
-        fields = ("station_name",)
 
 
 class ChefFilter(django_filters.FilterSet):
