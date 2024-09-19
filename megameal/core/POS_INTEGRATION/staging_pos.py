@@ -191,20 +191,6 @@ class StagingIntegration():
                 order.delivery_charge = data["payment"]["shipping_total"]
                 order.tax = data["payment"]["total_tax"]
 
-            # +++++ Add order Taxes
-            try:
-                data["orderLevelTax"] = []
-
-                orderTaxes = Tax.objects.filter(is_active = True, vendor = vendorId)
-
-                if orderTaxes:
-                    for orderTax in orderTaxes:
-                        data["orderLevelTax"].append(orderTax.to_dict())
-
-            except Tax.DoesNotExist:
-                print("Tax not found for vendor")
-            # +++++ Taxes
-
             order = order.save()
 
             # ++++ Payment
