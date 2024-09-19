@@ -50,6 +50,14 @@ class Department(models.Model):
     class Meta:
         unique_together = ('name', 'vendor')
 
+    def save(self, *args, **kwargs):
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        super().save(*args, **kwargs)
+        
+        return self
+
     def __str__(self):
         return f"{self.name} ({self.vendor.pk})"
 
@@ -60,6 +68,14 @@ class CoreUserCategory(Group):
     is_active = models.BooleanField(default=True)
     department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
     vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
+
+    def save(self, *args, **kwargs):
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        super().save(*args, **kwargs)
+        
+        return self
 
 
 class WorkingShift(models.Model):
