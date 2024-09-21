@@ -17,7 +17,7 @@ def get_sop_form_by_department(request):
         department_id = request.GET.get('department_id')
         vendor_id = request.GET.get('vendor_id')
 
-        if not all([is_admin, department_id, vendor_id]):
+        if not all((is_admin, department_id, vendor_id)):
             raise ValueError
     
         department_id = int(department_id)
@@ -26,7 +26,7 @@ def get_sop_form_by_department(request):
         department_instance = Department.objects.filter(pk=department_id).first()
         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-        if not all([department_instance, vendor_instance]):
+        if not all((department_instance, vendor_instance)):
             raise ValueError
 
         question_answers = []
@@ -42,7 +42,10 @@ def get_sop_form_by_department(request):
             for single_question in questions:
                 answer_list = []
 
-                answer_details = Answer.objects.filter(question=single_question.pk, vendor=vendor_id).order_by("answer_sequence_number")
+                answer_details = Answer.objects.filter(
+                    question = single_question.pk,
+                    vendor = vendor_id
+                ).order_by("answer_sequence_number")
                 
                 if answer_details.exists():
                     for answer_detail in answer_details:
@@ -51,8 +54,8 @@ def get_sop_form_by_department(request):
                             "counter": counter,
                             "answer_sequence_number": answer_detail.answer_sequence_number,
                             "ui_element": answer_detail.ui_element,
-                            "caption": answer_detail.caption
-                            # "answer": answer_detail.answer
+                            "caption": answer_detail.caption,
+                            "caption_locale": answer_detail.caption_locale
                         })
 
                         counter = counter + 1
@@ -60,25 +63,24 @@ def get_sop_form_by_department(request):
                 is_response_submitted = False
                 
                 question_response = FormResponse.objects.filter(
-                    question=single_question.pk,
-                    question__is_response_multiple=False,
-                    department=department_id,
-                    response_datetime__date=datetime.now().date(),
-                    vendor=vendor_id
+                    question = single_question.pk,
+                    question__is_response_multiple = False,
+                    department = department_id,
+                    response_datetime__date = datetime.now().date(),
+                    vendor = vendor_id
                 ).first()
 
                 if question_response:
                     is_response_submitted = True
 
-                
                 question_answers.append({
                     "id": single_question.pk,
                     "question_number": single_question.question_number,
                     "question": single_question.question,
+                    "question_locale": single_question.question_locale,
                     "is_response_multiple": single_question.is_response_multiple,
                     "is_response_submitted": is_response_submitted,
                     "staff_category_id": single_question.staff_category.pk,
-                    # "responsible_person": single_question.responsible_person.pk,
                     "answers": answer_list
                 })
 
@@ -97,10 +99,10 @@ def get_sop_form_by_department(request):
             question_answers = {}
 
             form_responses = FormResponse.objects.filter(
-                question=question_id,
-                response_datetime__date=response_date,
-                department=department_id,
-                vendor=vendor_id
+                question = question_id,
+                response_datetime__date = response_date,
+                department = department_id,
+                vendor = vendor_id
             ).order_by('-response_datetime')
 
             response_list = []
@@ -119,9 +121,9 @@ def get_sop_form_by_department(request):
             question_answers["id"] = question_instance.pk
             question_answers["question_number"] = question_instance.question_number
             question_answers["question"] = question_instance.question
+            question_answers["question_locale"] = question_instance.question_locale
             question_answers["is_response_multiple"] = question_instance.is_response_multiple
             question_answers["staff_category_id"] = question_instance.staff_category.pk
-            # question_answers["responsible_person"] = question.responsible_person.pk
             question_answers["responses"] = response_list
 
         return JsonResponse({"question_answers": question_answers})
@@ -147,7 +149,6 @@ def create_sop_question_by_department(request):
             "answers",
             "department_id",
             "staff_category_id",
-            # "responsible_person_id",
             "vendor_id"
         }
 
@@ -156,59 +157,53 @@ def create_sop_question_by_department(request):
     
         question_no = request_data.get('question_number')
         question_text = request_data.get('question')
+        question_text_locale = request_data.get('question_locale')
         is_response_multiple = request_data.get('is_response_multiple')
         answers = request_data.get('answers')
         department_id = request_data.get('department_id')
         staff_category_id = request_data.get('staff_category_id')
-        # core_user_id = request_data.get('responsible_person')
         vendor_id = request_data.get('vendor_id')
         
-        if not all([question_no, question_text, answers, department_id, staff_category_id, vendor_id]):
+        if not all((question_no, question_text, answers, department_id, staff_category_id, vendor_id)):
             raise ValueError
     
         department_id = int(department_id)
         staff_category_id = int(staff_category_id)
-        # core_user_id = int(core_user_id)
         vendor_id = int(vendor_id)
     
         department_instance = Department.objects.filter(pk=department_id).first()
         staff_category_instance = CoreUserCategory.objects.filter(pk=staff_category_id).first()
-        # core_user_instance = CoreUser.objects.filter(pk=core_user_id).first()
         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
         if not all([department_instance, staff_category_instance, vendor_instance]):
             raise ValueError
         
-        question_instance = Question(
-            question_number=question_no,
-            question=question_text,
-            is_response_multiple=is_response_multiple,
-            department=department_instance,
-            staff_category=staff_category_instance,
-            # responsible_person=core_user_instance,
-            vendor=vendor_instance
+        question_instance = Question.objects.create(
+            question_number = question_no,
+            question = question_text,
+            question_locale = question_text_locale,
+            is_response_multiple = is_response_multiple,
+            department = department_instance,
+            staff_category = staff_category_instance,
+            vendor = vendor_instance
         )
-
-        question_instance.save()
         
         for iterator in answers:
             answer_sequence_number = iterator.get('answer_sequence_number')
             answer_ui_element = iterator.get('ui_element')
             caption = iterator.get('caption')
-            # answer_text = iterator.get('answer')
+            caption_locale = iterator.get('caption_locale')
             
-            answer_instance = Answer(
-                question=question_instance,
-                answer_sequence_number=answer_sequence_number,
-                ui_element=answer_ui_element,
-                caption=caption,
-                # answer=answer_text,
-                vendor=vendor_instance
+            answer_instance = Answer.objects.create(
+                question = question_instance,
+                answer_sequence_number = answer_sequence_number,
+                ui_element = answer_ui_element,
+                caption = caption,
+                caption_locale = caption_locale,
+                vendor = vendor_instance
             )
 
-            answer_instance.save()
-
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status = status.HTTP_201_CREATED)
     
     except ValueError:
         return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
@@ -241,7 +236,6 @@ def update_sop_question(request):
             "answers",
             "department_id",
             "staff_category_id",
-            # "responsible_person_id",
             "vendor_id"
         }
 
@@ -251,11 +245,11 @@ def update_sop_question(request):
         question_id = request_data.get('question_id')
         question_no = request_data.get('question_number')
         question_text = request_data.get('question')
+        question_text_locale = request_data.get('question_locale')
         is_response_multiple = request_data.get('is_response_multiple')
         answers = request_data.get('answers')
         department_id = request_data.get('department_id')
         staff_category_id = request_data.get('staff_category_id')
-        # core_user_id = request_data.get('responsible_person')
         vendor_id = request_data.get('vendor_id')
         
         if not all([question_id, question_no, question_text, answers, department_id, staff_category_id, vendor_id]):
@@ -264,7 +258,6 @@ def update_sop_question(request):
         question_id = int(question_id)
         department_id = int(department_id)
         staff_category_id = int(staff_category_id)
-        # core_user_id = int(core_user_id)
         vendor_id = int(vendor_id)
     
         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
@@ -275,17 +268,16 @@ def update_sop_question(request):
         question_instance = Question.objects.filter(pk=question_id, vendor=vendor_id).first()
         department_instance = Department.objects.filter(pk=department_id, vendor=vendor_id).first()
         staff_category_instance = CoreUserCategory.objects.filter(pk=staff_category_id, vendor=vendor_id).first()
-        # core_user_instance = CoreUser.objects.filter(pk=core_user_id).first()
 
-        if not all([question_instance, department_instance, staff_category_instance]):
+        if not all((question_instance, department_instance, staff_category_instance)):
             raise ValueError
 
         question_instance.question_number = question_no
         question_instance.question = question_text
+        question_instance.question_locale = question_text_locale
         question_instance.is_response_multiple = is_response_multiple
         question_instance.department = department_instance
         question_instance.staff_category = staff_category_instance
-        # question_instance.responsible_person = core_user_instance
 
         question_instance.save()
 
@@ -301,20 +293,18 @@ def update_sop_question(request):
                 answer_sequence_number = answer.get('answer_sequence_number')
                 answer_ui_element = answer.get('ui_element')
                 caption = answer.get('caption')
-                # answer_text = iterator.get('answer')
+                caption_locale = answer.get('caption_locale')
                 
-                answer_instance = Answer(
-                    question=question_instance,
-                    answer_sequence_number=answer_sequence_number,
-                    ui_element=answer_ui_element,
-                    caption=caption,
-                    # answer=answer_text,
-                    vendor=vendor_instance
+                answer_instance = Answer.objects.create(
+                    question = question_instance,
+                    answer_sequence_number = answer_sequence_number,
+                    ui_element = answer_ui_element,
+                    caption = caption,
+                    caption_locale = caption_locale,
+                    vendor = vendor_instance
                 )
 
-                answer_instance.save()
-
-        return Response(status=status.HTTP_200_OK)
+        return Response(status = status.HTTP_200_OK)
     
     except ValueError:
         return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
@@ -337,7 +327,7 @@ def delete_sop_question(request):
         question_id = request.GET.get('question_id')
         vendor_id = request.GET.get('vendor_id')
 
-        if not all([question_id, vendor_id]):
+        if not all((question_id, vendor_id)):
             raise ValueError
     
         question_id = int(question_id)
@@ -384,7 +374,7 @@ def submit_question_reponse(request):
         department_id = request_data.get('department_id')
         vendor_id = request_data.get('vendor_id')
         
-        if not all([question_id, answers, core_user_id, department_id, vendor_id]):
+        if not all((question_id, answers, core_user_id, department_id, vendor_id)):
             raise ValueError
     
         question_id = int(question_id)
@@ -397,7 +387,7 @@ def submit_question_reponse(request):
         core_user_instance = CoreUser.objects.filter(pk=core_user_id).first()
         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-        if not all([question_instance, department_instance, core_user_instance, vendor_instance]):
+        if not all((question_instance, department_instance, core_user_instance, vendor_instance)):
             raise ValueError
         
         for answer in answers:
@@ -417,26 +407,23 @@ def submit_question_reponse(request):
             answer["answer_sequence_number"] = answer_instance.answer_sequence_number
             answer["ui_element"] = answer_instance.ui_element
             answer["caption"] = answer_instance.caption
+            answer["caption_locale"] = answer_instance.caption_locale
             
         answers = {'answers': answers}
             
-        form_response = FormResponse(
-            question=question_instance,
-            # expected_answer=answer_instance,
-            # actual_answer=submitted_answer,
-            submitted_response=answers,
-            submitted_by=core_user_instance,
-            remark=remark,
-            department=department_instance,
-            vendor=vendor_instance
+        form_response = FormResponse.objects.create(
+            question = question_instance,
+            submitted_response = answers,
+            submitted_by = core_user_instance,
+            remark = remark,
+            department = department_instance,
+            vendor = vendor_instance
         )
 
-        form_response.save()
-
-        return Response(status=status.HTTP_201_CREATED)
+        return Response(status = status.HTTP_201_CREATED)
     
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
     
     except Exception as e:
-        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
