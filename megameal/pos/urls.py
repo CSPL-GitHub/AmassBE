@@ -17,6 +17,7 @@ router.register("setting/banner", views.BannerModelViewSet, basename="banner")
 router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
 router.register("setting/working_shift", views.WorkingShiftModelViewSet, basename="working_shift")
 router.register("setting/users", views.CoreUserModelViewSet, basename="core_users")
+router.register("setting/permission", views.POSPermissionModelViewSet, basename="pos_permission")
 
 
 urlpatterns = [

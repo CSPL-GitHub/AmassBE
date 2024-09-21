@@ -46,7 +46,7 @@ from pos.serializers import (
     StoreTimingSerializer, WaiterSerializer, FloorSerializer, HotelTableSerializer, ProductCategorySerializer, ProductSerializer,
     ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer, ModifierGroupSerializer,
     ModifierSerializer, DiscountCouponModelSerializer, StationModelSerializer, ChefModelSerializer, BannerModelSerializer,
-    DepartmentModelSerializer, WorkingShiftModelSerializer, CoreUserModelSerializer,
+    DepartmentModelSerializer, WorkingShiftModelSerializer, CoreUserModelSerializer, POSPermissionModelSerializer,
 )
 from woms.views import get_table_data, filter_tables
 from koms.views import notify, allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, waiteOrderUpdate, webSocketPush
@@ -788,6 +788,27 @@ class BannerModelViewSet(viewsets.ModelViewSet):
         serializer = self.get_serializer(queryset, many=True)
 
         return JsonResponse({"banners": serializer.data})
+
+
+class POSPermissionModelViewSet(viewsets.ModelViewSet):
+    queryset = POSPermission.objects.all()
+    serializer_class = POSPermissionModelSerializer
+    # permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        vendor_id = self.request.GET.get('vendor')
+
+        if vendor_id:
+            return POSPermission.objects.filter(vendor = vendor_id).order_by("-pk")
+        
+        return POSPermission.objects.none()
+    
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+
+        serializer = self.get_serializer(queryset, many=True)
+
+        return JsonResponse({"permissions": serializer.data})
 
 
 
