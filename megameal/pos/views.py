@@ -152,19 +152,18 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
-        group_id = self.request.GET.get('group')
+        user_category_id = self.request.GET.get('user_category')
 
         queryset = CoreUser.objects.none()
 
         if vendor_id:
             queryset = CoreUser.objects.filter(vendor = vendor_id)
 
-            if group_id:
-                if group_id == '0':
-                    queryset = queryset.filter(core_user_category__isnull = True)
+            if user_category_id:
+                if user_category_id == '0':
+                    user_category_id = None
                 
-                else:
-                    queryset = queryset.filter(core_user_category = group_id)
+                queryset = queryset.filter(core_user_category = user_category_id)
                 
             queryset = queryset.order_by('-pk')
 
