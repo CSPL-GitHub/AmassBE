@@ -7,7 +7,6 @@ from core.models import (
     ProductModifierGroup, ProductModifier,
 )
 from koms.models import Station, Staff
-from urllib.parse import urlparse
 
 
 
@@ -295,29 +294,11 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
         if not instance.profile_picture:
             data['profile_picture'] = ''
 
-        else:
-            parsed_url = urlparse(data['profile_picture'])
-            path = parsed_url.path
-
-            data['profile_picture'] = path
-
         if not instance.document_1:
             data['document_1'] = ''
 
-        else:
-            parsed_url = urlparse(data['document_1'])
-            path = parsed_url.path
-
-            data['document_1'] = path
-
         if not instance.document_2:
             data['document_2'] = ''
-
-        else:
-            parsed_url = urlparse(data['document_2'])
-            path = parsed_url.path
-
-            data['document_2'] = path
 
         if not instance.reports_to:
             data['reports_to'] = 0
