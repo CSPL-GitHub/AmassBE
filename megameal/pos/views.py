@@ -1181,43 +1181,48 @@ def get_pos_permissions(request):
 
 
 @api_view(['GET'])
-def allCategory(request):
+def get_categories(request):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
 
         if not vendor_id:
-            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status = status.HTTP_400_BAD_REQUEST)
 
         category_list = []
 
-        categories = ProductCategory.objects.filter(
-            categoryIsDeleted=False,
-            vendorId=vendor_id,
-            productcategoryjoint__vendorId=vendor_id
-        ).select_related('vendorId').distinct()
+        categories = ProductCategoryJoint.objects.filter(vendorId = vendor_id).values(
+            'category__id',
+            'category__categoryName',
+            'category__categoryName_locale',
+            'category__categoryDescription',
+            'category__categoryDescription_locale',
+            'category__categoryPLU',
+            'category__categoryImageUrl',
+            'category__is_active',
+        ).distinct('category')
 
-        for single_category in categories:
-            category_name = single_category.categoryName
-            category_description = single_category.categoryDescription if single_category.categoryDescription else ""
+        for category in categories:
+            category_name = category["category__categoryName"]
+            category_description = category["category__categoryDescription"]
             
             if language != "English":
-                category_name = single_category.categoryName_locale
-                category_description = single_category.categoryDescription_locale if single_category.categoryDescription_locale else ""
+                category_name = category["category__categoryName_locale"]
+                category_description = category["category__categoryDescription_locale"]
             
             category_list.append({
-                "categoryId": single_category.pk,
-                "categoryPlu": single_category.categoryPLU,
+                "categoryId": category["category__id"],
+                "categoryPlu": category["category__categoryPLU"],
                 "name": category_name,
-                "description": category_description,
-                "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                "is_active": single_category.is_active
+                "description": category_description or "",
+                "image": category["category__categoryImageUrl"] or "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                "is_active": category["category__is_active"]
             })
 
-        return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
+        return JsonResponse({"message": "", "categories": category_list}, status = status.HTTP_200_OK)
     
     except Exception as e:
-        return JsonResponse({"message": str(e), "categories": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"message": str(e), "categories": []}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 def productByCategory(request, id=0):

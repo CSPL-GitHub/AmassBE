@@ -24,7 +24,7 @@ urlpatterns = [
    path('', include(router.urls)),
    path('login/', views.pos_user_login),
    path('permission/', views.get_pos_permissions, name="permission"),
-   path('allCategory/',views.allCategory), # All Category api for POS
+   path('allCategory/',views.get_categories), # All Category api for POS
    path('productByCategory/',views.productByCategory), # all Category product api for POS
    path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
    path('dashboard/', views.dashboard, name="dashboard"),
