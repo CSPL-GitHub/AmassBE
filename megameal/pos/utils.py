@@ -827,6 +827,14 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
         ).order_by("name")
 
     category_list = []
+
+    category_list.append({
+        "id": 0,
+        "name": "Uncategorized",
+        "name_locale": language_localization["Uncategorized"] if vendor_instance.secondary_language else "",
+        "is_editable": False,
+        "is_active": True,
+    })
         
     for category_instance in core_user_categories_without_department:
         category_name = category_instance.name
