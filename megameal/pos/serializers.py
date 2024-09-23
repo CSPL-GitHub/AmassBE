@@ -7,7 +7,6 @@ from core.models import (
     ProductModifierGroup, ProductModifier,
 )
 from koms.models import Station, Staff
-from urllib.parse import urlparse
 
 
 
