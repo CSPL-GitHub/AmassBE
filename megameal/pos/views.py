@@ -1125,7 +1125,10 @@ def get_pos_permissions(request):
     if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
         return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
 
-    user_instance = CoreUser.objects.filter(pk = user_id, is_active = True).first()
+    user_instance = CoreUser.objects.filter(pk = user_id, is_active = True) \
+    .select_related("core_user_category__department") \
+    .only("core_user_category__pk", "core_user_category__is_active", "core_user_category__department__is_active") \
+    .first()
 
     if not user_instance:
         return JsonResponse({"message": "User not found or not active"}, status = status.HTTP_400_BAD_REQUEST)
