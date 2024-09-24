@@ -150,26 +150,29 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
     queryset = CoreUser.objects.all().order_by('-pk')
     serializer_class = CoreUserModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('first_name', 'last_name', 'email')
+    filterset_fields = ('is_head', 'core_user_category',)
     search_fields = ('first_name', 'last_name', 'email', 'phone_number',)
     ordering_fields = ('id', 'first_name', 'last_name',)
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
-        group_id = self.request.GET.get('group')
+        user_category_id = self.request.GET.get('user_category')
+
+        queryset = CoreUser.objects.none()
 
         if vendor_id:
-            if not group_id:
-                return CoreUser.objects.filter(vendor=vendor_id).order_by('-pk')
+            queryset = CoreUser.objects.filter(vendor = vendor_id)
 
-            elif group_id == '0':
-                return CoreUser.objects.filter(core_user_category__isnull=True, vendor=vendor_id).order_by('-pk')
-            
-            else:
-                return CoreUser.objects.filter(core_user_category=group_id, vendor=vendor_id).order_by('-pk')
-        
-        return CoreUser.objects.none()
+            if user_category_id:
+                if user_category_id == '0':
+                    user_category_id = None
+                
+                queryset = queryset.filter(core_user_category = user_category_id)
+                
+            queryset = queryset.order_by('-pk')
+
+        return queryset
 
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
@@ -182,7 +185,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
         password = self.request.data.get('password')
 
         if password:
-            serializer.save(password=make_password(password))
+            serializer.save(password = make_password(password))
         else:
             serializer.save()
 
@@ -190,7 +193,7 @@ class CoreUserModelViewSet(viewsets.ModelViewSet):
         password = self.request.data.get('password')
 
         if password:
-            serializer.save(password=make_password(password))
+            serializer.save(password = make_password(password))
 
         else:
             serializer.save()
