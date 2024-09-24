@@ -32,7 +32,7 @@ from core.models import (
 )
 from order.models import (
     Order, OrderPayment, Customer, Address, LoyaltyProgramSettings, LoyaltyPointsCreditHistory, LoyaltyPointsRedeemHistory,
-    Order_Discount,
+    Order_Discount, SplitOrderItem,
 )
 from pos.models import (
     StoreTiming, Banner, POSSetting, Department, CoreUserCategory, WorkingShift, CoreUser, POSPermission, CashRegister,
@@ -1225,6 +1225,7 @@ def get_categories(request):
         return JsonResponse({"message": str(e), "categories": []}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['GET'])
 def productByCategory(request, id=0):
     try:
         vendor_id = request.GET.get("vendorId")
@@ -9299,7 +9300,12 @@ def splitOrderPayment(request):
         payment_type = splitPayment.get("paymentType", "Cash")
 
         payment_type = payment_type.capitalize()
-
+        if data.get('splitBy', None) == "by_product":
+            for item in splitPayment.get("splitItems",[]):
+                SplitOrderItem(
+                    order_id = split_order,
+                    order_content_id = Order_content.objects.get(pk=item['order_content_id'])
+                ).save()
         OrderPayment(
             orderId = split_order,
             paymentBy = coreOrder.customerId.Email or "",
@@ -9315,4 +9321,4 @@ def splitOrderPayment(request):
 
     waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
 
-    return Response({})
+    return Response({"success":True})

@@ -5,7 +5,7 @@ from core.models import (
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
-from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory
+from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory, SplitOrderItem
 from pos.models import Department, CoreUserCategory
 from koms.models import Station
 from koms.views import getOrder
@@ -941,8 +941,10 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
                     "status": split_payment.status,
                     "platform": split_payment.platform,
                     "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
-                    "splitType": order_payment_instance.splitType
-                })
+                    "splitType": order_payment_instance.splitType,
+                    "splitItems":[
+                        {"order_content_id": split_item.order_content_id.pk} for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk)
+                    ]                })
 
         payment_details["split_payments"] = split_payments_list
 
