@@ -140,16 +140,9 @@ def create_sop_question_by_department(request):
     try:
         request_data = request.data
         
-        if not request_data:
-            raise ValueError
-        
         required_keys = {
-            "question_number",
-            "question",
-            "answers",
-            "department_id",
-            "staff_category_id",
-            "vendor_id"
+            "question_number", "question", "answers",
+            "department_id", "staff_category_id", "vendor_id"
         }
 
         if not required_keys.issubset(request_data.keys()):
@@ -175,7 +168,7 @@ def create_sop_question_by_department(request):
         staff_category_instance = CoreUserCategory.objects.filter(pk=staff_category_id).first()
         vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-        if not all([department_instance, staff_category_instance, vendor_instance]):
+        if not all((department_instance, staff_category_instance, vendor_instance)):
             raise ValueError
         
         question_instance = Question.objects.create(
@@ -206,18 +199,18 @@ def create_sop_question_by_department(request):
         return Response(status = status.HTTP_201_CREATED)
     
     except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
     
     except IntegrityError as e:
         error_message = str(e)
 
         if 'duplicate key value violates unique constraint' in error_message:
-            return Response("Question number already exists for this department", status=status.HTTP_400_BAD_REQUEST)
+            return Response("Question number already exists for this department", status = status.HTTP_409_CONFLICT)
         
-        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
     
     except Exception as e:
-        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['PUT'])
