@@ -24,17 +24,17 @@ urlpatterns = [
    path('', include(router.urls)),
    path('login/', views.pos_user_login),
    path('permission/', views.get_pos_permissions, name="permission"),
-   path('allCategory/',views.get_categories), # All Category api for POS
-   path('productByCategory/',views.productByCategory), # all Category product api for POS
-   path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
    path('dashboard/', views.dashboard, name="dashboard"),
-   path('dashboard/top_selling_product_details/', views.top_selling_product_details, name="top_selling_product_details"),
    path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
-   path('modifier_update/', views.modifier_update, name="modifier_update"),
+   path('dashboard/top_selling_product_details/', views.top_selling_product_details, name="top_selling_product_details"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
+   path('allCategory/', views.get_categories),
+   path('productByCategory/', views.productByCategory),
+   path('productByCategory/<int:id>/', views.productByCategory),
+   path('productStatusChange/',views.productStatusChange),
+   path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('table/',views.showtabledetails), # show tables details
    path('tableCapacity/',views.show_tableCapacity), # show products 
-   path('productStatusChange/',views.productStatusChange), # activate / deactivate products
    path('createOrder/',views.createOrder), # create new order
    path('platform_list/', views.platform_list, name="platform_list"),
    path('order_details/', views.order_details, name="order_details"),
