@@ -1487,39 +1487,32 @@ def dashboard(request):
 def modifier_update(request):
     try:
         vendor_id = request.GET.get("vendorId")
+        modifier_id = request.data.get('id')
 
-        if not vendor_id:
-            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        if not vendor_id or not modifier_id:
+            return JsonResponse({"message": "Invalid vendor ID or modifier ID"}, status = status.HTTP_400_BAD_REQUEST)
     
         try:
             vendor_id = int(vendor_id)
+            modifier_id = int(modifier_id)
 
         except ValueError:
-            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"message": "Invalid vendor ID or modifier ID"}, status = status.HTTP_400_BAD_REQUEST)
         
-        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
+        modifier_instance = ProductModifier.objects.filter(pk = modifier_id).first()
 
-        if not vendor_instance:
-            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        if not vendor_instance or not modifier_instance:
+            return JsonResponse({"message": "Vendor or Modifier does not exist"}, status = status.HTTP_400_BAD_REQUEST)
 
-        modifier_id = request.data.get('id')
-
-        if not modifier_id:
-            return JsonResponse({"message": "Invalid modifier ID"}, status=status.HTTP_400_BAD_REQUEST)
-
-        modifier_instance = ProductModifier.objects.filter(pk=modifier_id).first()
-
-        if not modifier_instance:
-            return JsonResponse({"message": "Modifier not found"}, status=status.HTTP_400_BAD_REQUEST)
-
-        modifier_instance.active = request.data['active']
+        modifier_instance.active = request.data.get('active')
 
         modifier_instance.save()
 
         return JsonResponse({"message": "Modifier status updated successfully"})
     
     except Exception as e:
-        return JsonResponse({"message": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"message": f"{str(e)}"}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
