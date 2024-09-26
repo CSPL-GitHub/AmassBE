@@ -846,7 +846,7 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
             "name": category_name,
             "name_locale": category_instance.name_locale,
             "is_editable": category_instance.is_editable,
-            "is_active": True,
+            "is_active": category_instance.is_active,
         })
 
     department_wise_categories.append({
