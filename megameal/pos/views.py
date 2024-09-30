@@ -986,124 +986,100 @@ def delete_tax(request):
 
 @api_view(["POST"])
 def pos_user_login(request):
-    with transaction.atomic():
-        try:
-            username = request.data.get("username")
-            password = request.data.get("password")
+    try:
+        username = request.data.get("username")
+        password = request.data.get("password")
 
-            if (not username) or (not password):
-                return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
+        if not username or not password:
+            return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
 
-            user = authenticate(request, username=username, password=password)
-            
-            if not user:
-                return JsonResponse({"message": "Invalid login credentials"}, status = status.HTTP_400_BAD_REQUEST)
-
-            pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
-
-            if pos_user.is_active == False:
-                return JsonResponse({"message": "User not active"}, status = status.HTTP_400_BAD_REQUEST)
-            
-            vendor_id = pos_user.vendor.pk
-
-            vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
-
-            if not vendor_instance:
-                return JsonResponse({"message": "Invalid Vendor for the user or Vendo not active"}, status = status.HTTP_400_BAD_REQUEST)
-
-            platforms = Platform.objects.filter(VendorId = vendor_id)
-
-            woms_platform = platforms.filter(Name="WOMS", isActive=True).first()
-
-            pos_platform = platforms.filter(Name="POS", isActive=True).first()
-
-            if (not pos_platform) or (pos_platform.expiryDate.date() < timezone.now().date()):
-                return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
-
-            user_category = pos_user.core_user_category
-
-            if (not user_category):
-                return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
-                
-            if (user_category.is_active == False) or (not user_category.department) or \
-            (user_category.department.is_active == False):
-                return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
-
-            pos_permission = POSPermission.objects.filter(
-                core_user_category = pos_user.core_user_category.pk, 
-                vendor = vendor_id
-            ).first()
-
-            if not pos_permission:
-                return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
-
-            permission_dictionary = {
-                "show_dashboard": pos_permission.show_dashboard,
-                "show_tables_page": pos_permission.show_tables_page,
-                "show_place_order_page": pos_permission.show_place_order_page,
-                "show_order_history_page": pos_permission.show_order_history_page,
-                "show_product_menu": pos_permission.show_product_menu,
-                "show_store_time_setting": pos_permission.show_store_time_setting,
-                "show_tax_setting": pos_permission.show_tax_setting,
-                "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
-                "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
-                "show_cash_register_setting": pos_permission.show_cash_register_setting,
-                "show_customer_setting": pos_permission.show_customer_setting,
-                "show_printer_setting": pos_permission.show_printer_setting,
-                "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
-                "show_banner_setting": pos_permission.show_banner_setting,
-                "show_excel_file_setting": pos_permission.show_excel_file_setting,
-                "show_employee_setting": pos_permission.show_employee_setting,
-                "show_reports": pos_permission.show_reports,
-                "show_sop": pos_permission.show_sop,
-                "show_language_setting": pos_permission.show_language_setting,
-                "show_franchise_list": pos_permission.show_franchise_list,
-                "core_user_category": pos_permission.core_user_category.pk,
-                "vendor": pos_permission.vendor.pk,
-            }
-
-            related_vendor_list = []
-            
-            if vendor_instance.is_franchise_owner == True:
-                vendors = Vendor.objects.filter(franchise = vendor_id)
-
-                for vendor in vendors:
-                    related_vendor_list.append({
-                        "id": vendor.pk,
-                        "is_active": vendor.is_active,
-                        "franchise_location": vendor.franchise_location,
-                    })
-
-            login(request, user)
-
-            # JWT Authentication
-            # refresh = RefreshToken.for_user(user)
-
-            # access_token = str(refresh.access_token)
-            
-            return JsonResponse({
-                "message": "",
-                # "access_token": access_token,
-                # "refresh_token": str(refresh),
-                "user_id": pos_user.pk,
-                "first_name": pos_user.first_name,
-                "last_name": pos_user.last_name,
-                "pos_platform_id": pos_platform.pk,
-                "woms_platform_id": woms_platform.pk if woms_platform else 0,
-                "primary_language": vendor_instance.primary_language,
-                "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
-                "currency": vendor_instance.currency,
-                "currency_symbol": vendor_instance.currency_symbol,
-                "vendor_id": vendor_id,
-                "is_franchise_owner": vendor_instance.is_franchise_owner,
-                "permissions": permission_dictionary,
-                "related_vendors": related_vendor_list,
-            }, status = status.HTTP_200_OK)
+        user = authenticate(request, username = username, password = password)
         
-        except Exception as e:
-            transaction.set_rollback(True)
+        if not user:
+            return JsonResponse({"message": "Invalid login credentials"}, status = status.HTTP_400_BAD_REQUEST)
 
-            return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if user.is_active == False:
+            return JsonResponse({"message": "User not active"}, status = status.HTTP_400_BAD_REQUEST)
+        
+        pos_user_info = CoreUser.objects.filter(username = username, password = user.password) \
+            .select_related('vendor', 'core_user_category', 'core_user_category__department') \
+            .values(
+                "pk", "first_name", "last_name", "vendor__pk", "core_user_category__pk", "core_user_category__is_active",
+                "core_user_category__department__pk", "core_user_category__department__is_active"
+            ).first()
+        
+        vendor_id = pos_user_info["vendor__pk"]
+
+        vendor_info = Vendor.objects.filter(pk = vendor_id, is_active = True).values(
+            "is_franchise_owner", "primary_language", "secondary_language", "currency", "currency_symbol"
+        ).first()
+
+        if not vendor_info:
+            return JsonResponse({"message": "Invalid Vendor for the user or Vendor not active"}, status = status.HTTP_400_BAD_REQUEST)
+
+        platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id) \
+            .filter(Q(Name = "WOMS") | Q(Name = "POS", expiryDate__date__gt = timezone.now().date())) \
+            .values_list("Name", "pk")
+
+        platforms = dict(platforms)
+
+        pos_platform_id = platforms.get("POS")
+
+        if not pos_platform_id:
+            return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
+
+        if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
+            return JsonResponse({"message": "User role not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
+            
+        if not pos_user_info["core_user_category__department__pk"] or pos_user_info["core_user_category__department__is_active"] == False:
+            return JsonResponse({"message": "User department not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
+
+        pos_permissions = POSPermission.objects.filter(
+            core_user_category = pos_user_info["core_user_category__pk"], 
+            vendor = vendor_id
+        ).values(
+            "show_dashboard", "show_tables_page", "show_place_order_page", "show_order_history_page", "show_product_menu",
+            "show_store_time_setting", "show_tax_setting", "show_delivery_charge_setting", "show_loyalty_points_setting",
+            "show_cash_register_setting", "show_customer_setting", "show_printer_setting", "show_payment_machine_setting",
+            "show_banner_setting", "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting"
+        ).first()
+
+        if not pos_permissions:
+            return JsonResponse({"message": "POS permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+        related_vendor_list = []
+        
+        if vendor_info["is_franchise_owner"] == True:
+            related_vendor_list = list(Vendor.objects.filter(franchise = vendor_id).values("pk", "is_active", "franchise_location"))
+
+        login(request, user)
+
+        # JWT Authentication
+        # refresh = RefreshToken.for_user(user)
+
+        # access_token = str(refresh.access_token)
+        
+        return JsonResponse({
+            "message": "",
+            # "access_token": access_token,
+            # "refresh_token": str(refresh),
+            "user_id": pos_user_info["pk"],
+            "first_name": pos_user_info["first_name"],
+            "last_name": pos_user_info["last_name"],
+            "pos_platform_id": pos_platform_id,
+            "woms_platform_id": platforms.get("WOMS", 0),
+            "primary_language": vendor_info["primary_language"],
+            "secondary_language": vendor_info["secondary_language"] if vendor_info["secondary_language"] else "",
+            "currency": vendor_info["currency"],
+            "currency_symbol": vendor_info["currency_symbol"],
+            "vendor_id": vendor_id,
+            "is_franchise_owner": vendor_info["is_franchise_owner"],
+            "permissions": pos_permissions,
+            "related_vendors": related_vendor_list,
+        }, status = status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
