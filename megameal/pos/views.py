@@ -1018,15 +1018,15 @@ def pos_user_login(request):
             return JsonResponse({"message": "Invalid Vendor for the user or Vendor not active"}, status = status.HTTP_400_BAD_REQUEST)
 
         platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id) \
-            .filter(Q(Name = "WOMS") | Q(Name = "POS", expiryDate__date__gt = timezone.now().date())) \
+            .filter(Q(Name = "WOMS") | Q(Name = "POS", expiryDate__date__gte = timezone.now().date())) \
             .values_list("Name", "pk")
 
         platforms = dict(platforms)
 
-        pos_platform_id = platforms.get("POS")
+        pos_id = platforms.get("POS")
 
-        if not pos_platform_id:
-            return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
+        if not pos_id:
+            return JsonResponse({"message": "Contact your administrator to activate POS"}, status = status.HTTP_400_BAD_REQUEST)
 
         if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
             return JsonResponse({"message": "User role not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
@@ -1066,7 +1066,7 @@ def pos_user_login(request):
             "user_id": pos_user_info["pk"],
             "first_name": pos_user_info["first_name"],
             "last_name": pos_user_info["last_name"],
-            "pos_platform_id": pos_platform_id,
+            "pos_platform_id": pos_id,
             "woms_platform_id": platforms.get("WOMS", 0),
             "primary_language": vendor_info["primary_language"],
             "secondary_language": vendor_info["secondary_language"] if vendor_info["secondary_language"] else "",
@@ -1087,73 +1087,50 @@ def get_pos_permissions(request):
     vendor_id = request.data.get("vendor")
     user_id = request.data.get("user")
 
-    if (not vendor_id) or (not user_id):
-        return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id or not user_id:
+        return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status = status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
+    vendor_instance_id = Vendor.objects.filter(pk = vendor_id, is_active = True).values_list("pk", flat = True).first()
 
-    if not vendor_instance:
-        return JsonResponse({"message": "Vendor not found"}, status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_instance_id:
+        return JsonResponse({"message": "Vendor not found"}, status = status.HTTP_400_BAD_REQUEST)
     
-    platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
+    pos_id = Platform.objects.filter(
+        Name = "POS", isActive = True, expiryDate__date__gte = timezone.now().date(), VendorId = vendor_id
+    ).values_list("pk", flat = True).first()
 
-    if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
-        return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
+    if not pos_id:
+        return JsonResponse({"message": "Contact your administrator to activate POS"}, status = status.HTTP_400_BAD_REQUEST)
 
-    user_instance = CoreUser.objects.filter(pk = user_id, is_active = True) \
-    .select_related("core_user_category__department") \
-    .only("core_user_category__pk", "core_user_category__is_active", "core_user_category__department__is_active") \
-    .first()
+    pos_user_info = CoreUser.objects.filter(pk = user_id, is_active = True) \
+        .select_related('core_user_category', 'core_user_category__department') \
+        .values(
+            "pk", "core_user_category__pk", "core_user_category__is_active",
+            "core_user_category__department__pk", "core_user_category__department__is_active"
+        ).first()
 
-    if not user_instance:
+    if not pos_user_info["pk"]:
         return JsonResponse({"message": "User not found or not active"}, status = status.HTTP_400_BAD_REQUEST)
     
-    user_category = user_instance.core_user_category
-
-    if (not user_category):
-        return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+    if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
+        return JsonResponse({"message": "User role not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
         
-    if (user_category.is_active == False) or (not user_category.department) or \
-    (user_category.department.is_active == False):
-        return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+    if not pos_user_info["core_user_category__department__pk"] or pos_user_info["core_user_category__department__is_active"] == False:
+        return JsonResponse({"message": "User department not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
 
-    pos_permission = POSPermission.objects.filter(
-        core_user_category = user_category.pk, 
-        vendor = vendor_id
+    pos_permissions = POSPermission.objects.filter(
+        core_user_category = pos_user_info["core_user_category__pk"], vendor = vendor_id
+    ).values(
+        "show_dashboard", "show_tables_page", "show_place_order_page", "show_order_history_page", "show_product_menu",
+        "show_store_time_setting", "show_tax_setting", "show_delivery_charge_setting", "show_loyalty_points_setting",
+        "show_cash_register_setting", "show_customer_setting", "show_printer_setting", "show_payment_machine_setting",
+        "show_banner_setting", "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting"
     ).first()
 
-    if not pos_permission:
-        return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
-
-    permission_dictionary = {
-        "show_dashboard": pos_permission.show_dashboard,
-        "show_tables_page": pos_permission.show_tables_page,
-        "show_place_order_page": pos_permission.show_place_order_page,
-        "show_order_history_page": pos_permission.show_order_history_page,
-        "show_product_menu": pos_permission.show_product_menu,
-        "show_store_time_setting": pos_permission.show_store_time_setting,
-        "show_tax_setting": pos_permission.show_tax_setting,
-        "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
-        "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
-        "show_cash_register_setting": pos_permission.show_cash_register_setting,
-        "show_customer_setting": pos_permission.show_customer_setting,
-        "show_printer_setting": pos_permission.show_printer_setting,
-        "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
-        "show_banner_setting": pos_permission.show_banner_setting,
-        "show_excel_file_setting": pos_permission.show_excel_file_setting,
-        "show_employee_setting": pos_permission.show_employee_setting,
-        "show_reports": pos_permission.show_reports,
-        "show_sop": pos_permission.show_sop,
-        "show_language_setting": pos_permission.show_language_setting,
-        "show_franchise_list": pos_permission.show_franchise_list,
-        "core_user_category": pos_permission.core_user_category.pk,
-        "vendor": pos_permission.vendor.pk,
-    }
+    if not pos_permissions:
+        return JsonResponse({"message": "POS permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
     
-    return JsonResponse({
-        "message": "",
-        "permissions": permission_dictionary,
-    }, status = status.HTTP_200_OK)
+    return JsonResponse({"message": "", "permissions": pos_permissions}, status = status.HTTP_200_OK)
 
 
 @api_view(['GET'])
