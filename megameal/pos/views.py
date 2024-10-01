@@ -1152,9 +1152,9 @@ def dashboard(request):
         except:
             return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
+        vendor_info = Vendor.objects.filter(pk = vendor_id).values("pk", "is_franchise_owner").first()
 
-        if not vendor_instance:
+        if not vendor_info["pk"]:
             return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
         
         if start_date > end_date:
@@ -1163,9 +1163,9 @@ def dashboard(request):
         start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
         end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
-        vendor_ids = {vendor_id}
+        vendor_ids = {vendor_id,}
         
-        if get_all_vendor_data == True and vendor_instance.is_franchise_owner == True:
+        if get_all_vendor_data == True and vendor_info["is_franchise_owner"] == True:
             vendor_ids = vendor_ids.add(set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True)))
 
         vendor_ids = tuple(vendor_ids)
@@ -1305,15 +1305,18 @@ def dashboard(request):
         list_of_items = []
 
         for item in top_selling_items:
-            product = Product.objects.filter(PLU = item['SKU'], vendorId = vendor_id).first()
+            product_info = Product.objects.filter(PLU = item['SKU'], vendorId = vendor_id).values(
+                "pk", "productName", "productName_locale", "productPrice"
+            ).first()
 
-            image_url = ProductImage.objects.filter(product = product.pk, vendorId = vendor_id).values_list('url', flat=True).first()
+            image_url = ProductImage.objects.filter(product = product_info["pk"], vendorId = vendor_id) \
+                .values_list('url', flat = True).first()
             
-            item['id'] = product.pk
-            item['product_name'] = product.productName_locale if language != "English" else product.productName
+            item['id'] = product_info["pk"]
+            item['product_name'] = product_info["productName_locale"] if language != "English" else product_info["productName"]
             item['image'] = image_url or 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
-            item['price'] = product.productPrice
-            item['sale'] = item['quantity_sold'] * product.productPrice
+            item['price'] = product_info["productPrice"]
+            item['sale'] = item['quantity_sold'] * product_info["productPrice"]
 
             list_of_items.append(item)
 
