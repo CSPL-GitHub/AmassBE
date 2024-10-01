@@ -7,7 +7,7 @@ from core.models import (
 )
 from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory, SplitOrderItem
 from pos.models import Department, CoreUserCategory
-from koms.models import Station
+from koms.models import Order_modifer, Station
 from koms.views import getOrder
 from pos.language import language_localization, order_type_number, master_order_status_number, payment_type_english
 from django.conf import settings
@@ -942,9 +942,26 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
                     "platform": split_payment.platform,
                     "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
                     "splitType": order_payment_instance.splitType,
-                    "splitItems":[
-                        {"order_content_id": split_item.order_content_id.pk} for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk)
-                    ]                })
+                    "splitItems": [
+                            {
+                                "order_content_id": split_item.order_content_id.pk,
+                                "order_content_name": split_item.order_content_id.name,
+                                "order_content_quantity": split_item.order_content_id.quantity,
+                                "order_content_price": 1,
+                                "order_content_modifer": [
+                                    {
+                                        "modifer_id":mod.pk,
+                                        "modifer_name":mod.name,
+                                        "modifer_quantity":mod.quantity,
+                                        "modifer_price":0,
+                                    }
+                                    for mod in Order_modifer.objects.filter(contentID=split_item.order_content_id.pk)
+                                ],
+                            }
+                            for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk)
+                        ],
+                    }
+                )
 
         payment_details["split_payments"] = split_payments_list
 
