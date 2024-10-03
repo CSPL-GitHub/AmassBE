@@ -1,5 +1,5 @@
 from django.contrib import admin
-from koms.models import Order, Staff, Station
+from koms.models import Order, Order_content, Staff, Station
 
 
 
@@ -10,6 +10,12 @@ class OrderAdmin(admin.ModelAdmin):
     search_fields = ('order_status', 'vendorId__Name')
     # show_facets = admin.ShowFacets.ALWAYS
 
+
+@admin.register(Order_content)
+class Order_contentAdmin(admin.ModelAdmin):
+    list_display = ('pk', 'orderId', 'name')
+    list_filter = ('orderId',)
+    search_fields = ('name', 'orderId__pk')
 
 @admin.register(Staff)
 class StaffAdmin(admin.ModelAdmin):
