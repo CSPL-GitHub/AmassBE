@@ -1087,7 +1087,14 @@ def get_pos_permissions(request):
     vendor_id = request.data.get("vendor")
     user_id = request.data.get("user")
 
-    if not vendor_id or not user_id:
+    try:
+        vendor_id = int(vendor_id)
+        user_id = int(user_id)
+
+        if vendor_id <= 0 or user_id <= 0:
+            return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status = status.HTTP_400_BAD_REQUEST)
+    
+    except:
         return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status = status.HTTP_400_BAD_REQUEST)
 
     vendor_instance_id = Vendor.objects.filter(pk = vendor_id, is_active = True).values_list("pk", flat = True).first()
@@ -1109,7 +1116,7 @@ def get_pos_permissions(request):
             "core_user_category__department__pk", "core_user_category__department__is_active"
         ).first()
 
-    if not pos_user_info["pk"]:
+    if not pos_user_info:
         return JsonResponse({"message": "User not found or not active"}, status = status.HTTP_400_BAD_REQUEST)
     
     if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
@@ -1143,25 +1150,22 @@ def dashboard(request):
         end_date = request.GET.get("end_date")
         get_all_vendor_data = request.GET.get("get_all_vendor_data")
 
-        if not all((vendor_id, language, start_date, end_date)):
-            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
-        
         try:
             vendor_id = int(vendor_id)
 
+            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+            if vendor_id <= 0 or not language or start_date > end_date:
+                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+
         except:
-            return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
         
         vendor_info = Vendor.objects.filter(pk = vendor_id).values("pk", "is_franchise_owner").first()
 
-        if not vendor_info["pk"]:
+        if not vendor_info:
             return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
-        
-        if start_date > end_date:
-            return Response("Invalid start date", status = status.HTTP_400_BAD_REQUEST)
-
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
         vendor_ids = {vendor_id,}
         
@@ -1348,127 +1352,58 @@ def dashboard(request):
 @api_view(["POST"])
 def order_status_type_summary(request):
     try:
-        required_fields = {"vendor_id", "order_type_code", "start_date", "end_date", "page_number", "page_limit"}
-        
-        missing_fields = required_fields - set(request.data.keys())
-
-        if missing_fields:
-            return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
         try:
             vendor_id = int(request.data.get('vendor_id'))
             order_type_code = int(request.data.get('order_type_code'))
             page_number = int(request.data.get('page_number'))
             page_limit = int(request.data.get('page_limit'))
 
-            if any(value < 0 for value in (vendor_id, page_number, page_limit)):
-                raise ValueError
-            
             start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
             end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
 
-        except Exception:
-            return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
-        
-        if start_date > end_date:
-            return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+            if vendor_id <= 0 or order_type_code < 0 or page_number <= 0 or page_limit <= 0 or start_date > end_date:
+                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+            
+        except:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        if not Vendor.objects.filter(pk = vendor_id).exists():
+            return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
 
-        if not vendor_instance:
-            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-
-        orders = KOMSOrder.objects.filter(
-            master_order__OrderDate__date__range = (start_date, end_date),
-            master_order__vendorId = vendor_id,
-            vendorId = vendor_id
-        )
+        order_filters = {
+            "master_order__OrderDate__date__range": (start_date, end_date),
+            "master_order__vendorId": vendor_id,
+            "vendorId": vendor_id
+        }
         
         if order_type_code != 0:
-            orders = orders.filter(order_type = order_type_code)
-        
-        if not orders.exists():
-            return JsonResponse({
-                "page_number": 1,
-                "total_pages": 1,
-                "orders": [],
-            })
-        
-        orders = orders.order_by("arrival_time")
+            order_filters["order_type"] = order_type_code
+
+        order_status_aggregation = {
+            'total_orders': Count('id'),
+            'onhold_orders': Count('id', filter = Q(order_status = 4)),
+            'closed_orders': Count('id', filter = Q(
+                order_status = 10,
+                master_order__Status = master_order_status_number["Completed"],
+                master_order__orderpayment__status = True
+            )),
+            'cancelled_orders': Count('id', filter = Q(
+                order_status = 5,
+                master_order__Status = master_order_status_number["Canceled"]
+            ))
+        }
         
         order_list = []
         
+        trunc_function = TruncDate
+
         if start_date == end_date:
-            current_start_date = current_end_date = datetime.now().date()
+            trunc_function = TruncHour
             
-            if (start_date == current_start_date) and (end_date == current_end_date):
-                end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
+            order_filters["arrival_time__date__range"] = (start_date, end_date)
 
-            else:
-                end_datetime = datetime.combine(end_date, time(0, 0, 0)) + timedelta(days=1)
-
-            current_time = datetime.combine(start_date, time(0, 0, 0))
-
-            while current_time < end_datetime:
-                next_time = current_time + timedelta(hours=1)
-
-                filtered_orders = orders.filter(arrival_time__range = (current_time, next_time))
-
-                total_orders_count = filtered_orders.count()
-                
-                if total_orders_count != 0:
-                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
-
-                    closed_orders_count = filtered_orders.filter(
-                        order_status = 10,
-                        master_order__Status = master_order_status_number["Completed"],
-                        master_order__orderpayment__status = True
-                    ).count()
-
-                    cancelled_orders_count = filtered_orders.filter(
-                        order_status = 5,
-                        master_order__Status = master_order_status_number["Canceled"],
-                    ).count()
-
-                    order_list.append({
-                        "order_date": current_time.astimezone(local_timezone).strftime("%Y-%m-%d %H:%M"),
-                        "total_orders": total_orders_count,
-                        "closed_orders": closed_orders_count,
-                        "onhold_orders": onhold_orders_count,
-                        "cancelled_orders": cancelled_orders_count,
-                    })
-
-                current_time = next_time
-        
-        else:
-            unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)))
-
-            for unique_date in unique_order_dates:
-                filtered_orders = orders.filter(arrival_time__date = unique_date)
-
-                total_orders_count = filtered_orders.count()
-                
-                if total_orders_count != 0:
-                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
-
-                    closed_orders_count = filtered_orders.filter(
-                        order_status = 10,
-                        master_order__Status = master_order_status_number["Completed"],
-                        master_order__orderpayment__status = True
-                    ).count()
-
-                    cancelled_orders_count = filtered_orders.filter(
-                        order_status = 5,
-                        master_order__Status = master_order_status_number["Canceled"],
-                    ).count()
-
-                    order_list.append({
-                        "order_date": unique_date,
-                        "total_orders": total_orders_count,
-                        "closed_orders": closed_orders_count,
-                        "onhold_orders": onhold_orders_count,
-                        "cancelled_orders": cancelled_orders_count,
-                    })
+        order_list = KOMSOrder.objects.filter(**order_filters).annotate(order_date = trunc_function('arrival_time')) \
+            .values('order_date').annotate(**order_status_aggregation).order_by('order_date')
 
         paginated_data = []
         
@@ -1476,8 +1411,14 @@ def order_status_type_summary(request):
         page = paginator.get_page(page_number) 
 
         for order in page:
+            if start_date == end_date:
+                order_date = order['order_date'].astimezone(local_timezone).strftime("%Y-%m-%d %H:%M")
+            
+            else:
+                order_date = datetime.combine(order['order_date'], datetime.min.time()).astimezone(local_timezone).strftime("%Y-%m-%d 00:00")
+
             paginated_data.append({
-                "order_date": order['order_date'],
+                "order_date": order_date,
                 "total_orders": order['total_orders'],
                 "closed_orders": order['closed_orders'],
                 "onhold_orders": order['onhold_orders'],
@@ -1491,7 +1432,7 @@ def order_status_type_summary(request):
         })
     
     except Exception as e:
-        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
