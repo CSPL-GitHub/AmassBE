@@ -1763,7 +1763,7 @@ def get_categories(request):
 
         category_list = []
 
-        categories = ProductCategoryJoint.objects.filter(vendorId = vendor_id).values(
+        categories = ProductCategoryJoint.objects.filter(vendorId = vendor_id).select_related("category").values(
             'category__id',
             'category__categoryName',
             'category__categoryName_locale',
