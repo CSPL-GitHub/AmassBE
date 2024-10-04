@@ -1516,51 +1516,61 @@ def top_selling_product_details(request):
 @api_view(["POST"])
 def excel_download_for_dashboard(request):
     try:
-        json_data = json.loads(request.body)
+        try:
+            vendor_id = int(request.data.get("vendor_id"))
+            start_date = datetime.strptime(request.data.get("start_date"), '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.data.get("end_date"), '%Y-%m-%d').date()
+            platform_id = request.data.get("platform_id", "All")
+            order_type = request.data.get("order_type", "All")
+            order_status = request.data.get("order_status", "All")
+            language = request.data.get("language", "English")
 
-        vendor_id = json_data.get("vendor_id")
-        start_date = json_data.get("start_date")
-        end_date = json_data.get("end_date")
-        platform_id = json_data.get("platform_id", "All")
-        order_type = json_data.get("order_type", "All")
-        order_status = json_data.get("order_status", "All")
-        language = json_data.get("language", "English")
+            if vendor_id <= 0 or start_date > end_date or not language:
+                return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
+            
+            koms_order_filters = {"arrival_time__range": (start_date, end_date), "vendorId": vendor_id}
+            
+            platform_parameter = "All" if language == "English" else language_localization["All"]
 
-        if (vendor_id == None) or (vendor_id == ""):
-            return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if (start_date == None) or (start_date == ""):
-            return JsonResponse({"error": "Start date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if (end_date == None) or (end_date == ""):
-            return JsonResponse({"error": "End date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        if platform_id == "":
-            platform_id = "All"
+            if platform_id != "All":
+                platform_id = int(platform_id)
 
-        if order_type == "":
-            order_type = "All"
+                if platform_id <= 0:
+                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
 
-        if order_status == "":
-            order_status = "All"
+                platform_info = Platform.objects.filter(pk = platform_id, VendorId = vendor_id).values("Name", "Name_locale").first()
+            
+                if not platform_info:
+                    return JsonResponse({"error": "Platform does not exist"}, status = status.HTTP_400_BAD_REQUEST)
 
-        if language == "":
-            language = "English"
+                koms_order_filters["master_order__platform"] = platform_id
 
-        if platform_id != "All":
-            platform_id = int(platform_id)
+                platform_parameter = platform_info["Name"] if language == "English" else platform_info["Name_locale"]
 
-        if order_type != "All":
-            order_type = int(order_type)
+            if order_type != "All":
+                order_type = int(order_type)
 
-        if order_status != "All":
-            order_status = int(order_status)
+                if order_type <= 0:
+                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
+
+                koms_order_filters["order_type"] = order_type
+
+            if order_status != "All":
+                order_status = int(order_status)
+
+                if order_status <= 0:
+                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
+
+                koms_order_filters["order_status"] = order_status
+            
+        except:
+            return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
         
         if check_key_exists("order_type", order_type) == False:
-            return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": "Order Type does not exist"}, status = status.HTTP_400_BAD_REQUEST)
         
         if check_key_exists("koms_order_status", order_status) == False:
-            return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"error": "Order Status does not exist"}, status = status.HTTP_400_BAD_REQUEST)
         
         order_type_parameter = order_type_english[order_type]
         order_status_parameter = koms_order_status_english[order_status]
@@ -1569,140 +1579,74 @@ def excel_download_for_dashboard(request):
             order_type_parameter = language_localization[order_type_english[order_type]]
             order_status_parameter = language_localization[koms_order_status_english[order_status]]
 
-        if platform_id == "All":
-            platform_parameter = "All"
-
-            if language != "English":
-                platform_parameter = language_localization["All"]
-            
-        else:
-            platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
-            
-            if platform_parameter:
-                platform_parameter = platform_instance.Name
-
-                if language != "English":
-                    platform_parameter = platform_instance.Name_locale
-
-            else:
-                return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-        
-        start_date_parameter = datetime.strptime(str(start_date), '%Y-%m-%d').date()
-        end_date_parameter = datetime.strptime(str(end_date), '%Y-%m-%d').date()
-
-        start_date_parameter = start_date_parameter.strftime('%d-%m-%Y')
-        end_date_parameter = end_date_parameter.strftime('%d-%m-%Y')
-        
-        vendor_id = int(vendor_id)
+        start_date_parameter = start_date.strftime('%d-%m-%Y')
+        end_date_parameter = end_date.strftime('%d-%m-%Y')
 
         start_date = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
         end_date = datetime.strptime(str(end_date) + " 23:59:59.000000", '%Y-%m-%d %H:%M:%S.%f')
         
         order_details = {}
 
-        koms_order_data = KOMSOrder.objects.filter(arrival_time__range=(start_date, end_date), vendorId=vendor_id)
+        order_ids = tuple(KOMSOrder.objects.filter(**koms_order_filters).values_list('pk', flat=True))
 
-        if (platform_id == "All") or (platform_id == ""):
-            pass
-
-        else:
-            platform_info = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
-
-            if platform_info:
-                koms_order_data = koms_order_data.filter(master_order__platform=platform_id)
-            
-            else:
-                return JsonResponse({"error": "Platform not found"}, status=status.HTTP_400_BAD_REQUEST)
-            
-        if (order_type == "All") or (order_type == ""):
-            pass
-        
-        else:
-            koms_order_data = koms_order_data.filter(order_type=order_type)
-
-        if (order_status == "All") or (order_status == ""):
-            pass
-        
-        else:
-            koms_order_data = koms_order_data.filter(order_status=order_status)
-
-        order_ids = list(koms_order_data.values_list('pk', flat=True))
-
-        order_content = Order_content.objects.filter(orderId__in = order_ids)
+        order_content = Order_content.objects.filter(orderId__in = order_ids).select_related("orderId", "orderId__master_order") \
+            .values("orderId__master_order__pk", "orderId__order_status")
 
         for content in order_content:
-            order_id = content.orderId.master_order.pk
-            koms_order_status = content.orderId.order_status
+            order_id = content["orderId__master_order__pk"]
+            koms_order_status = content["orderId__order_status"]
             
-            order_detail = Order.objects.filter(pk=order_id).first()
-            
-            payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
+            order_detail = Order.objects.filter(pk = order_id).select_related("platform").values(
+                "pk", "arrivalTime", "orderType", "platform__Name", "platform__Name_locale"
+            ).first()
 
-            if order_detail:
-                order_time = order_detail.arrivalTime.astimezone(local_timezone).replace(tzinfo=None)
-
-                order_type = order_type_english[order_detail.orderType]
-                order_status = koms_order_status_english[koms_order_status]
-        
-                if language != "English":
-                    order_type = language_localization[order_type_english[order_detail.orderType]]
-                    order_status = language_localization[koms_order_status_english[koms_order_status]]
-                
-                if payment_detail:
-                    if payment_detail.status == True:
-                        payment_status = payment_status_english["True"]
-        
-                        if language != "English":
-                            payment_status = language_localization[payment_status_english["True"]]
-                    
-                    else:
-                        payment_status = payment_status_english["False"]
-        
-                        if language != "English":
-                            payment_status = language_localization[payment_status_english["False"]]
-                    
-                    amount_paid = payment_detail.paid
-                    transaction_id = payment_detail.paymentKey
-
-                    payment_type = payment_type_english[payment_detail.type]
-        
-                    if language != "English":
-                        payment_type = language_localization[payment_type_english[payment_detail.type]]
-                    
-                else:
-                    transaction_id = ""
-                    payment_type = ""
-
-                    payment_status = payment_status_english["Unknown"]
-        
-                    if language != "English":
-                        payment_status = language_localization[payment_status_english["Unknown"]]
-                    
-                platform_name = ""
-
-                if language == "English":
-                    platform_name = order_detail.platform.Name
-
-                else:
-                    platform_name = order_detail.platform.Name_locale
-
-                order_details[order_id] = {
-                    "order_id": order_id,
-                    "platform_name": platform_name,
-                    "amount_paid": amount_paid,
-                    "order_type": order_type,
-                    "order_status": order_status,
-                    "order_time": order_time,
-                    "payment_type": payment_type,
-                    "payment_status": payment_status,
-                    "transaction_id": transaction_id,
-                }
-                
-            else:
+            if not order_detail:
                 return JsonResponse(
                     {"error": f"Order details not found for order ID {order_id}"},
                     status = status.HTTP_500_INTERNAL_SERVER_ERROR
                 )
+            
+            order_time = order_detail["arrivalTime"].astimezone(local_timezone).replace(tzinfo = None)
+
+            order_type = order_type_english[order_detail["orderType"]]
+            order_status = koms_order_status_english[koms_order_status]
+    
+            if language != "English":
+                order_type = language_localization[order_type_english[order_detail["orderType"]]]
+                order_status = language_localization[koms_order_status_english[koms_order_status]]
+            
+            payment_detail = OrderPayment.objects.filter(orderId = order_detail["pk"]).last()
+
+            if not payment_detail:
+                transaction_id = ""
+                payment_type = ""
+
+                payment_status = payment_status_english["Unknown"] if language == "English" else language_localization[payment_status_english["Unknown"]]
+
+            if payment_detail.status == True:
+                payment_status = payment_status_english["True"] if language == "English" else language_localization[payment_status_english["True"]]
+            
+            else:
+                payment_status = payment_status_english["False"] if language == "English" else language_localization[payment_status_english["False"]]
+            
+            amount_paid = payment_detail.paid
+            transaction_id = payment_detail.paymentKey
+
+            payment_type = payment_type_english[payment_detail.type] if language == "English" else language_localization[payment_type_english[payment_detail.type]]
+                
+            platform_name = order_detail["platform__Name"] if language == "English" else order_detail["platform__Name_locale"]
+
+            order_details[order_id] = {
+                "order_id": order_id,
+                "platform_name": platform_name,
+                "amount_paid": amount_paid,
+                "order_type": order_type,
+                "order_status": order_status,
+                "order_time": order_time,
+                "payment_type": payment_type,
+                "payment_status": payment_status,
+                "transaction_id": transaction_id,
+            }
 
         new_order_details = OrderedDict()
         sorted_items = []
@@ -1726,7 +1670,8 @@ def excel_download_for_dashboard(request):
             OrderDate__date__range = (start_date, end_date),
             orderpayment__status = True,
             vendorId = vendor_id
-        ).exclude(Status = master_order_status_number["Canceled"]).aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+        ).exclude(Status = master_order_status_number["Canceled"]) \
+        .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
 
         subtotal_sum = subtotal_sum or 0.0
         discount_sum = discount_sum or 0.0
@@ -1786,7 +1731,7 @@ def excel_download_for_dashboard(request):
             sheet.append([f'{language_localization["Total orders"]} = {order_count}', '', f'{language_localization["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
         
         directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
-        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
+        os.makedirs(directory, exist_ok = True) # Create the directory if it doesn't exist inside MEDIA_ROOT
 
         file_name = f"Order_data_Vendor{vendor_id}.xlsx"
 
@@ -1800,11 +1745,11 @@ def excel_download_for_dashboard(request):
         
         response = "/media/" + relative_file_path
         
-        return HttpResponse(response, status=status.HTTP_200_OK)
+        return HttpResponse(response, status = status.HTTP_200_OK)
     
     except Exception as e:
         print(e)
-        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"error": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
