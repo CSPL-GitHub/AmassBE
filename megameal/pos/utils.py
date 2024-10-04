@@ -945,7 +945,7 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
                         {
                             "order_content_id": split_item.order_content_id.pk,
                             "order_content_name": split_item.order_content_id.name,
-                            "order_content_quantity": split_item.order_content_id.quantity,
+                            "order_content_quantity": split_item.order_content_qty,
                             "order_content_price": product_instance.productPrice or 1,
                             "order_content_images": images[0] if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
                             "order_content_modifer": order_content_modifer,

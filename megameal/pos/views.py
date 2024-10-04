@@ -9196,9 +9196,11 @@ def splitOrderPayment(request):
         payment_type = payment_type.capitalize()
         if data.get('splitBy', None) == "by_product":
             for item in splitPayment.get("splitItems",[]):
+                order_content = Order_content.objects.get(pk=item['order_content_id'])
                 SplitOrderItem(
                     order_id = split_order,
-                    order_content_id = Order_content.objects.get(pk=item['order_content_id'])
+                    order_content_id = order_content,
+                    order_content_qty = item.get('order_content_qty') or order_content.quantity
                 ).save()
         OrderPayment(
             orderId = split_order,

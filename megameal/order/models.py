@@ -257,6 +257,7 @@ class LoyaltyPointsRedeemHistory(models.Model):
 class SplitOrderItem(models.Model):
     order_id = models.ForeignKey("order.Order", on_delete=models.CASCADE)
     order_content_id = models.ForeignKey("koms.Order_content", on_delete=models.CASCADE)
+    order_content_qty = models.FloatField(default=0)
     def __str__(self):
         return f"({self.order_id.pk}) ({ self.order_content_id.pk})"
     class Meta:
