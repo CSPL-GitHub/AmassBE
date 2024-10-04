@@ -1437,117 +1437,80 @@ def order_status_type_summary(request):
 
 @api_view(["POST"])
 def top_selling_product_details(request):
-    required_fields = {"vendor_id", "start_date", "end_date", "product_id", "page_number", "page_limit"}
-    
-    missing_fields = required_fields - set(request.data.keys())
-
-    if missing_fields:
-        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
-
-    vendor_id = request.data.get('vendor_id')
-    start_date = request.data.get('start_date')
-    end_date = request.data.get('end_date')
-    product_id = request.data.get('product_id')
-    page_number = request.data.get('page_number')
-    page_limit = request.data.get('page_limit')
-
-    if not (vendor_id and product_id):
-        return Response("Invalid vendor ID or product ID", status=status.HTTP_400_BAD_REQUEST)
-    
-    if (not (start_date and end_date)) or (start_date > end_date):
-        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
-    
-    if (not (page_limit and page_number)) or (page_number < 0):
-        return Response("Invalid page_limit or page_number parameter", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
-        product_id = int(product_id)
-        page_limit = int(page_limit)
-        page_number = int(page_number)
+        try:
+            vendor_id = int(request.data.get('vendor_id'))
+            product_id = int(request.data.get('product_id'))
+            start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
+            end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
+            page_number = int(request.data.get('page_number'))
+            page_limit = int(request.data.get('page_limit'))
 
-        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+            if vendor_id <= 0 or product_id <=0 or page_limit <= 0 or page_number <= 0 or start_date > end_date:
+                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    except ValueError:
-        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        except:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+        if not Vendor.objects.filter(pk = vendor_id).exists():
+            return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
 
-    product_instance = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+        product_info = Product.objects.filter(pk = product_id, vendorId = vendor_id).values("PLU", "productPrice").first()
 
-    if not (vendor_instance and product_instance):
-        return Response("Vendor or Product does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    paginated_data = []
-    
-    orders = Order_content.objects.filter(
-        SKU = product_instance.PLU,
-        orderId__order_status = 10,
-        orderId__master_order__Status = master_order_status_number["Completed"],
-        orderId__master_order__orderpayment__status = True,
-        orderId__master_order__OrderDate__date__range = (start_date, end_date),
-        orderId__master_order__vendorId = vendor_id,
-        orderId__vendorId = vendor_id
-    ).order_by("-orderId__master_order__OrderDate__date")
-    
-    if not orders.exists():
-        return JsonResponse({
-            "page_number": 1,
-            "total_pages": 1,
-            "orders": paginated_data
-        })
-    
-    order_summary = []
-
-    product_price = product_instance.productPrice
-
-    if start_date != end_date:
-        orders = orders.annotate(order_date=TruncDate('orderId__master_order__OrderDate'))\
-            .values('order_date').annotate(total_quantity=Sum('quantity')).order_by('order_date')
-
-        for summary in orders:
-            order_date = summary['order_date']
-            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
-            total_sale = quantity_sold * product_price
-
-            order_summary.append({
-                "order_date": order_date.strftime("%Y-%m-%d"),
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
-
-    else:
-        orders = orders.annotate(
-            order_hour = TruncHour('orderId__master_order__OrderDate')) \
-                .values('order_hour').annotate(total_quantity=Sum('quantity')).order_by('order_hour')
-
-        for summary in orders:
-            order_hour = summary['order_hour']
-            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
-            total_sale = quantity_sold * product_price
-
-            order_summary.append({
-                "order_date": order_hour.strftime("%Y-%m-%d %H:00"),
-                "quantity_sold": quantity_sold,
-                "total_sale": total_sale
-            })
+        if not product_info:
+            return Response("Product not found", status = status.HTTP_400_BAD_REQUEST)
         
-    paginator = Paginator(order_summary, page_limit)
-    page = paginator.get_page(page_number) 
-    
-    for order in page:
-        paginated_data.append({
-            "order_date": order['order_date'],
-            "quantity_sold": order['quantity_sold'],
-            "total_sale": order['total_sale']
-        })
+        orders = Order_content.objects.filter(
+            SKU = product_info["PLU"],
+            orderId__order_status = 10,
+            orderId__master_order__Status = master_order_status_number["Completed"],
+            orderId__master_order__orderpayment__status = True,
+            orderId__master_order__OrderDate__date__range = (start_date, end_date),
+            orderId__master_order__vendorId = vendor_id,
+            orderId__vendorId = vendor_id
+        ).order_by("-orderId__master_order__OrderDate__date")
+        
+        if not orders.exists():
+            return JsonResponse({"page_number": 1, "total_pages": 1, "orders": []})
+        
+        trunc_func = TruncDate
 
-    return JsonResponse({
-        "page_number": page.number,
-        "total_pages": paginator.num_pages,
-        "orders": paginated_data
-    })
+        datetime_format = "%Y-%m-%d"
+
+        if start_date == end_date:
+            trunc_func = TruncHour
+
+            datetime_format = "%Y-%m-%d %H:00"
+        
+        orders = orders.annotate(order_date = trunc_func('orderId__master_order__OrderDate')).values('order_date') \
+            .annotate(quantity_sold = Sum('quantity'), total_sale = Sum(F('quantity') * product_info["productPrice"])) \
+            .order_by('order_date')
+        
+        order_summary = []
+
+        for summary in orders:
+            order_summary.append({
+                "order_date": summary['order_date'].strftime(datetime_format),
+                "quantity_sold": summary['quantity_sold'],
+                "total_sale": summary['total_sale']
+            })
+            
+        paginated_data = []
+
+        paginator = Paginator(order_summary, page_limit)
+        page = paginator.get_page(page_number) 
+        
+        for order in page:
+            paginated_data.append({
+                "order_date": order['order_date'],
+                "quantity_sold": order['quantity_sold'],
+                "total_sale": order['total_sale']
+            })
+
+        return JsonResponse({"page_number": page.number, "total_pages": paginator.num_pages, "orders": paginated_data})
+    
+    except Exception as e:
+        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
