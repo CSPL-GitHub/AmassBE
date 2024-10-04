@@ -937,6 +937,7 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
                             "modifer_name":mod.name,
                             "modifer_quantity":mod.quantity,
                             "modifer_price":modifier_instance.modifierPrice or 0,
+                            "order_content_id": split_item.order_content_id.pk,
                         })
                         
                     product_instance = Product.objects.filter(PLU = split_item.order_content_id.SKU, vendorId_id = vendor_id).first()

@@ -1,0 +1,132 @@
+{
+    "FirstName": "onkar",
+    "LastName": "warje",
+    "Email": "",
+    "Phone_Number": "7411477414",
+    "address_line_1": "wanwadi",
+    "address_line_2": "",
+    "city": "pune",
+    "state": "maharashtra",
+    "country": "India",
+    "zipcode": "411007",
+    "finalTotal": 8.26,
+    "orderId": "",
+    "tax": 1.26,
+    "tip": 0.0,
+    "subtotal": 7.0,
+    "discount": 0.0,
+    "paymentId": "",
+    "type": "PICKUP",
+    "customerNote": "",
+    "staging_orderId": 1274,
+    "core_orderId": 1544,
+    "delivery_charge": 0.0,
+    "tables": [],
+    "products": [
+        {
+            "categoryId": 20,
+            "categoryName": "Burgers",
+            "prdouctId": 113,
+            "text": "Hashbrown with Whole Wheat Bun",
+            "imagePath": "https://items-images-production.s3.us-west-2.amazonaws.com/files/13b19ad2859c42e309006b0bc7b0c49e1e03181f/original.png",
+            "images": [
+                "https://items-images-production.s3.us-west-2.amazonaws.com/files/13b19ad2859c42e309006b0bc7b0c49e1e03181f/original.png"
+            ],
+            "quantity": 1,
+            "cost": 6.5,
+            "totalSale": 0,
+            "totalSaleCount": 0,
+            "totalSaleQty": 0,
+            "active": true,
+            "description": "Introducing our delicious Hashbrown with Whole Wheat Bun – a wholesome and satisfying breakfast option that brings together the goodness of crispy hashbrowns and the wholesome taste of whole wheat.",
+            "allowCustomerNotes": true,
+            "plu": "ULIIMJW2EQXEWS3KVZXWF7XO",
+            "note": "",
+            "isTaxable": true,
+            "type": "Regular",
+            "sortOrder": 1,
+            "totalMrp": 7.0,
+            "order_content_id": null,
+            "status": 1,
+            "variant": [],
+            "modifiersGroup": [
+                {
+                    "name": "Sauce",
+                    "plu": "2OVN2PCQHGUHOJFXV2EEHIPX",
+                    "min": 1,
+                    "max": 2,
+                    "id": 13,
+                    "active": true,
+                    "lengthCount": 4,
+                    "activeCount": 0,
+                    "count": 1,
+                    "sortOrder": 3,
+                    "total": 0.5,
+                    "type": "MULTIPLE",
+                    "modifiers": [
+                        {
+                            "cost": 0.5,
+                            "modifierId": 41,
+                            "name": "Mayonnaise",
+                            "description": "",
+                            "quantity": 0,
+                            "plu": "YNHFTCRCIR7VVI2SW3ODNMTS",
+                            "status": false,
+                            "active": true,
+                            "image": "https://items-images-production.s3.us-west-2.amazonaws.com/files/f6d30d10ac97726316e0a2d9bf6cd3c5cf1638b4/original.png",
+                            "order_modifier_id": null
+                        },
+                        {
+                            "cost": 0.5,
+                            "modifierId": 42,
+                            "name": "Salted Whipped Butter",
+                            "description": "",
+                            "quantity": 0,
+                            "plu": "ASHYXQZLFQ22GFMJ6AGIJ4AK",
+                            "status": false,
+                            "active": true,
+                            "image": "https://items-images-production.s3.us-west-2.amazonaws.com/files/bec9eb8510285264669e53baea13b8eacc06853d/original.png",
+                            "order_modifier_id": null
+                        },
+                        {
+                            "cost": 0.5,
+                            "modifierId": 43,
+                            "name": "Cheddar Cheese Sauce",
+                            "description": "",
+                            "quantity": 1,
+                            "plu": "FATAOCSLN6WE6MIHUT2MGLM5",
+                            "status": true,
+                            "active": true,
+                            "image": "https://items-images-production.s3.us-west-2.amazonaws.com/files/7b29ef6758cfdaa2ec3fb2058592b5526c7fee74/original.png",
+                            "order_modifier_id": null
+                        },
+                        {
+                            "cost": 1.0,
+                            "modifierId": 35,
+                            "name": "Extra Cheese",
+                            "description": "",
+                            "quantity": 0,
+                            "plu": "NI3NGD2OHBW5H4HMJ52TA22E",
+                            "status": false,
+                            "active": true,
+                            "image": "https://items-images-production.s3.us-west-2.amazonaws.com/files/eeae01c0dd6dff73fb79e5b384cd4b94093385b0/original.png",
+                            "order_modifier_id": null
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "payment_details": {
+        "paymentId": null,
+        "paymentBy": null,
+        "paymentKey": null,
+        "amount_paid": null,
+        "paymentType": "",
+        "paymentStatus": false,
+        "platform": ""
+    },
+    "is_wordpress": false,
+    "points_redeemed": 0,
+    "points_redeemed_by": "restaurant_personnal"
+}
