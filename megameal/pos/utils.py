@@ -6,9 +6,9 @@ from core.models import (
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
     ProductModifierAndModifierGroupJoint, Platform, Vendor,
 )
-from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory
+from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory, SplitOrderItem
 from pos.models import Department, CoreUserCategory
-from koms.models import Station
+from koms.models import Station,Order_modifer
 from koms.views import getOrder
 from pos.language import language_localization, payment_type_english
 from django.conf import settings
@@ -926,6 +926,34 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
             split_payment = OrderPayment.objects.filter(orderId = split_order.pk).first()
 
             if split_payment:
+                splitItems = []
+                for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk):
+                    order_content_modifer = []
+
+                    for mod in Order_modifer.objects.filter(contentID=split_item.order_content_id.pk):
+                        modifier_instance = ProductModifier.objects.filter(modifierPLU = mod.SKU, vendorId = vendor_id).first()
+
+                        order_content_modifer.append({
+                            "modifer_id":mod.pk,
+                            "modifer_name":mod.name,
+                            "modifer_quantity":mod.quantity,
+                            "modifer_price":modifier_instance.modifierPrice or 0,
+                            "order_content_id": split_item.order_content_id.pk,
+                        })
+                        
+                    product_instance = Product.objects.filter(PLU = split_item.order_content_id.SKU, vendorId_id = vendor_id).first()
+                    images = [str(instance.url) for instance in ProductImage.objects.filter(product=product_instance.pk, vendorId=vendor_id) if instance is not None]
+                    splitItems.append(
+                        {
+                            "order_content_id": split_item.order_content_id.pk,
+                            "order_content_name": split_item.order_content_id.name,
+                            "order_content_quantity": split_item.order_content_qty,
+                            "order_content_price": product_instance.productPrice or 1,
+                            "order_content_images": images[0] if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                            "order_content_modifer": order_content_modifer,
+                        }  
+                    )
+
                 split_payments_list.append({
                     "paymentId": split_payment.pk,
                     "paymentBy": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
@@ -942,8 +970,10 @@ def get_order_info_for_socket(order_instance, language, vendor_id):
                     "status": split_payment.status,
                     "platform": split_payment.platform,
                     "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
-                    "splitType": order_payment_instance.splitType
-                })
+                    "splitType": order_payment_instance.splitType,
+                    "splitItems": splitItems,
+                    }
+                )
 
         payment_details["split_payments"] = split_payments_list
 
