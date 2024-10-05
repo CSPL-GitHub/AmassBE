@@ -33,7 +33,6 @@ urlpatterns = [
    path('productByCategory/<int:id>/', views.productByCategory),
    path('productStatusChange/', views.product_on_off),
    path('modifier_update/', views.modifier_on_off),
-   path('table/',views.showtabledetails), # show tables details
    path('tableCapacity/',views.show_tableCapacity), # show products 
    path('createOrder/',views.createOrder), # create new order
    path('platform_list/', views.platform_list, name="platform_list"),

@@ -1880,17 +1880,6 @@ def modifier_on_off(request):
         return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["GET"])
-def showtabledetails(request):
-    try:
-        data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
-        data=data.order_by('tableNumber')
-        return Response([ get_table_data(i,request.GET.get('vendorId')) for i in data ]) 
-    except Exception as e :
-            print(e)
-            return []
-
-
 @api_view(['GET'])
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
