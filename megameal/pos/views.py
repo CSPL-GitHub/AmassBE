@@ -1847,25 +1847,22 @@ def productByCategory(request, id = 0):
 
 
 @api_view(["POST", "GET"])
-def productStatusChange(request):
+def product_on_off(request):
     try:
-        data = JSONParser().parse(request)
+        product = Product.objects.filter(pk = request.data.get("productId"))
 
-        product = Product.objects.filter(pk=data["productId"])
-        vendor_id = data["vendorId"]
+        if product.exists():
+            product.update(active = request.data.get("status"))
 
-        if product:
-            product.update(active=data["status"])
+            res = Product.objects.get(pk = request.data.get("productId"), vendorId = request.data.get("vendorId"))
 
-            res = Product.objects.get(pk=data["productId"], vendorId=vendor_id)
-
-            return JsonResponse({'productId': res.pk, 'status':res.active})
+            return JsonResponse({'productId': res.pk, 'status': res.active})
         
         else:
-            return JsonResponse({'error': 'Product not found'}, status=400)
+            return JsonResponse({'error': 'Product not found'}, status = status.HTTP_400_BAD_REQUEST)
     
     except Exception as e:
-            return JsonResponse({'error': e}, status=400)
+        return JsonResponse({'error': str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])

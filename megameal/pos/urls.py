@@ -31,7 +31,7 @@ urlpatterns = [
    path('allCategory/', views.get_categories),
    path('productByCategory/', views.productByCategory),
    path('productByCategory/<int:id>/', views.productByCategory),
-   path('productStatusChange/',views.productStatusChange),
+   path('productStatusChange/', views.product_on_off),
    path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('table/',views.showtabledetails), # show tables details
    path('tableCapacity/',views.show_tableCapacity), # show products 
