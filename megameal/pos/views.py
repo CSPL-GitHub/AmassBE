@@ -1966,7 +1966,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
                 koms_order_filters["master_order__pk__icontains"] = master_order_id
 
-                order_data = KOMSOrder.objects.filter(**koms_order_filters)
+                order_data = KOMSOrder.objects.filter(**koms_order_filters).select_related("master_order")
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -1977,10 +1977,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
-                    )
+                    ).select_related("master_order")
 
         else:
-            order_data = KOMSOrder.objects.filter(**koms_order_filters)
+            order_data = KOMSOrder.objects.filter(**koms_order_filters).select_related("master_order")
 
         if not order_data.exists():
             response_data = {
@@ -2169,10 +2169,10 @@ def get_order_data(request):
         order_details = {}
 
         if get_all_vendor_data == True:
-            order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
+            order_data = order_data.order_by("vendorId", "-master_order__OrderDate").select_related("master_order")
 
         else:
-            order_data = order_data.order_by("-master_order__OrderDate")
+            order_data = order_data.order_by("-master_order__OrderDate").select_related("master_order")
             
         paginator = Paginator(order_data, 10)
 
