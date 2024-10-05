@@ -1880,6 +1880,7 @@ def modifier_on_off(request):
         return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+# remove this API
 @api_view(['GET'])
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
@@ -1892,40 +1893,15 @@ def show_tableCapacity(request):
         return JsonResponse({"error":str(e)})
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
-        print("Starting koms thread...")
-        thr = threading.Thread(
-                target=order_data, args=(), kwargs={
-                    "vendor_id":vendor_id,
-                    "page_number":page_number,
-                    "search":search,
-                    "order_status":order_status,
-                    'order_type':order_type,
-                    "platform":platform,
-                    "search":search,
-                    "platform":platform,
-                    "s_date":s_date,
-                    "e_date":e_date,
-                    "is_dashboard":is_dashboard,
-                    "language": language
-                }
-            )
-        
-        thr.setDaemon(True)
-        thr.start()
-
-        return {"connecting":False}
-
-
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard = 0, s_date = None, e_date = None, language = "English"):
     try:
-        if vendor_id == None:
+        if not vendor_id:
             return "Vendor ID cannot be empty"
             
         order_details = {}
 
-        start_date_parameter = s_date if s_date is not  None else ""
-        end_date_parameter = e_date if e_date is not None else ""
+        start_date_parameter = s_date or ""
+        end_date_parameter = e_date or ""
         search_text_parameter = search if search != "All" else ""
         platform_parameter = platform if platform != "All" else ""
         page_number_parameter = page_number if page_number != "All" else 1
@@ -1933,50 +1909,54 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         order_type_parameter = order_type if order_type != "All" else ""
 
         current_date = datetime.today().strftime("%Y-%m-%d")
+
+        order_data = None
         
-        if (s_date != None) and (e_date != None):
+        koms_order_filters = {"vendorId": vendor_id}
+        
+        if s_date and e_date:
             s_date = str(s_date).replace("T", "-")
             e_date = str(e_date).replace("T", "-")
             
-            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (s_date, e_date), vendorId = vendor_id)
+            koms_order_filters["arrival_time__date__range"] = (s_date, e_date)
         
         else:
-            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId = vendor_id)
+            koms_order_filters["arrival_time__date"] = current_date
         
         if order_status != "All":
             if is_dashboard == 0:
-                order_data = order_data.filter(order_status = order_status)
+                koms_order_filters["order_status"] = order_status
 
             elif is_dashboard == 1:
                 if order_status == 10 :
                     if s_date and e_date:
-                        order_data = order_data.filter(order_status__in = (4, 5, 10))
+                        koms_order_filters["order_status__in"] = (4, 5, 10)
 
                     else:
-                        order_data = order_data.filter(order_status__in = (5, 10))
+                        koms_order_filters["order_status__in"] = (5, 10)
 
                 else:
-                    order_data = order_data.filter(order_status = order_status)
+                    koms_order_filters["order_status"] = order_status
 
         else:
             if is_dashboard == 1:
-                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
+                koms_order_filters["order_status__in"] = (2, 3, 4, 6, 7, 8, 9)
 
         if order_type != "All":
-            order_data = order_data.filter(order_type = order_type)
+            koms_order_filters["order_type"] = order_type
 
         if platform != "All":
             if is_dashboard == 1:
-                order_data = order_data.filter(master_order__platform = platform)
+                koms_order_filters["master_order__platform"] = platform
 
             else:
-                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat = True)
 
                 if platform in online_platform_ids:
-                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
+                    koms_order_filters["master_order__platform__Name__in"] = ("Website", "Mobile App")
 
                 else:
-                    order_data = order_data.filter(master_order__platform = platform)
+                    koms_order_filters["master_order__platform"] = platform
 
         if search != 'All':
             output = re.search(r'\d+', search)
@@ -1984,7 +1964,9 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             if output:
                 master_order_id = output.group()
 
-                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
+                koms_order_filters["master_order__pk__icontains"] = master_order_id
+
+                order_data = KOMSOrder.objects.filter(**koms_order_filters)
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -1992,39 +1974,41 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 if output:
                     customer_name = output.group()
 
-                    order_data = order_data.filter(
+                    order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
-                    
-        if order_data.exists():
-            order_data = order_data.order_by("-master_order__OrderDate")
-            
-            paginator = Paginator(order_data, 10)
-
-            page_obj = paginator.get_page(page_number)
-
-            orders_for_page = page_obj.object_list
-
-            for order in orders_for_page:
-                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
-
-                order_details[order.pk] = order_info
-
-            response_data = {
-                'page_number': page_obj.number,
-                'total_pages': paginator.num_pages,
-                'data_count': paginator.count,
-                'order_details': order_details,
-            }
 
         else:
+            order_data = KOMSOrder.objects.filter(**koms_order_filters)
+
+        if not order_data.exists():
             response_data = {
                 'page_number': 1,
                 'total_pages': 1,
                 'data_count': 0,
                 'order_details': {},
             }
+
+        order_data = order_data.order_by("-master_order__OrderDate")
+        
+        paginator = Paginator(order_data, 10)
+
+        page_obj = paginator.get_page(page_number)
+
+        orders_for_page = page_obj.object_list
+
+        for order in orders_for_page:
+            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
+
+            order_details[order.pk] = order_info
+
+        response_data = {
+            'page_number': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'data_count': paginator.count,
+            'order_details': order_details,
+        }
         
         webSocketPush(
             message = response_data,
@@ -2045,44 +2029,63 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         return str(e)
 
 
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard = 0, s_date = None, e_date = None, language = "English"):
+        print("Starting koms thread...")
+        
+        thr = threading.Thread(target = order_data, args = (), kwargs = {
+            "vendor_id":vendor_id,
+            "page_number":page_number,
+            "search":search,
+            "order_status":order_status,
+            'order_type':order_type,
+            "platform":platform,
+            "search":search,
+            "platform":platform,
+            "s_date":s_date,
+            "e_date":e_date,
+            "is_dashboard":is_dashboard,
+            "language": language
+        })
+        
+        thr.setDaemon(True)
+        thr.start()
+
+        return {"connecting":False}
+
+
 # Replica of order_data function
 @api_view(["POST"])
 def get_order_data(request):
     try:
-        request_data = request.data
+        vendor_id = request.data.get("vendor_id")
+        page_number = request.data.get("page_number")
+        search = request.data.get("search")
+        order_status = request.data.get("order_status")
+        order_type = request.data.get("order_type")
+        platform = request.data.get("platform")
+        is_dashboard = request.data.get("is_dashboard")
+        start_date = request.data.get("start_date")
+        end_date = request.data.get("end_date")
+        language = request.data.get("language", "English")
+        get_all_vendor_data = request.data.get("get_all_vendor_data")
+        franchise_vendor_id = request.data.get("franchise_vendor_id")
+        is_range = request.data.get("is_range")
 
-        vendor_id = request_data.get("vendor_id")
-        page_number = request_data.get("page_number")
-        search = request_data.get("search")
-        order_status = request_data.get("order_status")
-        order_type = request_data.get("order_type")
-        platform = request_data.get("platform")
-        is_dashboard = request_data.get("is_dashboard")
-        start_date = request_data.get("start_date")
-        end_date = request_data.get("end_date")
-        language = request_data.get("language", "English")
-        get_all_vendor_data = request_data.get("get_all_vendor_data")
-        franchise_vendor_id = request_data.get("franchise_vendor_id")
-        is_range = request_data.get("is_range")
-
-        if not vendor_id:
-            return Response("Vendor ID cannot be empty", status = status.HTTP_400_BAD_REQUEST)
-        
         try:
             vendor_id = int(vendor_id)
 
-        except ValueError:
+        except:
             return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
+        vendor = Vendor.objects.filter(pk = vendor_id, is_active = True)
 
-        if not vendor_instance:
+        if not vendor.exists():
             return Response("Vendor does not exist or not active", status = status.HTTP_400_BAD_REQUEST)
             
         if get_all_vendor_data == True:
             vendor_ids = tuple(Vendor.objects.filter(franchise = vendor_id).values_list("pk", flat = True))
 
-        elif (get_all_vendor_data == False) and franchise_vendor_id:
+        elif get_all_vendor_data == False and franchise_vendor_id:
             vendor_ids = (franchise_vendor_id,)
             vendor_id = franchise_vendor_id
 
@@ -2091,48 +2094,50 @@ def get_order_data(request):
 
         current_date = datetime.today().strftime("%Y-%m-%d")
         
-        if (start_date != None) and (end_date != None):
-            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (start_date, end_date), vendorId__in = vendor_ids)
+        koms_order_filters = {"vendorId__in": vendor_ids}
+        
+        if start_date and end_date:
+            koms_order_filters["arrival_time__date__range"] = (start_date, end_date)
         
         else:
-            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId__in = vendor_ids)
+            koms_order_filters["arrival_time__date"] = current_date
         
         if order_status != "All":
             if is_dashboard == 0:
-                order_data = order_data.filter(order_status = order_status)
+                koms_order_filters["order_status"] = order_status
 
             elif is_dashboard == 1:
                 if order_status == 10 :
                     if start_date and end_date:
-                        order_data = order_data.filter(order_status__in = (4, 5, 10))
+                        koms_order_filters["order_status__in"] = (4, 5, 10)
 
                     else:
-                        order_data = order_data.filter(order_status__in = (5, 10))
+                        koms_order_filters["order_status__in"] = (5, 10)
 
                 else:
-                    order_data = order_data.filter(order_status = order_status)
+                    koms_order_filters["order_status"] = order_status
 
         else:
-            if (is_dashboard == 1) and (start_date == current_date) and (end_date == current_date):
+            if is_dashboard == 1 and start_date == current_date and end_date == current_date:
                 if is_range == False:
-                    order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
+                    koms_order_filters["order_status__in"] = (2, 3, 4, 6, 7, 8, 9)
             
 
         if order_type != "All":
-            order_data = order_data.filter(order_type = order_type)
+            koms_order_filters["order_type"] = order_type
 
         if platform != "All":
             if is_dashboard == 1:
-                order_data = order_data.filter(master_order__platform = platform)
+                koms_order_filters["master_order__platform"] = platform
 
             else:
-                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat = True)
 
                 if platform in online_platform_ids:
-                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
+                    koms_order_filters["master_order__platform__Name__in"] = ("Website", "Mobile App")
 
                 else:
-                    order_data = order_data.filter(master_order__platform = platform)
+                    koms_order_filters["master_order__platform"] = platform
 
         if search != 'All':
             output = re.search(r'\d+', search)
@@ -2140,7 +2145,9 @@ def get_order_data(request):
             if output:
                 master_order_id = output.group()
 
-                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
+                koms_order_filters["master_order__pk__icontains"] = master_order_id
+
+                order_data = KOMSOrder.objects.filter(**koms_order_filters)
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -2148,45 +2155,42 @@ def get_order_data(request):
                 if output:
                     customer_name = output.group()
 
-                    order_data = order_data.filter(
+                    order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
 
-        if order_data.exists():
-            order_details = {}
+        else:
+            order_data = KOMSOrder.objects.filter(**koms_order_filters)
+        
+        if not order_data.exists():
+            response_data = {'page_number': 1, 'total_pages': 1, 'data_count': 0, 'order_details': {}}
 
-            if get_all_vendor_data == True:
-                order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
+        order_details = {}
 
-            else:
-                order_data = order_data.order_by("-master_order__OrderDate")
-                
-            paginator = Paginator(order_data, 10)
-
-            page_obj = paginator.get_page(page_number)
-
-            orders_for_page = page_obj.object_list
-
-            for order in orders_for_page:
-                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
-
-                order_details[order.pk] = order_info
-
-            response_data = {
-                'page_number': page_obj.number,
-                'total_pages': paginator.num_pages,
-                'data_count': paginator.count,
-                'order_details': order_details,
-            }
+        if get_all_vendor_data == True:
+            order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
 
         else:
-            response_data = {
-                'page_number': 1,
-                'total_pages': 1,
-                'data_count': 0,
-                'order_details': {},
-            }
+            order_data = order_data.order_by("-master_order__OrderDate")
+            
+        paginator = Paginator(order_data, 10)
+
+        page_obj = paginator.get_page(page_number)
+
+        orders_for_page = page_obj.object_list
+
+        for order in orders_for_page:
+            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
+
+            order_details[order.pk] = order_info
+
+        response_data = {
+            'page_number': page_obj.number,
+            'total_pages': paginator.num_pages,
+            'data_count': paginator.count,
+            'order_details': order_details,
+        }
         
         return Response(response_data, status = status.HTTP_200_OK)
     
