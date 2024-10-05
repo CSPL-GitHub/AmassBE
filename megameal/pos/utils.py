@@ -1,5 +1,5 @@
 from django.template.defaultfilters import slugify
-from django.db.models import Count, Q, Sum
+from django.db.models import Count, Q, Sum, Prefetch
 from core.models import (
     Product, ProductImage, ProductCategory, ProductCategoryJoint,
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
@@ -73,118 +73,110 @@ def order_count(start_date, end_date, order_type, vendor_id):
 
 
 def get_product_by_category_data(products, language, vendor_id):
+    products = products.prefetch_related(
+        Prefetch('productimage_set', queryset = ProductImage.objects.filter(vendorId = vendor_id), to_attr = 'images'),
+        Prefetch(
+            'productandmodifiergroupjoint_set', 
+            queryset = ProductAndModifierGroupJoint.objects.filter(vendorId = vendor_id).select_related('modifierGroup'),
+            to_attr = 'modifier_groups'
+        ),
+        Prefetch(
+            'productcategoryjoint_set', 
+            queryset = ProductCategoryJoint.objects.select_related('category'),
+            to_attr = 'categories'
+        )
+    )
+
     product_list = []
 
     for product in products:
-        images = []
+        product_images = []
 
-        product_images = ProductImage.objects.filter(product=product.pk, vendorId=vendor_id)
-
-        for instance in product_images:
-            if instance is not None:
-                images.append(str(instance.url))
+        for image in product.images:
+            product_images.append(image.url)
         
         modifier_group_list = []
 
-        product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
-        
-        if product_and_modifier_group_joint:
-            for product_and_modifier_group_instance in product_and_modifier_group_joint:
-                modifier_list = []
+        for modifier_grp_info in product.modifier_groups:
+            modifier_group = modifier_grp_info.modifierGroup
 
-                modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_and_modifier_group_instance.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id)
-                
-                if modifier_and_group_joint:
-                    for modifier_and_group_instance in modifier_and_group_joint:
-                        modifier_name = ""
-                        modifier_description = ""
+            modifier_list = []
 
-                        if language == "English":
-                            modifier_name = modifier_and_group_instance.modifier.modifierName
-                            modifier_description = modifier_and_group_instance.modifier.modifierDesc
-
-                        else:
-                            modifier_name = modifier_and_group_instance.modifier.modifierName_locale
-                            modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
-                        
-                        modifier_list.append(
-                            {
-                                "cost": modifier_and_group_instance.modifier.modifierPrice,
-                                "modifierId": modifier_and_group_instance.modifier.pk,
-                                "name": modifier_name,
-                                "description": modifier_description,
-                                "quantity": 0,
-                                "plu": modifier_and_group_instance.modifier.modifierPLU,
-                                "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                                # "image":modifier_and_group_instance.modifier.modifierImg,
-                                "status": True, # Required for order helper function
-                                "active": modifier_and_group_instance.modifier.active
-                            }                    
-                        )
-
-                if product_and_modifier_group_instance.modifierGroup.isDeleted == False: 
-                    modifier_group_name = ""
-                    modifier_group_description = ""
-
-                    if language == "English":
-                        modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
-                        modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
-                    
-                    else:
-                        modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
-                        modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
-
-                    modifier_group_list.append(
-                    {
-                        "id": product_and_modifier_group_instance.modifierGroup.pk,
-                        "name": modifier_group_name,
-                        "plu": product_and_modifier_group_instance.modifierGroup.PLU,
-                        "description": modifier_group_description,
-                        # "min": product_and_modifier_group_instance.min,
-                        # "max": product_and_modifier_group_instance.max,
-                        "min": product_and_modifier_group_instance.modifierGroup.min,
-                        "max": product_and_modifier_group_instance.modifierGroup.max,
-                        # "type": product_and_modifier_group_instance.modifierGroup.modGrptype,
-                        "active": product_and_modifier_group_instance.modifierGroup.active,
-                        "modifiers": modifier_list
-                    }
-                )
+            modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(
+                modifierGroup = modifier_group.pk, vendor = vendor_id
+            ).select_related("modifier").values(
+                "modifier__pk", "modifier__modifierName", "modifier__modifierName_locale", "modifier__modifierDesc",
+                "modifier__modifierDesc_locale", "modifier__modifierPrice", "modifier__modifierPLU", "modifier__modifierImg",
+                "modifier__active"
+            )
             
-        category_id = 0
+            if modifier_and_group_joint:
+                for modifier_info in modifier_and_group_joint:
+                    modifier_name = modifier_info["modifier__modifierName"]
+                    modifier_description = modifier_info["modifier__modifierDesc"]
+
+                    if language != "English":
+                        modifier_name = modifier_info["modifier__modifierName_locale"]
+                        modifier_description = modifier_info["modifier__modifierDesc_locale"]
+                    
+                    modifier_list.append({
+                        "modifierId": modifier_info["modifier__pk"],
+                        "name": modifier_name,
+                        "description": modifier_description or "",
+                        "plu": modifier_info["modifier__modifierPLU"],
+                        "cost": modifier_info["modifier__modifierPrice"],
+                        "image": modifier_info["modifier__modifierImg"] or 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                        "status": True, # Required for order helper function
+                        "active": modifier_info["modifier__active"],
+                        "quantity": 0
+                    })
+
+            modifier_group_name = modifier_group.name
+            modifier_group_description = modifier_group.modifier_group_description
+
+            if language != "English":
+                modifier_group_name = modifier_group.name_locale
+                modifier_group_description = modifier_group.modifier_group_description_locale
+
+            modifier_group_list.append({
+                "id": modifier_group.pk,
+                "name": modifier_group_name,
+                "plu": modifier_group.PLU,
+                "description": modifier_group_description or "",
+                "min": modifier_group.min,
+                "max": modifier_group.max,
+                "active": modifier_group.active,
+                "modifiers": modifier_list
+            })
+            
+        category = product.categories[0].category if product.categories else None
+        
         category_name = ""
-        product_name = ""
-        product_description = ""
 
-        product_category_joint = ProductCategoryJoint.objects.filter(product=product.pk).first()
+        if category:
+            category_name = category.categoryName
 
-        if product_category_joint:
-            category_id = product_category_joint.category.pk
-
-            if language == "English":
-                category_name = product_category_joint.category.categoryName
-
-            else:
-                category_name = product_category_joint.category.categoryName_locale
+            if language != "English":
+                category_name = category.categoryName_locale
         
-        if language == "English":
-            product_name = product.productName
-            product_description = product.productDesc if product.productDesc else ""
-        
-        else:
+        product_name = product.productName
+        product_description = product.productDesc
+
+        if language != "English":
             product_name = product.productName_locale
-            product_description = product.productDesc_locale if product.productDesc_locale else ""
+            product_description = product.productDesc_locale
         
         product_list.append({
-            "categoryId": category_id,
+            "categoryId": category.pk or 0,
             "categoryName": category_name,
             "productId": product.pk,
             "plu": product.PLU,
             "name": product_name,
-            "description": product_description,
+            "description": product_description or "",
             "cost": product.productPrice,
             "tag":  product.tag if product.tag else "",
-            "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-            "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+            "imagePath": product_images[0] if len(product_images) > 0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+            "images": product_images if len(product_images) > 0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',],
             "isTaxable": product.taxable,
             "type": product.productType,
             "variant": [],

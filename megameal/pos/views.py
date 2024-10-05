@@ -1798,7 +1798,7 @@ def get_categories(request):
 
 
 @api_view(['GET'])
-def productByCategory(request, id=0):
+def productByCategory(request, id = 0):
     try:
         vendor_id = request.GET.get("vendorId")
         language = request.GET.get("language", "English")
@@ -1807,43 +1807,43 @@ def productByCategory(request, id=0):
         product_tag = request.GET.get("tag")
 
         if not vendor_id:
-            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
+            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status = status.HTTP_400_BAD_REQUEST)
 
         if id != 0:
-            data = ProductCategory.objects.filter(pk=id)
+            category_details = ProductCategory.objects.filter(pk = id)
 
         else:
-            data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
-
-        if product_tag == "veg":
-            products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+            category_details = ProductCategory.objects.filter(vendorId = vendor_id)
 
         if search_text:
-            if ((platform == "Website") or (platform == "Mobile App")) and (product_tag == "veg"):
-                products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+            product_filter = {"vendorId": vendor_id}
 
-            else:
-                products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
+            if (platform == "Website" or platform == "Mobile App") and product_tag == "veg":
+                product_filter["tag"] = "veg"
 
-            products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
-
+            products = Product.objects.filter(**product_filter).filter(
+                Q(productName__icontains = search_text) | Q(productName_locale__icontains = search_text)
+            )
+            
             product_list = get_product_by_category_data(products, language, vendor_id)
 
-            return JsonResponse({"message": "", "products": {"1": product_list}}, status=status.HTTP_200_OK)
+            return JsonResponse({"message": "", "products": {"1": product_list}}, status = status.HTTP_200_OK)
         
-        products = {}
+        products_by_category = {}
 
-        for category in data:
-            filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
+        for category in category_details:
+            product_ids = ProductCategoryJoint.objects.filter(category = category.pk, vendorId = vendor_id).values_list("product", flat = True)
+
+            filtered_products = Product.objects.filter(pk__in = product_ids, vendorId = vendor_id)
             
             product_list = get_product_by_category_data(filtered_products, language, vendor_id)
             
-            products[category.pk] = product_list
+            products_by_category[category.pk] = product_list
 
-        return JsonResponse({"message": "", "products": products}, status=status.HTTP_200_OK)
+        return JsonResponse({"message": "", "products": products_by_category}, status = status.HTTP_200_OK)
     
     except Exception as e:
-        return JsonResponse({"message": str(e), "products": {}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"message": str(e), "products": {}}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST", "GET"])
