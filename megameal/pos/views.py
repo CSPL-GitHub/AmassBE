@@ -1846,55 +1846,38 @@ def productByCategory(request, id = 0):
         return JsonResponse({"message": str(e), "products": {}}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["POST", "GET"])
+@api_view(["POST"])
 def product_on_off(request):
     try:
-        product = Product.objects.filter(pk = request.data.get("productId"))
+        product = Product.objects.filter(pk = request.data.get("productId"), vendorId = request.data.get("vendorId"))
 
-        if product.exists():
-            product.update(active = request.data.get("status"))
-
-            res = Product.objects.get(pk = request.data.get("productId"), vendorId = request.data.get("vendorId"))
-
-            return JsonResponse({'productId': res.pk, 'status': res.active})
-        
-        else:
+        if not product.exists():
             return JsonResponse({'error': 'Product not found'}, status = status.HTTP_400_BAD_REQUEST)
+        
+        product.update(active = request.data.get("status"))
+
+        product = product.values("pk", "active").first()
+
+        return JsonResponse({'productId': product["pk"], 'status': product["active"]})
     
     except Exception as e:
         return JsonResponse({'error': str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
-def modifier_update(request):
+def modifier_on_off(request):
     try:
-        vendor_id = request.GET.get("vendorId")
-        modifier_id = request.data.get('id')
+        modifier = ProductModifier.objects.filter(pk = request.data.get('id'), vendorId = request.GET.get("vendorId"))
 
-        if not vendor_id or not modifier_id:
-            return JsonResponse({"message": "Invalid vendor ID or modifier ID"}, status = status.HTTP_400_BAD_REQUEST)
-    
-        try:
-            vendor_id = int(vendor_id)
-            modifier_id = int(modifier_id)
-
-        except ValueError:
-            return JsonResponse({"message": "Invalid vendor ID or modifier ID"}, status = status.HTTP_400_BAD_REQUEST)
+        if not modifier.exists():
+            return JsonResponse({"message": "Modifier not found"}, status = status.HTTP_400_BAD_REQUEST)
         
-        vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
-        modifier_instance = ProductModifier.objects.filter(pk = modifier_id).first()
-
-        if not vendor_instance or not modifier_instance:
-            return JsonResponse({"message": "Vendor or Modifier does not exist"}, status = status.HTTP_400_BAD_REQUEST)
-
-        modifier_instance.active = request.data.get('active')
-
-        modifier_instance.save()
+        modifier.update(active = request.data.get('active'))
 
         return JsonResponse({"message": "Modifier status updated successfully"})
     
     except Exception as e:
-        return JsonResponse({"message": f"{str(e)}"}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET"])
