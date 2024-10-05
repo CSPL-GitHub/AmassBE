@@ -28,7 +28,7 @@ from datetime import datetime, timedelta, time
 from .serializers.content_assign_serializer import Content_assign_serializer
 from static.order_status_const import WHEELSTATS, STATIONSIDEBAR
 from static.statusname import *
-from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory
+from order.models import Order as coreOrder, OrderPayment, Address, LoyaltyProgramSettings, LoyaltyPointsRedeemHistory, SplitOrderItem
 from pos.models import StoreTiming
 from pos.language import order_has_arrived_locale, payment_type_english, language_localization, local_timezone
 from inventory.utils import sync_order_content_with_inventory
@@ -673,11 +673,34 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
         
         for split_order in core_orders:
             split_payment = OrderPayment.objects.filter(orderId=split_order.pk).first()
-            
+            splitItems = []
+            for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk):
+                order_content_modifer = []
+                for mod in Order_modifer.objects.filter(contentID=split_item.order_content_id.pk):
+                    modifier_instance = ProductModifier.objects.filter(modifierPLU = mod.SKU, vendorId = vendorId).first()
+                    order_content_modifer.append({
+                                    "modifer_id":mod.pk,
+                                    "modifer_name":mod.name,
+                                    "modifer_quantity":mod.quantity,
+                                    "modifer_price":modifier_instance.modifierPrice or 0,
+                                    "order_content_id": split_item.order_content_id.pk,
+                                })
+                product_instance = Product.objects.filter(PLU=split_item.order_content_id.SKU, vendorId_id=vendorId).first()
+                images = [str(instance.url) for instance in ProductImage.objects.filter(product=product_instance.pk, vendorId=vendorId) if instance is not None]
+                splitItems.append(
+                        {
+                            "order_content_id": split_item.order_content_id.pk,
+                            "order_content_name": split_item.order_content_id.name,
+                            "order_content_quantity": split_item.order_content_qty,
+                            "order_content_price": product_instance.productPrice or 1,
+                            "order_content_images": images[0] if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                            "order_content_modifer": order_content_modifer,
+                        }  
+                    )
             split_payments_list.append({
                 "paymentId": split_payment.pk,
                 "paymentBy": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
-                "customer_name": split_order.customerId.FirstName,
+                "customer_name": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
                 "customer_mobile": split_order.customerId.Phone_Number,
                 "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
                 "paymentKey": split_payment.paymentKey,
@@ -690,8 +713,10 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                 "status": split_payment.status,
                 "platform": split_payment.platform,
                 "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
-                "splitType": payment_type.splitType
-            })
+                "splitType": payment_type.splitType,
+                "splitItems": splitItems,
+                }
+            )
         
         payment_details["split_payments"] = split_payments_list
         data['payment'] = payment_details

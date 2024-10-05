@@ -69,3 +69,7 @@ class OrderPaymentAdmin(admin.ModelAdmin):
     list_display = ('pk','orderId','masterPaymentId','type','paid','status')
 
 admin.site.register(LoyaltyPointsRedeemHistory)
+
+@admin.register(SplitOrderItem)
+class SplitOrderItemAdminView(admin.ModelAdmin):
+    list_display = ('pk','order_id','order_content_id')
