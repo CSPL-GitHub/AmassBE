@@ -14,7 +14,7 @@ from core.models import Product, ProductModifier, ProductModifierGroup, Vendor, 
 from pos.models import POSSetting
 from pos.utils import get_product_by_category_data
 from pos.language import (
-    language_localization, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
+    language_localization, payment_type_number, product_out_of_stock_locale, modifier_group_out_of_stock_locale,
     modifier_out_of_stock_locale, product_no_longer_available_locale, modifier_no_longer_available_locale,
     delivery_address_validation_locale,
 )
@@ -357,7 +357,7 @@ def CreateOrder(request):
         result['externalOrderId'] = orderid
         result["platform"] = "Website"
         result["language"] = language
-        result["payment"]["mode"] = "Cash"
+        result["payment"]["mode"] = payment_type_number["Cash"]
 
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
@@ -443,7 +443,7 @@ def CreateOrderApp(request):
         result['internalOrderId']  = orderid
         result['externalOrderId']  = orderid
         result["platform"] = "Mobile App"
-        result["payment"]["mode"] = "Cash"
+        result["payment"]["mode"] = payment_type_number["Cash"]
         
         if result["payment"]['transcationId'] != "":
             result["payment"]['payConfirmation'] = result["payment"]['transcationId']
