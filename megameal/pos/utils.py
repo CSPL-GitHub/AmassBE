@@ -152,8 +152,10 @@ def get_product_by_category_data(products, language, vendor_id):
         category = product.categories[0].category if product.categories else None
         
         category_name = ""
+        category_id = 0
 
         if category:
+            category_id = category.pk
             category_name = category.categoryName
 
             if language != "English":
@@ -167,7 +169,7 @@ def get_product_by_category_data(products, language, vendor_id):
             product_description = product.productDesc_locale
         
         product_list.append({
-            "categoryId": category.pk or 0,
+            "categoryId": category_id,
             "categoryName": category_name,
             "productId": product.pk,
             "plu": product.PLU,
