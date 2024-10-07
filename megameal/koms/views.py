@@ -603,7 +603,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
                                     "modifer_price":modifier_instance.modifierPrice or 0,
                                     "order_content_id": split_item.order_content_id.pk,
                                 })
-                product_instance = Product.objects.filter(PLU=split_item.order_content_id.plu, vendorId_id=vendorId).first()
+                product_instance = Product.objects.filter(PLU=split_item.order_content_id.SKU, vendorId_id=vendorId).first()
                 images = [str(instance.url) for instance in ProductImage.objects.filter(product=product_instance.pk, vendorId=vendorId) if instance is not None]
                 splitItems.append(
                         {
