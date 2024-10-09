@@ -1966,8 +1966,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
 
                 koms_order_filters["master_order__pk__icontains"] = master_order_id
 
-                order_data = KOMSOrder.objects.filter(**koms_order_filters) \
-                    .select_related("master_order", "master_order__customerId", "vendorId")
+                order_data = KOMSOrder.objects.filter(**koms_order_filters)
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -1978,11 +1977,10 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                     order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
-                    ).select_related("master_order", "master_order__customerId", "vendorId")
+                    )
 
         else:
-            order_data = KOMSOrder.objects.filter(**koms_order_filters) \
-                .select_related("master_order", "master_order__customerId", "vendorId")
+            order_data = KOMSOrder.objects.filter(**koms_order_filters)
 
         if not order_data.exists():
             response_data = {
@@ -1992,7 +1990,15 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 'order_details': {},
             }
 
-        order_data = order_data.order_by("-master_order__OrderDate")
+        order_data = order_data.order_by("-master_order__OrderDate") \
+            .select_related("master_order", "master_order__platform", "master_order__customerId", "vendorId") \
+            .values(
+                "pk", "master_order__pk", "master_order__TotalAmount", "master_order__subtotal", "master_order__tax",
+                "master_order__delivery_charge", "master_order__discount", "master_order__platform__pk", "master_order__platform__Name",
+                "master_order__platform__Name_locale", "master_order__customerId__pk", "master_order__customerId__FirstName",
+                "master_order__customerId__LastName", "master_order__customerId__Phone_Number", "master_order__customerId__Email",
+                "vendorId", "vendorId__franchise_location"
+            )
         
         paginator = Paginator(order_data, 10)
 
@@ -2001,9 +2007,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         orders_for_page = page_obj.object_list
 
         for order in orders_for_page:
-            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
-
-            order_details[order.pk] = order_info
+            order_details[order["pk"]] = get_order_info_for_socket(order_info = order, language = language, vendor_id = vendor_id)
 
         response_data = {
             'page_number': page_obj.number,
@@ -2176,7 +2180,14 @@ def get_order_data(request):
         else:
             order_data = order_data.order_by("-master_order__OrderDate")
 
-        order_data = order_data.select_related("master_order", "master_order__customerId", "vendorId")
+        order_data = order_data.select_related("master_order", "master_order__platform", "master_order__customerId", "vendorId") \
+        .values(
+            "pk", "master_order__pk", "master_order__TotalAmount", "master_order__subtotal", "master_order__tax",
+            "master_order__delivery_charge", "master_order__discount", "master_order__platform__pk", "master_order__platform__Name",
+            "master_order__platform__Name_locale", "master_order__customerId__pk", "master_order__customerId__FirstName",
+            "master_order__customerId__LastName", "master_order__customerId__Phone_Number", "master_order__customerId__Email",
+            "vendorId", "vendorId__franchise_location"
+        )
             
         paginator = Paginator(order_data, 10)
 
@@ -2185,9 +2196,7 @@ def get_order_data(request):
         orders_for_page = page_obj.object_list
 
         for order in orders_for_page:
-            order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
-
-            order_details[order.pk] = order_info
+            order_details[order["pk"]] = get_order_info_for_socket(order_info = order, language = language, vendor_id = order["vendorId"])
 
         response_data = {
             'page_number': page_obj.number,
