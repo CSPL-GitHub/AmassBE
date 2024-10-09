@@ -2390,41 +2390,27 @@ def platform_list(request):
     vendor_id = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
 
-    if vendor_id == None:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, safe=False, status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id:
+        return JsonResponse({"error": "Vendor Id cannot be empty"}, status = status.HTTP_400_BAD_REQUEST)
 
     platform_details = []
 
     if language == "English":
-        platform_details.append({
-            "id": "",
-            "name": "All"
-        })
+        platform_details.append({"id": "", "name": "All"})
 
     else:
+        platform_details.append({"id": "", "name": language_localization["All"]})
+    
+    platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id).exclude(Name = "Inventory") \
+        .values("pk", "Name", "Name_locale")
+    
+    for platform in platforms:
         platform_details.append({
-            "id": "",
-            "name": language_localization["All"]
+            "id": platform["pk"],
+            "name": platform["Name"] if language == "English" else platform["Name_locale"]
         })
-    
-    platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
 
-    platform_name = ""
-    
-    if platforms:
-        for platform in platforms:
-            if language == "English":
-                platform_name = platform.Name
-                
-            else:
-                platform_name = platform.Name_locale
-
-            platform_details.append({
-                "id": platform.pk,
-                "name": platform_name
-            })
-
-    return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
+    return JsonResponse({'platforms': platform_details}, status = status.HTTP_200_OK)
 
 
 @api_view(["GET"])
