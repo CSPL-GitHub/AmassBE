@@ -2586,11 +2586,11 @@ def order_details(request):
             
             modifier_groups = defaultdict(list)
 
-            modifier_sku_list = Order_modifer.objects.filter(contentID = content["pk"], status = "1").values_list("SKU", flat = True)
+            modifiers = Order_modifer.objects.filter(contentID = content["pk"], status = "1").values("SKU", "quantity")
             
-            for modifier_sku in modifier_sku_list:
+            for modifier in modifiers:
                 modifier_info = ProductModifierAndModifierGroupJoint.objects.filter(
-                    modifier__modifierPLU = modifier_sku
+                    modifier__modifierPLU = modifier["SKU"]
                 ).select_related("modifier", "modifierGroup").values(
                     "modifier__pk", "modifier__modifierName", "modifier__modifierName_locale", "modifier__modifierPLU",
                     "modifier__modifierSKU", "modifier__modifierPrice", "modifier__modifierImg", "modifierGroup__pk",
@@ -2599,9 +2599,9 @@ def order_details(request):
                 modifier_groups[modifier_info["modifierGroup__pk"]].append({
                     'modifierId': modifier_info["modifier__pk"],
                     'name': modifier_info["modifier__modifierName_locale"] if language != "English" else modifier_info["modifier__modifierName"],
-                    'plu': modifier["modifier__modifierPLU"],
+                    'plu': modifier_info["modifier__modifierPLU"],
                     'sku': modifier_info["modifier__modifierSKU"],
-                    'quantity': modifier_info["quantity"],
+                    'quantity': modifier["quantity"],
                     'cost': modifier_info["modifier__modifierPrice"],
                     'status': True,
                     'image': modifier_info["modifier__modifierImg"]
