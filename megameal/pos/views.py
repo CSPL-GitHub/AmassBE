@@ -2709,35 +2709,36 @@ def order_details(request):
 
 
 @api_view(['POST'])
-def updatePaymentDetails(request):
+def make_payment(request):
     data = request.data
 
-    vendorId = request.GET.get('vendorId', None)
+    vendorId = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
 
-    if vendorId is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    if not vendorId:
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
     
     try:
         vendorId = int(vendorId)
 
-    except ValueError:
-        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+    except:
+        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendorId).first()
+    vendor_info = Vendor.objects.filter(pk = vendorId).values("pk", "secondary_language").first()
 
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_info:
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
+    order = KOMSOrder.objects.get(externalOrderId = data['orderid'])
 
     oldStatus = order.order_status
     
-    coreOrder = Order.objects.filter(externalOrderId=order.externalOrderId, vendorId=vendorId).last()
+    coreOrder = Order.objects.filter(externalOrderId = order.externalOrderId, vendorId = vendorId).last()
     
-    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+    payment = OrderPayment.objects.filter(orderId = coreOrder.pk).last()
+
     if data.get("payment_id"):
-        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+        payment = OrderPayment.objects.filter(pk = data.get("payment_id")).last()
 
     if payment:
         payment.paymentBy = data['payment']['paymentBy']
@@ -2760,26 +2761,35 @@ def updatePaymentDetails(request):
             status = True,
             platform = data['payment']['platform']
         )
+
+    all_status_true = True
+
     if data.get("payment_id"):
-        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
-        splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
-        if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
-            OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+        master_order_id = OrderPayment.objects.filter(pk = data.get("payment_id")) \
+            .values_list("orderId__masterOrder__pk", flat = True).last()
+
+        split_orders = Order.objects.filter(masterOrder = master_order_id).values_list("pk", flat = True)
+
+        for order_payment in OrderPayment.objects.filter(orderId__in = split_orders):
+            if not order_payment.status:
+                all_status_true = False
+                break
+
+        if all_status_true == True:
+            OrderPayment.objects.filter(orderId = master_order_id).update(status = True)
+
     if coreOrder.orderType == 3:
         if data.get("payment_id"):
-            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
-            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
-            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
-                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+            if all_status_true == True:
                 order.order_status = 10
                 order.save()
                 
                 coreOrder.Status = 2
                 coreOrder.save()
 
-                waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+                waiter_heads = Waiter.objects.filter(is_waiter_head = True, vendorId = vendorId).values_list("pk", flat = True)
                 
-                tables = Order_tables.objects.filter(orderId=order)
+                tables = Order_tables.objects.filter(orderId = order)
                 
                 for table in tables:
                     table.tableId.status = 1 # EMPTY TABLE
@@ -2793,7 +2803,7 @@ def updatePaymentDetails(request):
 
                     filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
                     
-                    table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
+                    table_data = get_table_data(hotelTable = table.tableId, language = "English", vendorId = vendorId)
                     
                     webSocketPush(
                         message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -2814,10 +2824,10 @@ def updatePaymentDetails(request):
                             username = "CORE",
                         )
 
-                    secondary_language = vendor_instance.secondary_language
+                    secondary_language = vendor_info["secondary_language"]
                     
                     if secondary_language:
-                        table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                        table_data_locale = get_table_data(hotelTable = table.tableId, language = secondary_language, vendorId = vendorId)
                         
                         webSocketPush(
                             message = {"result": table_data_locale, "UPDATE": "UPDATE"},
@@ -2838,17 +2848,18 @@ def updatePaymentDetails(request):
                                 message = {"result": table_data_locale, "UPDATE": "UPDATE"},
                                 room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
                                 username = "CORE",
-                            )  
+                            )
+
         else :
             order.order_status = 10
             order.save()
             
             coreOrder.Status = 2
-            coreOrder.save()                # core order status this needs to be changed by updateCoreOrder function
+            coreOrder.save() # core order status this needs to be changed by updateCoreOrder function
 
-            waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+            waiter_heads = Waiter.objects.filter(is_waiter_head = True, vendorId = vendorId).values_list("pk", flat = True)
             
-            tables = Order_tables.objects.filter(orderId=order)
+            tables = Order_tables.objects.filter(orderId = order)
             
             for table in tables:
                 table.tableId.status = 1 # EMPTY TABLE
@@ -2862,7 +2873,7 @@ def updatePaymentDetails(request):
 
                 filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
                 
-                table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
+                table_data = get_table_data(hotelTable = table.tableId, language = "English", vendorId = vendorId)
                 
                 webSocketPush(
                     message = {"result": table_data, "UPDATE": "UPDATE"},
@@ -2883,10 +2894,10 @@ def updatePaymentDetails(request):
                         username = "CORE",
                     )
 
-                secondary_language = vendor_instance.secondary_language
+                secondary_language = vendor_info["secondary_language"]
                 
                 if secondary_language:
-                    table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                    table_data_locale = get_table_data(hotelTable = table.tableId, language = secondary_language, vendorId = vendorId)
                     
                     webSocketPush(
                         message = {"result": table_data_locale, "UPDATE": "UPDATE"},
@@ -2900,8 +2911,6 @@ def updatePaymentDetails(request):
                         username = "CORE",
                     )
 
-                    waiter_head_id = 0
-
                     for waiter_head_id in filtered_waiter_heads:
                         webSocketPush(
                             message = {"result": table_data_locale, "UPDATE": "UPDATE"},
@@ -2910,34 +2919,23 @@ def updatePaymentDetails(request):
                         )
 
     elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
-        if data.get("payment_id"):
-            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
-            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
-            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
-                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
-                order.order_status = 10
-                order.save()
-                
-                coreOrder.Status = 2
-                coreOrder.save()
-        else :
-            order.order_status = 10
-            order.save()
+        order.order_status = 10
+        order.save()
             
-            coreOrder.Status = 2
-            coreOrder.save()
+        coreOrder.Status = 2
+        coreOrder.save()
     
     webSocketPush(
-        message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
-        room_name=str(vendorId)+'-'+str(oldStatus),
-        username="CORE",
+        message = {"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
+        room_name = str(vendorId)+'-'+str(oldStatus),
+        username = "CORE",
     )  # WheelMan order remove order from old status
     
-    allStationWiseRemove(id=order.pk, old=str(oldStatus), current=str(oldStatus), vendorId=vendorId)
-    allStationWiseSingle(id=order.pk, vendorId=vendorId)
-    allStationWiseCategory(vendorId=vendorId) 
+    allStationWiseRemove(id = order.pk, old = str(oldStatus), current = str(oldStatus), vendorId = vendorId)
+    allStationWiseSingle(id = order.pk, vendorId = vendorId)
+    allStationWiseCategory(vendorId = vendorId) 
     
-    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+    waiteOrderUpdate(orderid = order.pk, language = language, vendorId = vendorId)
 
     return JsonResponse({})
 
