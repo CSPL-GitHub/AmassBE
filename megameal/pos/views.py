@@ -2716,7 +2716,7 @@ def order_details(request):
 
 @api_view(['POST'])
 def make_payment(request):
-    data = request.data
+    request_data = request.data
 
     vendorId = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
@@ -2735,43 +2735,43 @@ def make_payment(request):
     if not vendor_info:
         return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    order = KOMSOrder.objects.get(externalOrderId = data['orderid'])
+    order = KOMSOrder.objects.get(externalOrderId = request_data['orderid'])
 
-    oldStatus = order.order_status
+    old_order_status = order.order_status
     
-    coreOrder = Order.objects.filter(externalOrderId = order.externalOrderId, vendorId = vendorId).last()
+    master_order = Order.objects.filter(externalOrderId = order.externalOrderId, vendorId = vendorId).last()
     
-    payment = OrderPayment.objects.filter(orderId = coreOrder.pk).last()
+    payment = OrderPayment.objects.filter(orderId = master_order.pk).last()
 
-    if data.get("payment_id"):
-        payment = OrderPayment.objects.filter(pk = data.get("payment_id")).last()
+    if request_data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk = request_data.get("payment_id")).last()
 
     if payment:
-        payment.paymentBy = data['payment']['paymentBy']
-        payment.paymentKey = data['payment']['paymentKey']
-        payment.type = data['payment']['type']
+        payment.paymentBy = request_data['payment']['paymentBy']
+        payment.paymentKey = request_data['payment']['paymentKey']
+        payment.type = request_data['payment']['type']
         payment.status = True
-        payment.platform = data['payment']['platform']
+        payment.platform = request_data['payment']['platform']
 
         payment.save()
 
     else:
         OrderPayment.objects.create(
-            orderId = coreOrder,
-            paymentBy = data['payment']['paymentBy'],
-            paymentKey = data['payment']['paymentKey'],
-            paid = coreOrder.TotalAmount,
+            orderId = master_order,
+            paymentBy = request_data['payment']['paymentBy'],
+            paymentKey = request_data['payment']['paymentKey'],
+            paid = master_order.TotalAmount,
             due = 0,
             tip = 0,
-            type = data['payment']['type'],
+            type = request_data['payment']['type'],
             status = True,
-            platform = data['payment']['platform']
+            platform = request_data['payment']['platform']
         )
 
     all_status_true = True
 
-    if data.get("payment_id"):
-        master_order_id = OrderPayment.objects.filter(pk = data.get("payment_id")) \
+    if request_data.get("payment_id"):
+        master_order_id = OrderPayment.objects.filter(pk = request_data.get("payment_id")) \
             .values_list("orderId__masterOrder__pk", flat = True).last()
 
         split_orders = Order.objects.filter(masterOrder = master_order_id).values_list("pk", flat = True)
@@ -2784,14 +2784,14 @@ def make_payment(request):
         if all_status_true == True:
             OrderPayment.objects.filter(orderId = master_order_id).update(status = True)
 
-    if coreOrder.orderType == 3:
-        if data.get("payment_id"):
+    if master_order.orderType == 3:
+        if request_data.get("payment_id"):
             if all_status_true == True:
                 order.order_status = 10
                 order.save()
                 
-                coreOrder.Status = 2
-                coreOrder.save()
+                master_order.Status = 2
+                master_order.save()
 
                 waiter_heads = Waiter.objects.filter(is_waiter_head = True, vendorId = vendorId).values_list("pk", flat = True)
                 
@@ -2860,8 +2860,8 @@ def make_payment(request):
             order.order_status = 10
             order.save()
             
-            coreOrder.Status = 2
-            coreOrder.save() # core order status this needs to be changed by updateCoreOrder function
+            master_order.Status = 2
+            master_order.save() # core order status this needs to be changed by updateCoreOrder function
 
             waiter_heads = Waiter.objects.filter(is_waiter_head = True, vendorId = vendorId).values_list("pk", flat = True)
             
@@ -2924,26 +2924,122 @@ def make_payment(request):
                             username = "CORE",
                         )
 
-    elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
+    elif ((master_order.orderType == 1) or (master_order.orderType == 2)) and (order.order_status == 3):
         order.order_status = 10
         order.save()
             
-        coreOrder.Status = 2
-        coreOrder.save()
+        master_order.Status = 2
+        master_order.save()
     
     webSocketPush(
         message = {"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
-        room_name = str(vendorId)+'-'+str(oldStatus),
+        room_name = str(vendorId)+'-'+str(old_order_status),
         username = "CORE",
     )  # WheelMan order remove order from old status
     
-    allStationWiseRemove(id = order.pk, old = str(oldStatus), current = str(oldStatus), vendorId = vendorId)
+    allStationWiseRemove(id = order.pk, old = str(old_order_status), current = str(old_order_status), vendorId = vendorId)
     allStationWiseSingle(id = order.pk, vendorId = vendorId)
     allStationWiseCategory(vendorId = vendorId) 
     
     waiteOrderUpdate(orderid = order.pk, language = language, vendorId = vendorId)
 
     return JsonResponse({})
+
+
+@api_view(["POST", "PATCH"])
+def split_order_and_payment(request):
+    request_data = request.data
+
+    vendorId = request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+
+    if not vendorId:
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendorId = int(vendorId)
+
+    except ValueError:
+        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk = vendorId).first()
+
+    if not vendor_instance:
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+    
+    order = KOMSOrder.objects.get(externalOrderId = request_data['orderid'])
+
+    master_order = Order.objects.filter(pk = order.master_order.pk).last()
+
+    payment = OrderPayment.objects.filter(orderId = master_order.pk).last()
+
+    if not payment:
+        return Response("Payment record does not exist", status = status.HTTP_400_BAD_REQUEST)
+    
+    payment.type = payment_type_number["Split"]
+
+    payment.splitType = request_data.get('splitBy', None)
+
+    payment.save()
+
+    Order.objects.filter(masterOrder = master_order.pk).delete()
+
+    count = 1
+
+    for splitPayment in request_data["payments"]:
+        split_customer = Customer.objects.filter(pk = splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+
+        split_order = Order(
+            Status = master_order_status_number["Open"],
+            masterOrder = master_order,
+            TotalAmount = splitPayment.get("amount_paid", 0.0),
+            OrderDate = timezone.now(),
+            Notes = request_data.get("note"),
+            externalOrderId = master_order.externalOrderId + f"_{count}",
+            orderType = master_order.orderType,
+            arrivalTime = timezone.now(),
+            tax = splitPayment.get("amount_tax") or 0.0 ,
+            discount = 0.0,
+            tip = 0.0,
+            delivery_charge = 0.0,
+            subtotal = (splitPayment.get("amount_paid", 0.0)) - (splitPayment.get("amount_tax") or 0.0) ,
+            customerId = split_customer.first() if split_customer and split_customer.exists() else master_order.customerId,
+            vendorId = vendor_instance,
+            platform = master_order.platform
+        ).save()
+        
+        count = count + 1
+
+        payment_type = splitPayment.get("paymentType", "Cash")
+
+        payment_type = payment_type.capitalize()
+
+        if request_data.get('splitBy', None) == "by_product":
+            for item in splitPayment.get("splitItems",[]):
+                order_content = Order_content.objects.get(pk = item['order_content_id'])
+
+                SplitOrderItem(
+                    order_id = split_order,
+                    order_content_id = order_content,
+                    order_content_qty = item.get('order_content_qty') or order_content.quantity
+                ).save()
+
+        OrderPayment(
+            orderId = split_order,
+            paymentBy = master_order.customerId.Email or "",
+            paymentKey = splitPayment.get("paymentKey", ""),
+            paid = splitPayment.get("amount_paid", 0.0),
+            due = 0.0,
+            tip = splitPayment.get('tip', 0.0),
+            status = splitPayment.get("paymentStatus") or False,
+            type = payment_type_number[payment_type],
+            platform = splitPayment.get("platform") or "",
+            splitType = request_data.get('splitBy', None),
+        ).save()
+
+    waiteOrderUpdate(orderid = order.pk, language = language, vendorId = vendorId)
+
+    return Response({"success": True})
 
 
 @api_view(["POST"])
@@ -8945,96 +9041,3 @@ def delete_core_user_category(request):
             transaction.set_rollback(True)
 
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["POST", "PATCH"])
-def splitOrderPayment(request):
-    data = request.data
-
-    vendorId = request.GET.get('vendorId')
-    language = request.GET.get('language', 'English')
-
-    if vendorId is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        vendorId = int(vendorId)
-
-    except ValueError:
-        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
-    
-    vendor_instance = Vendor.objects.filter(pk=vendorId).first()
-
-    if not vendor_instance:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
-
-    coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
-
-    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
-
-    if not payment:
-        return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
-    
-    payment.type = payment_type_number["Split"]
-
-    payment.splitType = data.get('splitBy', None)
-
-    payment.save()
-
-    Order.objects.filter(masterOrder = coreOrder.pk).delete()
-
-    count = 1
-
-    for splitPayment in data["payments"]:
-        split_customer = Customer.objects.filter(pk = splitPayment.get('customerId')) if splitPayment.get('customerId') else None
-
-        split_order = Order(
-                Status = master_order_status_number["Open"],
-                masterOrder = coreOrder,
-                TotalAmount = splitPayment.get("amount_paid",0.0),
-                OrderDate = timezone.now(),
-                Notes = data.get("note"),
-                externalOrderId = coreOrder.externalOrderId + f"_{count}",
-                orderType = coreOrder.orderType,
-                arrivalTime = timezone.now(),
-                tax = splitPayment.get("amount_tax") or 0.0 ,
-                discount = 0.0,
-                tip = 0.0,
-                delivery_charge = 0.0,
-                subtotal = (splitPayment.get("amount_paid", 0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
-                customerId = split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
-                vendorId = vendor_instance,
-                platform = coreOrder.platform
-            ).save()
-        
-        count = count + 1
-
-        payment_type = splitPayment.get("paymentType", "Cash")
-
-        payment_type = payment_type.capitalize()
-        if data.get('splitBy', None) == "by_product":
-            for item in splitPayment.get("splitItems",[]):
-                order_content = Order_content.objects.get(pk=item['order_content_id'])
-                SplitOrderItem(
-                    order_id = split_order,
-                    order_content_id = order_content,
-                    order_content_qty = item.get('order_content_qty') or order_content.quantity
-                ).save()
-        OrderPayment(
-            orderId = split_order,
-            paymentBy = coreOrder.customerId.Email or "",
-            paymentKey = splitPayment.get("paymentKey",""),
-            paid = splitPayment.get("amount_paid",0.0),
-            due = 0.0,
-            tip = splitPayment.get('tip',0.0),
-            status = splitPayment.get("paymentStatus") or  False,
-            type = payment_type_number[payment_type],
-            platform = splitPayment.get("platform") or "",
-            splitType = data.get('splitBy', None),
-        ).save()
-
-    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
-
-    return Response({"success":True})
