@@ -2487,7 +2487,8 @@ def order_details(request):
             "split_payments": []
         }
 
-        split_orders = Order.objects.filter(masterOrder=koms_order.master_order).prefetch_related('orderpayment_set', 'splitorderitem_set__order_content_id')
+        split_orders = Order.objects.filter(masterOrder = koms_order.master_order) \
+            .prefetch_related('orderpayment_set', 'splitorderitem_set__order_content_id')
         
         for split_order in split_orders:
             split_payment = split_order.orderpayment_set.first()
@@ -2496,22 +2497,27 @@ def order_details(request):
                 split_items = []
 
                 for item in split_order.splitorderitem_set.all():
-                    product = item.order_content_id.product
+                    product_info = Product.objects.filter(
+                        PLU = item.order_content_id.SKU, vendorId = vendor_id
+                    ).values("pk", "productPrice").first()
                     
-                    images = ProductImage.objects.filter(product_id=product.pk).values_list('url', flat=True)
+                    images = ProductImage.objects.filter(product_id = product_info["pk"]).values_list('url', flat=True)
 
                     image_list = list(images) if images else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg']
                     
                     modifiers = []
 
-                    order_modifiers = Order_modifer.objects.filter(contentID = item.order_content_id.pk).select_related('modifier')
-                    
+                    order_modifiers = Order_modifer.objects.filter(contentID = item.order_content_id.pk).values("SKU", "quantity")
+
                     for modifier in order_modifiers:
+                        modifier_info = ProductModifier.objects.filter(modifierPLU__in = modifier["SKU"], vendorId = vendor_id) \
+                            .values("pk", "modifierName", "modifierPrice").first()
+                        
                         modifiers.append({
-                            "modifer_id": modifier.pk,
-                            "modifer_name": modifier.modifier.modifierName,
-                            "modifer_quantity": modifier.quantity,
-                            "modifer_price": modifier.modifier.modifierPrice,
+                            "modifer_id": modifier_info["pk"],
+                            "modifer_name": modifier_info["modifierName"],
+                            "modifer_quantity": modifier["quantity"],
+                            "modifer_price": modifier_info["modifierPrice"],
                             "order_content_id": item.order_content_id.pk,
                         })
                     
@@ -2519,7 +2525,7 @@ def order_details(request):
                         "order_content_id": item.order_content_id.pk,
                         "order_content_name": item.order_content_id.name,
                         "order_content_quantity": item.order_content_qty,
-                        "order_content_price": product.productPrice,
+                        "order_content_price": product_info["productPrice"],
                         "order_content_images": image_list,
                         "order_content_modifer": modifiers
                     })
