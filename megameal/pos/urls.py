@@ -17,28 +17,28 @@ router.register("setting/banner", views.BannerModelViewSet, basename="banner")
 router.register("setting/departments", views.DepartmentModelViewSet, basename="departments")
 router.register("setting/working_shift", views.WorkingShiftModelViewSet, basename="working_shift")
 router.register("setting/users", views.CoreUserModelViewSet, basename="core_users")
-router.register("setting/permission", views.POSPermissionModelViewSet, basename="pos_permission")
 
 
 urlpatterns = [
    path('', include(router.urls)),
    path('login/', views.pos_user_login),
    path('permission/', views.get_pos_permissions, name="permission"),
+   path('allCategory/',views.allCategory), # All Category api for POS
+   path('productByCategory/',views.productByCategory), # all Category product api for POS
+   path('productByCategory/<int:id>/',views.productByCategory), # Single Category product api for POS
    path('dashboard/', views.dashboard, name="dashboard"),
-   path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
    path('dashboard/top_selling_product_details/', views.top_selling_product_details, name="top_selling_product_details"),
+   path('dashboard/order_status_type_summary/', views.order_status_type_summary, name="order_status_type_summary"),
+   path('modifier_update/', views.modifier_update, name="modifier_update"),
    path('dashboard/excel_download/', views.excel_download_for_dashboard, name="excel_download_for_dashboard"),
-   path('allCategory/', views.get_categories),
-   path('productByCategory/', views.productByCategory),
-   path('productByCategory/<int:id>/', views.productByCategory),
-   path('productStatusChange/', views.product_on_off),
-   path('modifier_update/', views.modifier_on_off),
-   path('tableCapacity/',views.show_tableCapacity), # remove this API
+   path('table/',views.showtabledetails), # show tables details
+   path('tableCapacity/',views.show_tableCapacity), # show products 
+   path('productStatusChange/',views.productStatusChange), # activate / deactivate products
    path('createOrder/',views.createOrder), # create new order
    path('platform_list/', views.platform_list, name="platform_list"),
    path('order_details/', views.order_details, name="order_details"),
-   path('updatePaymentDetails/', views.make_payment, name="updatePaymentDetails"),
-   path('splitOrderPayment/', views.split_order_and_payment, name="splitOrderPayment"),
+   path('updatePaymentDetails/', views.updatePaymentDetails, name="updatePaymentDetails"),
+   path('splitOrderPayment/', views.splitOrderPayment, name="splitOrderPayment"),
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
    path('store_status/', views.update_store_status, name="store_status"),
    path('order_data/', views.get_order_data, name="order_data"),

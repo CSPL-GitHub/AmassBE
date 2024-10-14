@@ -141,10 +141,10 @@ class ProductImageAdmin(admin.ModelAdmin):
     
 @admin.register(Tax)
 class TaxAdmin(admin.ModelAdmin):
-    fields = ('vendor', 'name', 'name_locale', 'percentage', 'is_active')
+    fields = ('vendorId', 'enabled', 'taxLevel', 'name', 'name_locale', 'percentage',)
     
-    list_display = ('name', 'percentage', 'vendor',)
-    list_filter = ('vendor',)
+    list_display = ('name', 'percentage', 'vendorId',)
+    list_filter = ('vendorId',)
     search_fields = ('name',)
     # show_facets = admin.ShowFacets.ALWAYS
 

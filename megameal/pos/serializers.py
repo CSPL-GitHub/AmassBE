@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from woms.models import Waiter, Floor, HotelTable
-from pos.models import StoreTiming, Banner, CoreUser, Department, WorkingShift, POSPermission
+from pos.models import StoreTiming, Banner, CoreUser, Department, WorkingShift
 from order.models import Order_Discount
 from core.models import (
     ProductCategory, Product, ProductImage, ProductCategoryJoint, ProductAndModifierGroupJoint,
@@ -307,20 +307,3 @@ class CoreUserModelSerializer(serializers.ModelSerializer):
             data['core_user_category'] = 0
         
         return data
-
-
-class POSPermissionModelSerializer(serializers.ModelSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
-        if self.context["request"].method in ("PUT", "PATCH",):
-            excluded_fields = ("vendor",)
-
-            for field_name in excluded_fields:
-                self.fields.pop(field_name)
-
-    id = serializers.IntegerField(read_only=True)
-
-    class Meta:
-        model = POSPermission
-        fields = "__all__"

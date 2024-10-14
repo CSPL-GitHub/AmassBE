@@ -1,10 +1,10 @@
 from core.models import Platform, ProductModifier, Product, Tax, Vendor
 from order.models import Address, Customer, Order, Order_Discount, OrderItem, OrderItemModifier, OrderPayment
 from core.utils import (
-    API_Messages, DiscountCal, TaxLevel, send_order_confirmation_email,
+    API_Messages, DiscountCal, OrderType, TaxLevel, send_order_confirmation_email,
 )
 from core.models import EmailLog
-from pos.language import master_order_status_number, order_type_number
+from pos.language import master_order_status_number
 from megameal.settings import EMAIL_HOST_USER
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -106,18 +106,13 @@ class StagingIntegration():
             if data.get("discount"):
                 if data.get("discount").get('value'):
                     discount=data.get("discount").get('value')
-
-            order_type = (data.get("orderType")).capitalize()
-
-            order_type = order_type_number[order_type]
-            
             order = Order(
                 Status = master_order_status_number["Open"],
                 TotalAmount = 0.0,
                 OrderDate = timezone.now(),
                 Notes = data.get("note"),
                 externalOrderId = data.get("externalOrderId"),
-                orderType = order_type,
+                orderType = OrderType.get_order_type_value(data.get("orderType")),
                 arrivalTime = timezone.now(),
                 tax = 0.0,
                 discount = discount,
@@ -128,7 +123,6 @@ class StagingIntegration():
                 vendorId = vendor_instance,
                 platform = platform_instance
             ).save()
-
             request["internalOrderId"] = order.pk
             request["master_id"] = order.pk
             # +++++++
@@ -174,7 +168,7 @@ class StagingIntegration():
                 tax = data.get("tax")
 
             else:
-                taxes = Tax.objects.filter(is_active = True, vendor = vendorId)
+                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
 
                 if taxes.exists():
                     tax = order.tax+productTaxes
@@ -190,6 +184,22 @@ class StagingIntegration():
                 order.TotalAmount = data["payment"]["payAmount"]
                 order.delivery_charge = data["payment"]["shipping_total"]
                 order.tax = data["payment"]["total_tax"]
+
+            # +++++ Add order Taxes
+            try:
+                data["orderLevelTax"] = []
+
+                orderTaxes = Tax.objects.filter(
+                    vendorId=vendorId, isDeleted=False, taxLevel=TaxLevel.ORDER, enabled=True
+                )
+
+                if orderTaxes:
+                    for orderTax in orderTaxes:
+                        data["orderLevelTax"].append(orderTax.to_dict())
+
+            except Tax.DoesNotExist:
+                print("Tax not found for vendor")
+            # +++++ Taxes
 
             order = order.save()
 
@@ -216,7 +226,7 @@ class StagingIntegration():
             ((order.platform.Name == 'Website') or (order.platform.Name == 'Mobile App')):
                 tax_details = []
                 
-                taxes = Tax.objects.filter(is_active = True, vendor = vendorId)
+                taxes = Tax.objects.filter(enabled=True, vendorId=vendorId)
 
                 if taxes:
                     for tax in taxes:
@@ -430,7 +440,12 @@ class StagingIntegration():
             coreResponse["item"]["itemLevelTax"] = []
 
             try:
-                taxForProduct = Tax.objects.filter(is_active = True, vendor = vendorId)
+                taxForProduct = Tax.objects.filter(
+                    vendorId = vendor,
+                    isDeleted = False,
+                    enabled = True,
+                    taxLevel = TaxLevel.ORDER
+                )
 
                 appliedTaxes.extend(list(taxForProduct))
 
@@ -464,4 +479,29 @@ class StagingIntegration():
             log(level=1, msg=f"Unexpected {err=}, {type(err)=}")
             coreResponse["msg"] = f"Unexpected {err=}, {type(err)=}"
         return coreResponse
+
+
+    def updateOrderStatus(self,request):
+     try:
+        order_status = request["status"]
+
+        order_status = order_status.capitalize()
+
+        orderStatus = master_order_status_number[order_status]
+
+        try:
+            updateOrderStatus = Order.objects.get(pk = request['orderId'])
+
+        except Exception as err:
+            updateOrderStatus = Order.objects.get(externalOrderId = request['orderId'])
+
+        request["externalOrderId"] = updateOrderStatus.externalOrderId
+
+        updateOrderStatus.Status = orderStatus
+        updateOrderStatus.save()
+
+        return {API_Messages.STATUS:API_Messages.SUCCESSFUL, API_Messages.RESPONSE:"Order status updated"}
+     
+     except Exception as err:
+        return {API_Messages.STATUS:API_Messages.ERROR, API_Messages.RESPONSE:f"Unexpected {err=}, {type(err)=}"}
     

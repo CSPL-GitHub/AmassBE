@@ -1,6 +1,6 @@
 from django.template.defaultfilters import slugify
-from django.db.models import Count, Q, Sum, Prefetch, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Count, Q, Sum
+from core.utils import OrderStatus, OrderType
 from core.models import (
     Product, ProductImage, ProductCategory, ProductCategoryJoint,
     ProductModifierGroup, ProductAndModifierGroupJoint, ProductModifier,
@@ -8,9 +8,9 @@ from core.models import (
 )
 from order.models import Order, Address, OrderPayment, LoyaltyPointsRedeemHistory, SplitOrderItem
 from pos.models import Department, CoreUserCategory
-from koms.models import Order_modifer, Station
+from koms.models import Station,Order_modifer
 from koms.views import getOrder
-from pos.language import language_localization, order_type_number, master_order_status_number, payment_type_english
+from pos.language import language_localization, payment_type_english
 from django.conf import settings
 import pandas as pd
 import os
@@ -23,13 +23,13 @@ def order_count(start_date, end_date, order_type, vendor_id):
     orders = Order.objects.filter(OrderDate__date__range=(start_date, end_date),  vendorId=vendor_id)
 
     if order_type == "delivery":
-        orders = orders.filter(orderType = order_type_number["Delivery"])
+        orders = orders.filter(orderType=OrderType.get_order_type_value('DELIVERY'))
     
     elif order_type == "pickup":
-        orders = orders.filter(orderType = order_type_number["Pickup"])
+        orders = orders.filter(orderType=OrderType.get_order_type_value('PICKUP'))
 
     elif order_type == "dinein":
-        orders = orders.filter(orderType = order_type_number["Dinein"])
+        orders = orders.filter(orderType=OrderType.get_order_type_value('DINEIN'))
 
     elif order_type == "online":
         if platform:
@@ -60,13 +60,13 @@ def order_count(start_date, end_date, order_type, vendor_id):
             return count_details
     
     count_details = orders.aggregate(
-        total_orders = Count('id'),
-        complete_orders = Count('id', filter = Q(Status = master_order_status_number["Complete"])),
-        cancelled_orders = Count('id', filter = Q(Status = master_order_status_number["Canceled"])),
-        processing_orders = Count('id', filter = Q(Status__in = [
-            master_order_status_number["Open"],
-            master_order_status_number["Inprogress"],
-            master_order_status_number["Prepared"]
+        total_orders=Count('id'),
+        complete_orders=Count('id', filter=Q(Status=OrderStatus.get_order_status_value('COMPLETED'))),
+        cancelled_orders=Count('id', filter=Q(Status=OrderStatus.get_order_status_value('CANCELED'))),
+        processing_orders=Count('id', filter=Q(Status__in=[
+            OrderStatus.get_order_status_value('OPEN'),
+            OrderStatus.get_order_status_value('INPROGRESS'),
+            OrderStatus.get_order_status_value('PREPARED')
         ]))
     )
     
@@ -74,100 +74,106 @@ def order_count(start_date, end_date, order_type, vendor_id):
 
 
 def get_product_by_category_data(products, language, vendor_id):
-    products = products.prefetch_related(
-        Prefetch('productimage_set', queryset = ProductImage.objects.filter(vendorId = vendor_id), to_attr = 'images'),
-        Prefetch(
-            'productandmodifiergroupjoint_set', 
-            queryset = ProductAndModifierGroupJoint.objects.filter(vendorId = vendor_id).select_related('modifierGroup'),
-            to_attr = 'modifier_groups'
-        ),
-        Prefetch(
-            'productcategoryjoint_set', 
-            queryset = ProductCategoryJoint.objects.select_related('category'),
-            to_attr = 'categories'
-        )
-    )
-
     product_list = []
 
     for product in products:
-        product_images = []
+        images = []
 
-        for image in product.images:
-            product_images.append(image.url)
+        product_images = ProductImage.objects.filter(product=product.pk, vendorId=vendor_id)
+
+        for instance in product_images:
+            if instance is not None:
+                images.append(str(instance.url))
         
         modifier_group_list = []
 
-        for modifier_grp_info in product.modifier_groups:
-            modifier_group = modifier_grp_info.modifierGroup
+        product_and_modifier_group_joint = ProductAndModifierGroupJoint.objects.filter(product=product.pk, vendorId=vendor_id)
+        
+        if product_and_modifier_group_joint:
+            for product_and_modifier_group_instance in product_and_modifier_group_joint:
+                modifier_list = []
 
-            modifier_list = []
+                modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=product_and_modifier_group_instance.modifierGroup.pk, modifierGroup__isDeleted=False, vendor=vendor_id)
+                
+                if modifier_and_group_joint:
+                    for modifier_and_group_instance in modifier_and_group_joint:
+                        modifier_name = ""
+                        modifier_description = ""
 
-            modifier_and_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(
-                modifierGroup = modifier_group.pk, vendor = vendor_id
-            ).select_related("modifier").values(
-                "modifier__pk", "modifier__modifierName", "modifier__modifierName_locale", "modifier__modifierDesc",
-                "modifier__modifierDesc_locale", "modifier__modifierPrice", "modifier__modifierPLU", "modifier__modifierImg",
-                "modifier__active"
-            )
-            
-            if modifier_and_group_joint:
-                for modifier_info in modifier_and_group_joint:
-                    modifier_name = modifier_info["modifier__modifierName"]
-                    modifier_description = modifier_info["modifier__modifierDesc"]
+                        if language == "English":
+                            modifier_name = modifier_and_group_instance.modifier.modifierName
+                            modifier_description = modifier_and_group_instance.modifier.modifierDesc
 
-                    if language != "English":
-                        modifier_name = modifier_info["modifier__modifierName_locale"]
-                        modifier_description = modifier_info["modifier__modifierDesc_locale"]
+                        else:
+                            modifier_name = modifier_and_group_instance.modifier.modifierName_locale
+                            modifier_description = modifier_and_group_instance.modifier.modifierDesc_locale
+                        
+                        modifier_list.append(
+                            {
+                                "cost": modifier_and_group_instance.modifier.modifierPrice,
+                                "modifierId": modifier_and_group_instance.modifier.pk,
+                                "name": modifier_name,
+                                "description": modifier_description,
+                                "quantity": 0,
+                                "plu": modifier_and_group_instance.modifier.modifierPLU,
+                                "image": modifier_and_group_instance.modifier.modifierImg if modifier_and_group_instance.modifier.modifierImg else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                                # "image":modifier_and_group_instance.modifier.modifierImg,
+                                "status": True, # Required for order helper function
+                                "active": modifier_and_group_instance.modifier.active
+                            }                    
+                        )
+
+                if product_and_modifier_group_instance.modifierGroup.isDeleted == False: 
+                    modifier_group_name = ""
+                    modifier_group_description = ""
+
+                    if language == "English":
+                        modifier_group_name = product_and_modifier_group_instance.modifierGroup.name
+                        modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description
                     
-                    modifier_list.append({
-                        "modifierId": modifier_info["modifier__pk"],
-                        "name": modifier_name,
-                        "description": modifier_description or "",
-                        "plu": modifier_info["modifier__modifierPLU"],
-                        "cost": modifier_info["modifier__modifierPrice"],
-                        "image": modifier_info["modifier__modifierImg"] or 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-                        "status": True, # Required for order helper function
-                        "active": modifier_info["modifier__active"],
-                        "quantity": 0
-                    })
+                    else:
+                        modifier_group_name = product_and_modifier_group_instance.modifierGroup.name_locale
+                        modifier_group_description = product_and_modifier_group_instance.modifierGroup.modifier_group_description_locale
 
-            modifier_group_name = modifier_group.name
-            modifier_group_description = modifier_group.modifier_group_description
-
-            if language != "English":
-                modifier_group_name = modifier_group.name_locale
-                modifier_group_description = modifier_group.modifier_group_description_locale
-
-            modifier_group_list.append({
-                "id": modifier_group.pk,
-                "name": modifier_group_name,
-                "plu": modifier_group.PLU,
-                "description": modifier_group_description or "",
-                "min": modifier_group.min,
-                "max": modifier_group.max,
-                "active": modifier_group.active,
-                "modifiers": modifier_list
-            })
+                    modifier_group_list.append(
+                    {
+                        "id": product_and_modifier_group_instance.modifierGroup.pk,
+                        "name": modifier_group_name,
+                        "plu": product_and_modifier_group_instance.modifierGroup.PLU,
+                        "description": modifier_group_description,
+                        # "min": product_and_modifier_group_instance.min,
+                        # "max": product_and_modifier_group_instance.max,
+                        "min": product_and_modifier_group_instance.modifierGroup.min,
+                        "max": product_and_modifier_group_instance.modifierGroup.max,
+                        # "type": product_and_modifier_group_instance.modifierGroup.modGrptype,
+                        "active": product_and_modifier_group_instance.modifierGroup.active,
+                        "modifiers": modifier_list
+                    }
+                )
             
-        category = product.categories[0].category if product.categories else None
-        
-        category_name = ""
         category_id = 0
+        category_name = ""
+        product_name = ""
+        product_description = ""
 
-        if category:
-            category_id = category.pk
-            category_name = category.categoryName
+        product_category_joint = ProductCategoryJoint.objects.filter(product=product.pk).first()
 
-            if language != "English":
-                category_name = category.categoryName_locale
+        if product_category_joint:
+            category_id = product_category_joint.category.pk
+
+            if language == "English":
+                category_name = product_category_joint.category.categoryName
+
+            else:
+                category_name = product_category_joint.category.categoryName_locale
         
-        product_name = product.productName
-        product_description = product.productDesc
-
-        if language != "English":
+        if language == "English":
+            product_name = product.productName
+            product_description = product.productDesc if product.productDesc else ""
+        
+        else:
             product_name = product.productName_locale
-            product_description = product.productDesc_locale
+            product_description = product.productDesc_locale if product.productDesc_locale else ""
         
         product_list.append({
             "categoryId": category_id,
@@ -175,11 +181,11 @@ def get_product_by_category_data(products, language, vendor_id):
             "productId": product.pk,
             "plu": product.PLU,
             "name": product_name,
-            "description": product_description or "",
+            "description": product_description,
             "cost": product.productPrice,
             "tag":  product.tag if product.tag else "",
-            "imagePath": product_images[0] if len(product_images) > 0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
-            "images": product_images if len(product_images) > 0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',],
+            "imagePath": images[0] if len(images)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+            "images": images if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
             "isTaxable": product.taxable,
             "type": product.productType,
             "variant": [],
@@ -887,100 +893,87 @@ def get_department_wise_categories(vendor_instance, search_parameter=None):
     return department_wise_categories
 
 
-def get_order_info_for_socket(order_info, language, vendor_id):
-    single_order = getOrder(ticketId = order_info["pk"], language = language, vendorId = vendor_id)
+def get_order_info_for_socket(order_instance, language, vendor_id):
+    single_order = getOrder(ticketId = order_instance.pk, language = language, vendorId = vendor_id)
 
-    order_payment_info = OrderPayment.objects.filter(orderId = order_info["master_order__pk"], masterPaymentId = None) \
-        .values("type", "paymentKey", "platform", "status", "splitType").last()
+    master_order_instance = order_instance.master_order
 
-    if order_payment_info:
-        payment_mode = payment_type_english[order_payment_info["type"]]
+    order_payment_instance = OrderPayment.objects.filter(orderId = master_order_instance.pk, masterPaymentId = None).last()
+
+    if order_payment_instance:
+        payment_mode = payment_type_english[order_payment_instance.type]
         
         if language != "English":
-            payment_mode = language_localization[payment_type_english[order_payment_info["type"]]]
+            payment_mode = language_localization[payment_type_english[order_payment_instance.type]]
         
         payment_details = {
-            "total": order_info["master_order__TotalAmount"],
-            "subtotal": order_info["master_order__subtotal"],
-            "tax": order_info["master_order__tax"],
-            "delivery_charge": order_info["master_order__delivery_charge"],
-            "discount": order_info["master_order__discount"],
-            "tip": 0.0,
-            "paymentKey": order_payment_info["paymentKey"],
-            "platform": order_payment_info["platform"],
-            "status": order_payment_info["status"],
+            "total": master_order_instance.TotalAmount,
+            "subtotal": master_order_instance.subtotal,
+            "tax": master_order_instance.tax,
+            "delivery_charge": master_order_instance.delivery_charge,
+            "discount": master_order_instance.discount,
+            "tip": master_order_instance.tip,
+            "paymentKey": order_payment_instance.paymentKey,
+            "platform": order_payment_instance.platform,
+            "status": order_payment_instance.status,
             "mode": payment_mode,
-            "splitType": order_payment_info["splitType"]
+            "splitType": order_payment_instance.splitType
         }
 
         split_payments_list = []
 
-        for split_order in Order.objects.filter(masterOrder = order_info["master_order__pk"]):
-            split_payment = OrderPayment.objects.filter(orderId = split_order.pk) \
-                .values("pk", "paymentKey", "paid", "type", "paid", "status", "platform").first()
+        for split_order in Order.objects.filter(masterOrder = master_order_instance.pk):
+            split_payment = OrderPayment.objects.filter(orderId = split_order.pk).first()
 
             if split_payment:
                 splitItems = []
-
-                split_order_items = SplitOrderItem.objects.filter(order_id = split_order.pk).select_related("order_content_id") \
-                    .values("order_content_id__pk", "order_content_id__name", "order_content_id__SKU", "order_content_qty")
-
-                for split_item in split_order_items:
+                for split_item in SplitOrderItem.objects.filter(order_id=split_order.pk):
                     order_content_modifer = []
 
-                    order_modifiers = Order_modifer.objects.filter(contentID = split_item["order_content_id__pk"]) \
-                        .values("pk", "name", "SKU", "quantity")
-                    
-                    for modifier in order_modifiers:
-                        modifier_price = ProductModifier.objects.filter(modifierPLU = modifier["SKU"], vendorId = vendor_id) \
-                            .values_list("modifierPrice", flat = True).first()
+                    for mod in Order_modifer.objects.filter(contentID=split_item.order_content_id.pk):
+                        modifier_instance = ProductModifier.objects.filter(modifierPLU = mod.SKU, vendorId = vendor_id).first()
 
                         order_content_modifer.append({
-                            "modifer_id": modifier["pk"],
-                            "modifer_name": modifier["name"],
-                            "modifer_quantity": modifier["quantity"],
-                            "modifer_price": modifier_price or 0,
-                            "order_content_id": split_item["order_content_id__pk"],
+                            "modifer_id":mod.pk,
+                            "modifer_name":mod.name,
+                            "modifer_quantity":mod.quantity,
+                            "modifer_price":modifier_instance.modifierPrice or 0,
+                            "order_content_id": split_item.order_content_id.pk,
                         })
                         
-                    product = Product.objects.filter(PLU = split_item["order_content_id__SKU"], vendorId_id = vendor_id) \
-                        .values("pk", "productPrice").first()
-                    
-                    product_images = ProductImage.objects.filter(product = product["pk"], vendorId = vendor_id).values_list("url", flat = True)
-                    
-                    splitItems.append({
-                        "order_content_id": split_item["order_content_id__pk"],
-                        "order_content_name": split_item["order_content_id__name"],
-                        "order_content_quantity": split_item["order_content_qty"],
-                        "order_content_price": product["productPrice"] or 0,
-                        "order_content_images": product_images[0] if len(product_images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
-                        "order_content_modifer": order_content_modifer,
-                    })
-
-                payment_type = payment_type_english[split_payment["type"]]
-
-                if language != "English":
-                    payment_type = language_localization[payment_type_english[split_payment["type"]]]
+                    product_instance = Product.objects.filter(PLU = split_item.order_content_id.SKU, vendorId_id = vendor_id).first()
+                    images = [str(instance.url) for instance in ProductImage.objects.filter(product=product_instance.pk, vendorId=vendor_id) if instance is not None]
+                    splitItems.append(
+                        {
+                            "order_content_id": split_item.order_content_id.pk,
+                            "order_content_name": split_item.order_content_id.name,
+                            "order_content_quantity": split_item.order_content_qty,
+                            "order_content_price": product_instance.productPrice or 1,
+                            "order_content_images": images[0] if len(images)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                            "order_content_modifer": order_content_modifer,
+                        }  
+                    )
 
                 split_payments_list.append({
-                    "paymentId": split_payment["pk"],
+                    "paymentId": split_payment.pk,
                     "paymentBy": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
                     "customer_name": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}" ,
                     "customer_mobile": split_order.customerId.Phone_Number,
                     "customer_email": split_order.customerId.Email if split_order.customerId.Email else "",
-                    "paymentKey": split_payment["paymentKey"],
-                    "amount_paid": split_payment["paid"],
-                    "paymentType": split_payment["type"],
-                    "paymentSplitPer": (split_payment["paid"] / order_info["master_order__TotalAmount"]) * 100,
-                    "paymentStatus": split_payment["status"],
+                    "paymentKey": split_payment.paymentKey,
+                    "amount_paid": split_payment.paid,
+                    "paymentType": split_payment.type,
+                    "paymentSplitPer": (split_payment.paid/master_order_instance.TotalAmount)*100,
+                    "paymentStatus": split_payment.status,
                     "amount_subtotal": split_order.subtotal,
                     "amount_tax": split_order.tax,
-                    "status": split_payment["status"],
-                    "platform": split_payment["platform"],
-                    "mode": payment_type,
-                    "splitType": order_payment_info["splitType"],
+                    "status": split_payment.status,
+                    "platform": split_payment.platform,
+                    "mode": payment_type_english[split_payment.type] if language == "English" else language_localization[payment_type_english[split_payment.type]],
+                    "splitType": order_payment_instance.splitType,
                     "splitItems": splitItems,
-                })
+                    }
+                )
 
         payment_details["split_payments"] = split_payments_list
 
@@ -1005,61 +998,64 @@ def get_order_info_for_socket(order_info, language, vendor_id):
         
     single_order['payment'] = payment_details
 
-    platform_name = order_info["master_order__platform__Name"]
+    platform_name = master_order_instance.platform.Name
     
     if language != "English":
-        platform_name = order_info["master_order__platform__Name_locale"]
+        platform_name = master_order_instance.platform.Name_locale
     
     platform_details = {
-        "id": order_info["master_order__platform__pk"],
+        "id": master_order_instance.platform.pk,
         "name": platform_name
     }
 
     single_order["platform_details"] = platform_details
 
-    customer_name = order_info["master_order__customerId__FirstName"]
-    
-    if order_info["master_order__customerId__LastName"]:
-        customer_name = order_info["master_order__customerId__FirstName"] + " " + order_info["master_order__customerId__LastName"]
+    first_name = master_order_instance.customerId.FirstName
+    last_name = master_order_instance.customerId.LastName
 
-    address = Address.objects.filter(
-        customer = order_info["master_order__customerId__pk"],
-        is_selected = True,
-        type = "shipping_address"
-    ).values("address_line1", "address_line2", "city", "state", "country", "zipcode").first()
+    customer_name = first_name
+    
+    if last_name:
+        customer_name = first_name + " " + last_name
+
+    address = Address.objects.filter(customer=master_order_instance.customerId.pk, is_selected=True, type="shipping_address").first()
 
     if address:
-        if address["address_line2"]:
-            shipping_address = address["address_line1"] + " " + address["address_line2"] + " " + address["city"] + " " + address["state"] + " " + address["country"] + " " + address["zipcode"]
+        if address.address_line2:
+            shipping_address = address.address_line1 + " " + address.address_line2 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
 
         else:
-            shipping_address = address["address_line1"] + " " + address["city"] + " " + address["state"] + " " + address["country"] + " " + address["zipcode"]
+            shipping_address = address.address_line1 + " " + address.city + " " + address.state + " " + address.country + " " + address.zipcode
     
     else:
         shipping_address = ""
 
     customer_details = {
-        "id": order_info["master_order__customerId__pk"],
+        "id": master_order_instance.customerId.pk,
         "name": customer_name,
-        "mobile": order_info["master_order__customerId__Phone_Number"],
-        "email": order_info["master_order__customerId__Email"] or "",
+        "mobile": master_order_instance.customerId.Phone_Number,
+        "email": master_order_instance.customerId.Email if master_order_instance.customerId.Email else "",
         "shipping_address": shipping_address
     }
 
     single_order["customer_details"] = customer_details
 
     loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-        customer = order_info["master_order__customerId__pk"],
-        order = order_info["master_order__pk"]
+        customer = master_order_instance.customerId.pk,
+        order = order_instance.master_order.pk
     )
 
-    total_points_redeemed = 0
-    
     if loyalty_points_redeem_history.exists():
-        total_points_redeemed = loyalty_points_redeem_history.aggregate(total = Coalesce(Sum('points_redeemed'), Value(0)))['total']
+        total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
+
+        if not total_points_redeemed:
+            total_points_redeemed = 0
+
+    else:
+        total_points_redeemed = 0
 
     single_order["total_points_redeemed"] = total_points_redeemed
 
-    single_order["franchise_location"] = order_info["vendorId__franchise_location"] or ""
+    single_order["franchise_location"] = order_instance.vendorId.franchise_location if order_instance.vendorId.franchise_location else ""
 
     return single_order

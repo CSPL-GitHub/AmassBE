@@ -12,7 +12,7 @@ from django.contrib import messages
 from django.contrib.auth import authenticate, login
 from django.contrib.auth.hashers import make_password
 from django.db import transaction, IntegrityError
-from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count, Value, F, Prefetch
+from django.db.models import Sum, Q, IntegerField, ExpressionWrapper, Count
 from django.db.models.functions import Coalesce, ExtractWeekDay, ExtractHour, ExtractMonth, TruncDate, TruncHour
 from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.core.validators import URLValidator
@@ -46,12 +46,16 @@ from pos.serializers import (
     StoreTimingSerializer, WaiterSerializer, FloorSerializer, HotelTableSerializer, ProductCategorySerializer, ProductSerializer,
     ProductCategoryJointSerializer, ProductImagesSerializer, ProductModGroupJointSerializer, ModifierGroupSerializer,
     ModifierSerializer, DiscountCouponModelSerializer, StationModelSerializer, ChefModelSerializer, BannerModelSerializer,
-    DepartmentModelSerializer, WorkingShiftModelSerializer, CoreUserModelSerializer, POSPermissionModelSerializer,
+    DepartmentModelSerializer, WorkingShiftModelSerializer, CoreUserModelSerializer,
 )
 from woms.views import get_table_data, filter_tables
 from koms.views import notify, allStationWiseCategory, allStationWiseRemove, allStationWiseSingle, waiteOrderUpdate, webSocketPush
-from pos.filters import WaiterFilter, ChefFilter
+from pos.filters import (
+    WaiterFilter, HotelTableFilter, ProductCategoryFilter, ModifierGroupFilter, DiscountCouponFilter,
+    StationFilter, ChefFilter,
+)
 from core.excel_file_upload import process_excel
+from core.utils import OrderType
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
     get_department_wise_categories, get_order_info_for_socket,
@@ -63,8 +67,8 @@ from inventory.utils import (
 )
 from pos.language import (
     local_timezone, language_localization, payment_type_english, payment_status_english, order_type_english,
-    master_order_status_number, koms_order_status_english, order_type_number, payment_type_number,
-    check_key_exists, table_created_locale, table_deleted_locale,
+    master_order_status_number, koms_order_status_english, payment_type_number, check_key_exists,
+    table_created_locale, table_deleted_locale,
 )
 import pandas
 import openpyxl
@@ -96,7 +100,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
     queryset = Department.objects.all().order_by('-pk')
     serializer_class = DepartmentModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('is_active',)
+    filterset_fields = ('name',)
     search_fields = ('name', 'name_locale')
     ordering_fields = ('id', 'name',)
     # permission_classes = [IsAuthenticated]
@@ -105,7 +109,7 @@ class DepartmentModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendor')
 
         if vendor_id:
-            return Department.objects.filter(vendor = vendor_id).order_by('-pk')
+            return Department.objects.filter(vendor=vendor_id).order_by('-pk')
         
         return Department.objects.none()
 
@@ -121,15 +125,16 @@ class WorkingShiftModelViewSet(viewsets.ModelViewSet):
     queryset = WorkingShift.objects.all().order_by('start_time')
     serializer_class = WorkingShiftModelSerializer
     filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
+    filterset_fields = ('name',)
     search_fields = ('name', 'name_locale')
-    ordering_fields = ('id', 'start_time')
+    ordering_fields = ('id', 'name', 'start_time')
     # permission_classes = [IsAuthenticated]
     
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendor')
 
         if vendor_id:
-            return WorkingShift.objects.filter(vendor = vendor_id).order_by('start_time')
+            return WorkingShift.objects.filter(vendor=vendor_id).order_by('start_time')
         
         return WorkingShift.objects.none()
 
@@ -233,7 +238,7 @@ class WaiterViewSet(viewsets.ModelViewSet):
 
 
 class FloorViewSet(viewsets.ModelViewSet):
-    queryset = Floor.objects.all()
+    queryset = Floor.objects.all().order_by('id')
     serializer_class = FloorSerializer
     # permission_classes = [IsAuthenticated]
 
@@ -241,39 +246,52 @@ class FloorViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Floor.objects.filter(vendorId=vendor_id).order_by('id')
+            queryset = Floor.objects.filter(vendorId=vendor_id).order_by('id')
+
+            return queryset
         
-        return Floor.objects.none()
+        else:
+            return Floor.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
         serializer = self.get_serializer(queryset, many=True)
+        data = {"floors": serializer.data}
         
-        return JsonResponse({"floors": serializer.data})
+        return Response(data, status=status.HTTP_200_OK)
     
 
 class HotelTableViewSet(viewsets.ModelViewSet):
     queryset = HotelTable.objects.all()
     serializer_class = HotelTableSerializer
-    filter_backends = (DjangoFilterBackend,)
-    filterset_fields = ('floor',)
+    filter_class = HotelTableFilter
+    filter_backends = [DjangoFilterBackend]
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return HotelTable.objects.filter(vendorId = vendor_id).order_by('tableNumber')
+            queryset = HotelTable.objects.filter(vendorId=vendor_id).order_by('tableNumber')
 
-        return HotelTable.objects.none()
+            return queryset
+        
+        else:
+            return HotelTable.objects.none()
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
+        floor_id_query = request.GET.get('floor', None)
+
+        if floor_id_query:
+            queryset = queryset.filter(floor__id = floor_id_query).order_by('tableNumber')
+
         serializer = self.get_serializer(queryset, many=True)
+        data = {"tables": serializer.data}
         
-        return JsonResponse({"tables": serializer.data})
+        return Response(data, status=status.HTTP_200_OK)
     
     def perform_create(self, serializer):
         instance = serializer.save()
@@ -423,27 +441,45 @@ class HotelTableViewSet(viewsets.ModelViewSet):
 class ProductCategoryViewSet(viewsets.ModelViewSet):
     queryset = ProductCategory.objects.all()
     serializer_class = ProductCategorySerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    search_fields = ('categoryName', 'categoryName_locale',)
+    filter_class = ProductCategoryFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
+        # vendor_id = self.request.query_params.get('vendorId', None)
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return ProductCategory.objects.filter(vendorId = vendor_id).order_by('-pk')
+            queryset = ProductCategory.objects.filter(vendorId=vendor_id)
         
-        return ProductCategory.objects.none()
+        else:
+            queryset = ProductCategory.objects.none()
+        
+        queryset = queryset.order_by('-pk')
+
+        return queryset
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('categoryName', None)
+        language = request.GET.get('language', 'English')
+        
+        if name_query:
+            if language == "English":
+                queryset = queryset.filter(categoryName__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(categoryName_locale__icontains=name_query)
+
         page = self.paginate_queryset(queryset)
 
-        serializer = self.get_serializer(page, many=True)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
 
-        return self.get_paginated_response(serializer.data)
+            return self.get_paginated_response(serializer.data)
     
     def create(self, request, *args, **kwargs):
         try:
@@ -564,9 +600,8 @@ class ProductCategoryViewSet(viewsets.ModelViewSet):
 class ModifierGroupViewSet(viewsets.ModelViewSet):
     queryset = ProductModifierGroup.objects.all()
     serializer_class = ModifierGroupSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('active',)
-    search_fields = ('name', 'name_locale')
+    filter_class = ModifierGroupFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter)
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
 
@@ -574,18 +609,36 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return ProductModifierGroup.objects.filter(vendorId = vendor_id).order_by('-id')
+            queryset = ProductModifierGroup.objects.filter(vendorId=vendor_id)
         
-        return ProductModifierGroup.objects.none()
+        else:
+            queryset = ProductModifierGroup.objects.none()
+        
+        queryset = queryset.order_by('-id')
+
+        return queryset
     
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
+        # name_query = request.query_params.get('name', None)
+        name_query = request.GET.get('name', None)
+        
+        if name_query:
+            language = request.GET.get('language', "English")
+
+            if language == "English":
+                queryset = queryset.filter(name__icontains=name_query)
+            
+            else:
+                queryset = queryset.filter(name_locale__icontains=name_query)
+
         page = self.paginate_queryset(queryset)
 
-        serializer = self.get_serializer(page, many=True)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
 
-        return self.get_paginated_response(serializer.data)
+            return self.get_paginated_response(serializer.data)
         
     def create(self, request, *args, **kwargs):
         try:
@@ -685,8 +738,8 @@ class ModifierGroupViewSet(viewsets.ModelViewSet):
 class DiscountCouponModelViewSet(viewsets.ModelViewSet):
     queryset = Order_Discount.objects.all().order_by('-pk')
     serializer_class = DiscountCouponModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    filterset_fields = ('is_active',)
+    filter_class = DiscountCouponFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
     search_fields = ("discountName", "discountCode", "value")
     pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
@@ -695,7 +748,7 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Order_Discount.objects.filter(vendorId = vendor_id).order_by("-pk")
+            return Order_Discount.objects.filter(vendorId=vendor_id).order_by("-pk")
         
         return Order_Discount.objects.none()
 
@@ -705,32 +758,43 @@ class DiscountCouponModelViewSet(viewsets.ModelViewSet):
 
         page = self.paginate_queryset(queryset)
 
-        serializer = self.get_serializer(page, many=True)
-
-        return self.get_paginated_response(serializer.data)
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class StationModelViewSet(viewsets.ModelViewSet):
-    queryset = Station.objects.all()
+    queryset = Station.objects.all().order_by('-pk')
     serializer_class = StationModelSerializer
-    filter_backends = (DjangoFilterBackend, SearchFilter, OrderingFilter)
-    search_fields = ('station_name', 'station_name_locale',)
+    filter_class = StationFilter
+    filter_backends = (DjangoFilterBackend, filters.OrderingFilter, filters.SearchFilter)
+    search_fields = ('station_name',)
+    pagination_class = CustomPagination
     # permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
         vendor_id = self.request.GET.get('vendorId', None)
 
         if vendor_id:
-            return Station.objects.filter(vendorId = vendor_id).order_by("-pk")
+            return Station.objects.filter(vendorId=vendor_id).order_by("-pk")
         
         return Station.objects.none()
 
+    
     def list(self, request, *args, **kwargs):
         queryset = self.filter_queryset(self.get_queryset())
 
-        serializer = self.get_serializer(queryset, many=True)
+        page = self.paginate_queryset(queryset)
 
-        return JsonResponse({"stations": serializer.data})
+        if page:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
 
 class ChefModelViewSet(viewsets.ModelViewSet):
@@ -764,7 +828,7 @@ class ChefModelViewSet(viewsets.ModelViewSet):
 
 
 class BannerModelViewSet(viewsets.ModelViewSet):
-    queryset = Banner.objects.all()
+    queryset = Banner.objects.all().order_by('-pk')
     serializer_class = BannerModelSerializer
     # permission_classes = [IsAuthenticated]
     
@@ -775,9 +839,9 @@ class BannerModelViewSet(viewsets.ModelViewSet):
             platform_type = self.request.GET.get('platform_type')
             
             if platform_type:
-                return Banner.objects.filter(platform_type = platform_type, vendor = vendor_id).order_by("-pk")
+                return Banner.objects.filter(platform_type=platform_type, vendor=vendor_id).order_by("-pk")
             
-            return Banner.objects.filter(vendor = vendor_id).order_by("-pk")
+            return Banner.objects.filter(vendor=vendor_id).order_by("-pk")
         
         return Banner.objects.none()
     
@@ -785,29 +849,9 @@ class BannerModelViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset())
 
         serializer = self.get_serializer(queryset, many=True)
-
-        return JsonResponse({"banners": serializer.data})
-
-
-class POSPermissionModelViewSet(viewsets.ModelViewSet):
-    queryset = POSPermission.objects.all()
-    serializer_class = POSPermissionModelSerializer
-    # permission_classes = [IsAuthenticated]
-    
-    def get_queryset(self):
-        vendor_id = self.request.GET.get('vendor')
-
-        if vendor_id:
-            return POSPermission.objects.filter(vendor = vendor_id).order_by("-pk")
+        data = {"banners": serializer.data}
         
-        return POSPermission.objects.none()
-    
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-
-        serializer = self.get_serializer(queryset, many=True)
-
-        return JsonResponse({"permissions": serializer.data})
+        return Response(data, status=status.HTTP_200_OK)
 
 
 
@@ -818,22 +862,22 @@ def get_tax(request):
     vendor_id = request.GET.get("vendorId")
 
     if not vendor_id:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
+        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
 
     except ValueError:
-        return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid vendor ID", status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
     tax_list = []
 
-    taxes = Tax.objects.filter(vendor = vendor_id)
+    taxes = Tax.objects.filter(isDeleted=False, vendorId=vendor_id)
 
     if (platform == "Website") or (platform == "Mobile App"):
         for tax in taxes:
@@ -848,7 +892,7 @@ def get_tax(request):
                 "type": tax_name,
                 "rate": tax.percentage,
                 "value": round((tax.percentage / 100), 3),
-                "is_active": tax.is_active,
+                "is_active": tax.enabled,
             })
 
     else:
@@ -859,10 +903,10 @@ def get_tax(request):
                 "type_locale": tax.name_locale,
                 "rate": tax.percentage,
                 "value": round((tax.percentage / 100), 3),
-                "is_active": tax.is_active,
+                "is_active": tax.enabled,
             })
 
-    return JsonResponse({"taxes": tax_list})
+    return JsonResponse({"taxes":tax_list})
 
 
 @api_view(["POST"])
@@ -879,35 +923,39 @@ def create_tax(request):
         vendor_id = int(vendor_id)
         rate = float(rate)
         is_active = bool(is_active)
+
+        if tax_type not in ("SGST", "CGST"):
+            raise ValueError
     
     except ValueError:
-        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
     
     vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    existing_tax = Tax.objects.filter(name = tax_type, vendor = vendor_id).first()
+    existing_tax = Tax.objects.filter(name=tax_type, isDeleted=False, vendorId=vendor_id).first()
 
     if existing_tax:
-        return Response("Entry already created", status = status.HTTP_409_CONFLICT)
+        return Response("Entry already created", status=status.HTTP_409_CONFLICT)
 
     tax = Tax.objects.create(
-        name = tax_type,
-        percentage = rate,
-        is_active = is_active,
-        vendorId = vendor_instance
+        name=tax_type,
+        percentage=rate,
+        enabled=is_active,
+        isDeleted=False,
+        vendorId=vendor_instance
     )
 
     tax_info = {
         "type": tax.name,
         "rate": tax.percentage,
         "value": round((tax.percentage / 100), 3),
-        "is_active": tax.is_active,
+        "is_active": tax.enabled,
     }
 
-    return JsonResponse(tax_info, status = status.HTTP_201_CREATED)
+    return JsonResponse(tax_info, status=status.HTTP_201_CREATED)
 
 
 @api_view(["PUT"])
@@ -926,6 +974,9 @@ def update_tax(request):
         vendor_id = int(vendor_id)
         rate = float(rate)
         is_active = bool(is_active)
+
+        if tax_type not in ("SGST", "CGST"):
+            raise ValueError
     
     except ValueError:
         return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
@@ -942,16 +993,18 @@ def update_tax(request):
     
     tax.name = tax_type
     tax.percentage = rate
-    tax.is_active = is_active
+    tax.enabled = is_active
 
     tax.save()
 
-    return JsonResponse({
+    tax_info = {
         "type": tax.name,
         "rate": tax.percentage,
         "value": round((tax.percentage / 100), 3),
-        "is_active": tax.is_active,
-    })
+        "is_active": tax.enabled,
+    }
+
+    return JsonResponse(tax_info)
 
 
 @api_view(["DELETE"])
@@ -967,119 +1020,143 @@ def delete_tax(request):
         vendor_id = int(vendor_id)
     
     except ValueError:
-        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
     
-    vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor_instance:
-        return Response("Vendor with given ID does not exist", status = status.HTTP_404_NOT_FOUND)
+        return Response("Vendor with given ID does not exist", status=status.HTTP_404_NOT_FOUND)
 
-    tax = Tax.objects.filter(pk = tax_id, vendorId = vendor_id).first()
+    tax = Tax.objects.filter(pk=tax_id, vendorId=vendor_id).first()
 
     if not tax:
-        return Response("No record found", status = status.HTTP_404_NOT_FOUND)
+        return Response("No record found", status=status.HTTP_404_NOT_FOUND)
     
     tax.delete()
 
-    return Response(status = status.HTTP_204_NO_CONTENT)
+    return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 @api_view(["POST"])
 def pos_user_login(request):
-    try:
-        username = request.data.get("username")
-        password = request.data.get("password")
+    with transaction.atomic():
+        try:
+            username = request.data.get("username")
+            password = request.data.get("password")
 
-        if not username or not password:
-            return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
+            if (not username) or (not password):
+                return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
 
-        user = authenticate(request, username = username, password = password)
-        
-        if not user:
-            return JsonResponse({"message": "Invalid login credentials"}, status = status.HTTP_400_BAD_REQUEST)
-
-        if user.is_active == False:
-            return JsonResponse({"message": "User not active"}, status = status.HTTP_400_BAD_REQUEST)
-        
-        pos_user_info = CoreUser.objects.filter(username = username, password = user.password) \
-            .select_related('vendor', 'core_user_category', 'core_user_category__department') \
-            .values(
-                "pk", "first_name", "last_name", "vendor__pk", "core_user_category__pk", "core_user_category__is_active",
-                "core_user_category__department__pk", "core_user_category__department__is_active"
-            ).first()
-        
-        vendor_id = pos_user_info["vendor__pk"]
-
-        vendor_info = Vendor.objects.filter(pk = vendor_id, is_active = True).values(
-            "is_franchise_owner", "primary_language", "secondary_language", "currency", "currency_symbol"
-        ).first()
-
-        if not vendor_info:
-            return JsonResponse({"message": "Invalid Vendor for the user or Vendor not active"}, status = status.HTTP_400_BAD_REQUEST)
-
-        platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id) \
-            .filter(Q(Name = "WOMS") | Q(Name = "POS", expiryDate__date__gte = timezone.now().date())) \
-            .values_list("Name", "pk")
-
-        platforms = dict(platforms)
-
-        pos_id = platforms.get("POS")
-
-        if not pos_id:
-            return JsonResponse({"message": "Contact your administrator to activate POS"}, status = status.HTTP_400_BAD_REQUEST)
-
-        if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
-            return JsonResponse({"message": "User role not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
+            user = authenticate(request, username=username, password=password)
             
-        if not pos_user_info["core_user_category__department__pk"] or pos_user_info["core_user_category__department__is_active"] == False:
-            return JsonResponse({"message": "User department not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
+            if not user:
+                return JsonResponse({"message": "Invalid login credentials"}, status = status.HTTP_400_BAD_REQUEST)
 
-        pos_permissions = POSPermission.objects.filter(
-            core_user_category = pos_user_info["core_user_category__pk"], 
-            vendor = vendor_id
-        ).values(
-            "show_dashboard", "show_tables_page", "show_place_order_page", "show_order_history_page", "show_product_menu",
-            "show_store_time_setting", "show_tax_setting", "show_delivery_charge_setting", "show_loyalty_points_setting",
-            "show_cash_register_setting", "show_customer_setting", "show_printer_setting", "show_payment_machine_setting",
-            "show_banner_setting", "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting"
-        ).first()
+            pos_user = CoreUser.objects.filter(username = username, password = user.password).first()
 
-        if not pos_permissions:
-            return JsonResponse({"message": "POS permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+            if pos_user.is_active == False:
+                return JsonResponse({"message": "User not active"}, status = status.HTTP_400_BAD_REQUEST)
+            
+            vendor_id = pos_user.vendor.pk
 
-        related_vendor_list = []
+            vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
+
+            if not vendor_instance:
+                return JsonResponse({"message": "Invalid Vendor for the user or Vendo not active"}, status = status.HTTP_400_BAD_REQUEST)
+
+            platforms = Platform.objects.filter(VendorId = vendor_id)
+
+            woms_platform = platforms.filter(Name="WOMS", isActive=True).first()
+
+            pos_platform = platforms.filter(Name="POS", isActive=True).first()
+
+            if (not pos_platform) or (pos_platform.expiryDate.date() < timezone.now().date()):
+                return JsonResponse({"message": "Contact your administrator to activate the platform"}, status = status.HTTP_400_BAD_REQUEST)
+
+            user_category = pos_user.core_user_category
+
+            if (not user_category):
+                return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+                
+            if (user_category.is_active == False) or (not user_category.department) or \
+            (user_category.department.is_active == False):
+                return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+            pos_permission = POSPermission.objects.filter(
+                core_user_category = pos_user.core_user_category.pk, 
+                vendor = vendor_id
+            ).first()
+
+            if not pos_permission:
+                return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+            permission_dictionary = {
+                "show_dashboard": pos_permission.show_dashboard,
+                "show_tables_page": pos_permission.show_tables_page,
+                "show_place_order_page": pos_permission.show_place_order_page,
+                "show_order_history_page": pos_permission.show_order_history_page,
+                "show_product_menu": pos_permission.show_product_menu,
+                "show_store_time_setting": pos_permission.show_store_time_setting,
+                "show_tax_setting": pos_permission.show_tax_setting,
+                "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
+                "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
+                "show_cash_register_setting": pos_permission.show_cash_register_setting,
+                "show_customer_setting": pos_permission.show_customer_setting,
+                "show_printer_setting": pos_permission.show_printer_setting,
+                "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
+                "show_banner_setting": pos_permission.show_banner_setting,
+                "show_excel_file_setting": pos_permission.show_excel_file_setting,
+                "show_employee_setting": pos_permission.show_employee_setting,
+                "show_reports": pos_permission.show_reports,
+                "show_sop": pos_permission.show_sop,
+                "show_language_setting": pos_permission.show_language_setting,
+                "show_franchise_list": pos_permission.show_franchise_list,
+                "core_user_category": pos_permission.core_user_category.pk,
+                "vendor": pos_permission.vendor.pk,
+            }
+
+            related_vendor_list = []
+            
+            if vendor_instance.is_franchise_owner == True:
+                vendors = Vendor.objects.filter(franchise = vendor_id)
+
+                for vendor in vendors:
+                    related_vendor_list.append({
+                        "id": vendor.pk,
+                        "is_active": vendor.is_active,
+                        "franchise_location": vendor.franchise_location,
+                    })
+
+            login(request, user)
+
+            # JWT Authentication
+            # refresh = RefreshToken.for_user(user)
+
+            # access_token = str(refresh.access_token)
+            
+            return JsonResponse({
+                "message": "",
+                # "access_token": access_token,
+                # "refresh_token": str(refresh),
+                "user_id": pos_user.pk,
+                "first_name": pos_user.first_name,
+                "last_name": pos_user.last_name,
+                "pos_platform_id": pos_platform.pk,
+                "woms_platform_id": woms_platform.pk if woms_platform else 0,
+                "primary_language": vendor_instance.primary_language,
+                "secondary_language": vendor_instance.secondary_language if vendor_instance.secondary_language else "",
+                "currency": vendor_instance.currency,
+                "currency_symbol": vendor_instance.currency_symbol,
+                "vendor_id": vendor_id,
+                "is_franchise_owner": vendor_instance.is_franchise_owner,
+                "permissions": permission_dictionary,
+                "related_vendors": related_vendor_list,
+            }, status = status.HTTP_200_OK)
         
-        if vendor_info["is_franchise_owner"] == True:
-            related_vendor_list = list(Vendor.objects.filter(franchise = vendor_id).values("pk", "is_active", "franchise_location"))
+        except Exception as e:
+            transaction.set_rollback(True)
 
-        login(request, user)
-
-        # JWT Authentication
-        # refresh = RefreshToken.for_user(user)
-
-        # access_token = str(refresh.access_token)
-        
-        return JsonResponse({
-            "message": "",
-            # "access_token": access_token,
-            # "refresh_token": str(refresh),
-            "user_id": pos_user_info["pk"],
-            "first_name": pos_user_info["first_name"],
-            "last_name": pos_user_info["last_name"],
-            "pos_platform_id": pos_id,
-            "woms_platform_id": platforms.get("WOMS", 0),
-            "primary_language": vendor_info["primary_language"],
-            "secondary_language": vendor_info["secondary_language"] if vendor_info["secondary_language"] else "",
-            "currency": vendor_info["currency"],
-            "currency_symbol": vendor_info["currency_symbol"],
-            "vendor_id": vendor_id,
-            "is_franchise_owner": vendor_info["is_franchise_owner"],
-            "permissions": pos_permissions,
-            "related_vendors": related_vendor_list,
-        }, status = status.HTTP_200_OK)
-    
-    except Exception as e:
-        return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['POST'])
@@ -1087,57 +1164,158 @@ def get_pos_permissions(request):
     vendor_id = request.data.get("vendor")
     user_id = request.data.get("user")
 
-    try:
-        vendor_id = int(vendor_id)
-        user_id = int(user_id)
+    if (not vendor_id) or (not user_id):
+        return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status=status.HTTP_400_BAD_REQUEST)
 
-        if vendor_id <= 0 or user_id <= 0:
-            return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status = status.HTTP_400_BAD_REQUEST)
+    vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
+
+    if not vendor_instance:
+        return JsonResponse({"message": "Vendor not found"}, status=status.HTTP_400_BAD_REQUEST)
     
-    except:
-        return JsonResponse({"message": "Invalid Vendor ID or User ID"}, status = status.HTTP_400_BAD_REQUEST)
+    platform = Platform.objects.filter(Name="POS", isActive=True, VendorId=vendor_id).first()
 
-    vendor_instance_id = Vendor.objects.filter(pk = vendor_id, is_active = True).values_list("pk", flat = True).first()
+    if (not platform) or (platform.expiryDate.date() < timezone.now().date()):
+        return JsonResponse({"message": "Contact your administrator to activate the platform"}, status=status.HTTP_400_BAD_REQUEST)
 
-    if not vendor_instance_id:
-        return JsonResponse({"message": "Vendor not found"}, status = status.HTTP_400_BAD_REQUEST)
-    
-    pos_id = Platform.objects.filter(
-        Name = "POS", isActive = True, expiryDate__date__gte = timezone.now().date(), VendorId = vendor_id
-    ).values_list("pk", flat = True).first()
+    user_instance = CoreUser.objects.filter(pk = user_id, is_active = True).first()
 
-    if not pos_id:
-        return JsonResponse({"message": "Contact your administrator to activate POS"}, status = status.HTTP_400_BAD_REQUEST)
-
-    pos_user_info = CoreUser.objects.filter(pk = user_id, is_active = True) \
-        .select_related('core_user_category', 'core_user_category__department') \
-        .values(
-            "pk", "core_user_category__pk", "core_user_category__is_active",
-            "core_user_category__department__pk", "core_user_category__department__is_active"
-        ).first()
-
-    if not pos_user_info:
+    if not user_instance:
         return JsonResponse({"message": "User not found or not active"}, status = status.HTTP_400_BAD_REQUEST)
     
-    if not pos_user_info["core_user_category__pk"] or pos_user_info["core_user_category__is_active"] == False:
-        return JsonResponse({"message": "User role not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
-        
-    if not pos_user_info["core_user_category__department__pk"] or pos_user_info["core_user_category__department__is_active"] == False:
-        return JsonResponse({"message": "User department not configured or not active"}, status = status.HTTP_400_BAD_REQUEST)
+    user_category = user_instance.core_user_category
 
-    pos_permissions = POSPermission.objects.filter(
-        core_user_category = pos_user_info["core_user_category__pk"], vendor = vendor_id
-    ).values(
-        "show_dashboard", "show_tables_page", "show_place_order_page", "show_order_history_page", "show_product_menu",
-        "show_store_time_setting", "show_tax_setting", "show_delivery_charge_setting", "show_loyalty_points_setting",
-        "show_cash_register_setting", "show_customer_setting", "show_printer_setting", "show_payment_machine_setting",
-        "show_banner_setting", "show_excel_file_setting", "show_employee_setting", "show_reports", "show_sop", "show_language_setting"
+    if (not user_category):
+        return JsonResponse({"message": "User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+        
+    if (user_category.is_active == False) or (not user_category.department) or \
+    (user_category.department.is_active == False):
+        return JsonResponse({"message": "Department and User category not configured for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+    pos_permission = POSPermission.objects.filter(
+        core_user_category = user_category.pk, 
+        vendor = vendor_id
     ).first()
 
-    if not pos_permissions:
-        return JsonResponse({"message": "POS permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+    if not pos_permission:
+        return JsonResponse({"message": "Permissions not specified for the user"}, status = status.HTTP_400_BAD_REQUEST)
+
+    permission_dictionary = {
+        "show_dashboard": pos_permission.show_dashboard,
+        "show_tables_page": pos_permission.show_tables_page,
+        "show_place_order_page": pos_permission.show_place_order_page,
+        "show_order_history_page": pos_permission.show_order_history_page,
+        "show_product_menu": pos_permission.show_product_menu,
+        "show_store_time_setting": pos_permission.show_store_time_setting,
+        "show_tax_setting": pos_permission.show_tax_setting,
+        "show_delivery_charge_setting": pos_permission.show_delivery_charge_setting,
+        "show_loyalty_points_setting": pos_permission.show_loyalty_points_setting,
+        "show_cash_register_setting": pos_permission.show_cash_register_setting,
+        "show_customer_setting": pos_permission.show_customer_setting,
+        "show_printer_setting": pos_permission.show_printer_setting,
+        "show_payment_machine_setting": pos_permission.show_payment_machine_setting,
+        "show_banner_setting": pos_permission.show_banner_setting,
+        "show_excel_file_setting": pos_permission.show_excel_file_setting,
+        "show_employee_setting": pos_permission.show_employee_setting,
+        "show_reports": pos_permission.show_reports,
+        "show_sop": pos_permission.show_sop,
+        "show_language_setting": pos_permission.show_language_setting,
+        "show_franchise_list": pos_permission.show_franchise_list,
+        "core_user_category": pos_permission.core_user_category.pk,
+        "vendor": pos_permission.vendor.pk,
+    }
     
-    return JsonResponse({"message": "", "permissions": pos_permissions}, status = status.HTTP_200_OK)
+    return JsonResponse({
+        "message": "",
+        "permissions": permission_dictionary,
+    }, status = status.HTTP_200_OK)
+
+
+@api_view(['GET'])
+def allCategory(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status=status.HTTP_400_BAD_REQUEST)
+
+        category_list = []
+
+        categories = ProductCategory.objects.filter(
+            categoryIsDeleted=False,
+            vendorId=vendor_id,
+            productcategoryjoint__vendorId=vendor_id
+        ).select_related('vendorId').distinct()
+
+        for single_category in categories:
+            category_name = single_category.categoryName
+            category_description = single_category.categoryDescription if single_category.categoryDescription else ""
+            
+            if language != "English":
+                category_name = single_category.categoryName_locale
+                category_description = single_category.categoryDescription_locale if single_category.categoryDescription_locale else ""
+            
+            category_list.append({
+                "categoryId": single_category.pk,
+                "categoryPlu": single_category.categoryPLU,
+                "name": category_name,
+                "description": category_description,
+                "image": single_category.categoryImageUrl if single_category.categoryImageUrl else "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
+                "is_active": single_category.is_active
+            })
+
+        return JsonResponse({"message": "", "categories": category_list}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "categories": []}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def productByCategory(request, id=0):
+    try:
+        vendor_id = request.GET.get("vendorId")
+        language = request.GET.get("language", "English")
+        search_text = request.GET.get("search")
+        platform = request.GET.get("platform")
+        product_tag = request.GET.get("tag")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status=status.HTTP_400_BAD_REQUEST)
+
+        if id != 0:
+            data = ProductCategory.objects.filter(pk=id)
+
+        else:
+            data = ProductCategory.objects.filter(categoryIsDeleted=False, vendorId=vendor_id)
+
+        if product_tag == "veg":
+            products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+
+        if search_text:
+            if ((platform == "Website") or (platform == "Mobile App")) and (product_tag == "veg"):
+                products = Product.objects.filter(tag=product_tag, isDeleted=False, vendorId=vendor_id)
+
+            else:
+                products = Product.objects.filter(isDeleted=False, vendorId=vendor_id)
+
+            products = products.filter(Q(productName__icontains=search_text) | Q(productName_locale__icontains=search_text))
+
+            product_list = get_product_by_category_data(products, language, vendor_id)
+
+            return JsonResponse({"message": "", "products": {"1": product_list}}, status=status.HTTP_200_OK)
+        
+        products = {}
+
+        for category in data:
+            filtered_products = Product.objects.filter(pk__in=(ProductCategoryJoint.objects.filter(category=category.pk).values('product')), isDeleted=False, vendorId=vendor_id)
+            
+            product_list = get_product_by_category_data(filtered_products, language, vendor_id)
+            
+            products[category.pk] = product_list
+
+        return JsonResponse({"message": "", "products": products}, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        return JsonResponse({"message": str(e), "products": {}}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET'])
@@ -1150,39 +1328,52 @@ def dashboard(request):
         end_date = request.GET.get("end_date")
         get_all_vendor_data = request.GET.get("get_all_vendor_data")
 
+        if not vendor_id:
+            return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
+        
         try:
             vendor_id = int(vendor_id)
-
-            start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
-            end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
-
-            if vendor_id <= 0 or not language or start_date > end_date:
-                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
-
-        except:
-            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+        except ValueError:
+            return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        vendor_info = Vendor.objects.filter(pk = vendor_id).values("pk", "is_franchise_owner").first()
+        vendor_instance = Vendor.objects.filter(pk = vendor_id).first()
 
-        if not vendor_info:
-            return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
-
-        vendor_ids = {vendor_id,}
+        if not vendor_instance:
+            return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
         
-        if get_all_vendor_data == True and vendor_info["is_franchise_owner"] == True:
-            vendor_ids = vendor_ids.add(set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True)))
+        if (((not start_date) or (not end_date)) or (start_date > end_date)):
+            return Response("Invalid start date or end date", status = status.HTTP_400_BAD_REQUEST)
 
-        vendor_ids = tuple(vendor_ids)
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
 
-        orders = Order.objects.filter(
-            OrderDate__date__range = (start_date, end_date),
-            vendorId__in = vendor_ids,
-            masterOrder = None
-        )
+        if (get_all_vendor_data == True) and (vendor_instance.is_franchise_owner == True):
+            vendor_ids = set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True))
 
-        koms_orders = KOMSOrder.objects.filter(
-            arrival_time__date__range = (start_date, end_date), vendorId__in = vendor_ids
-        )
+            vendor_ids.add(vendor_id)
+
+            orders = Order.objects.filter(
+                OrderDate__date__range = (start_date, end_date),
+                vendorId__in = vendor_ids,
+                masterOrder = None
+            )
+
+            koms_orders = KOMSOrder.objects.filter(
+                arrival_time__date__range = (start_date, end_date),
+                vendorId__in = vendor_ids
+            )
+
+        else:
+            orders = Order.objects.filter(
+                OrderDate__date__range = (start_date, end_date),
+                vendorId = vendor_id,
+                masterOrder = None
+            )
+
+            koms_orders = KOMSOrder.objects.filter(
+                arrival_time__date__range = (start_date, end_date),
+                vendorId = vendor_id
+            )
         
         completed_status_code = master_order_status_number["Completed"]
         canceled_status_code = master_order_status_number["Canceled"]
@@ -1190,108 +1381,107 @@ def dashboard(request):
         open_status_code = master_order_status_number["Open"]
         prepared_status_code = master_order_status_number["Prepared"]
         
-        order_stats = orders.aggregate(
-            total_orders = Count('id'),
-            total_orders_canceled = Count('id', filter = Q(Status = canceled_status_code)),
-            total_orders_completed = Count('id', filter = Q(Status = completed_status_code, orderpayment__status = True)),
-            total_orders_inprogress = Count('id', filter = Q(Status__in = (inprogress_status_code, open_status_code, prepared_status_code))),
-            total_orders_pickedup = Count('id', filter = Q(orderType = order_type_number["Pickup"])),
-            total_orders_delivered = Count('id', filter = Q(orderType = order_type_number["Delivery"])),
-            total_orders_dined = Count('id', filter = Q(orderType = order_type_number["Dinein"])),
-            online_orders_count = Count('id', filter = Q(platform__Name__in = ('Mobile App', 'Website'))),
-            subtotal_sum = Coalesce(Sum('subtotal', filter = Q(orderpayment__status = True) & ~Q(Status = canceled_status_code)), Value(0.0)),
-            discount_sum = Coalesce(Sum('discount', filter = Q(orderpayment__status = True) & ~Q(Status = canceled_status_code)), Value(0.0))
-        )
-
         new_orders_count = koms_orders.filter(order_status = 1).count()
 
         onhold_orders_count = koms_orders.filter(order_status = 4).count()
+        
+        subtotal_sum, discount_sum = orders.filter(orderpayment__status = True) \
+            .exclude(Status = canceled_status_code) \
+            .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
 
-        order_stats['total_orders_inprogress'] = order_stats['total_orders_inprogress'] - new_orders_count
+        subtotal_sum = subtotal_sum or 0.0
+        discount_sum = discount_sum or 0.0
+        
+        total_revenue = "{:.2f}".format(subtotal_sum - discount_sum)
 
-        total_revenue = "{:.2f}".format(order_stats["subtotal_sum"] - order_stats["discount_sum"])
+        active_product_count = Product.objects.filter(isDeleted=False, vendorId=vendor_id).count()
 
-        active_product_count = Product.objects.filter(isDeleted = False, vendorId = vendor_id).count()
+        online_order_platform_id = ""
 
-        online_order_platform_id = Platform.objects.filter(
-            Name__in = ('Mobile App', 'Website'), isActive = True, VendorId = vendor_id
-        ).values_list('pk', flat=True).first()
+        online_order_platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
+        
+        if online_order_platform:
+            online_order_platform_id = str(online_order_platform.pk)
+        
+        total_orders = orders.count()
+
+        total_orders_canceled = orders.filter(Status = canceled_status_code).count()
+        total_orders_completed = orders.filter(Status = completed_status_code, orderpayment__status=True).count()
+        
+        total_orders_inprogress = orders.filter(Status__in = [inprogress_status_code, open_status_code, prepared_status_code]).count()
+        total_orders_inprogress = total_orders_inprogress - new_orders_count
+        
+        total_orders_pickedup = orders.filter(orderType = OrderType.get_order_type_value('PICKUP')).count()
+        total_orders_delivered = orders.filter(orderType = OrderType.get_order_type_value('DELIVERY')).count()
+        total_orders_dined = orders.filter(orderType = OrderType.get_order_type_value('DINEIN')).count()
+        
+        online_orders_count = orders.filter(platform__Name__in = ('Mobile App', 'Website')).count()
         
         sales_order_list = []
         
         if orders.exists():
             current_start_date = current_end_date = datetime.now().date()
 
-            if start_date == end_date:
-                if start_date == current_start_date and end_date == current_end_date:
-                    end_datetime = datetime.now().replace(minute = 59, second = 59, microsecond = 0)
+            if (start_date == end_date):
+                if (start_date == current_start_date) and (end_date == current_end_date):
+                    end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
             
-                elif start_date != current_start_date and end_date != current_end_date:
+                elif (start_date != current_start_date) and (end_date != current_end_date):
                     end_datetime = datetime.combine(start_date, time(23, 59, 59))
 
                 current_datetime = datetime.combine(start_date, time(0, 0, 0))
             
                 while current_datetime <= end_datetime:
                     current_hour_start = current_datetime
-                    current_hour_end = current_datetime + timedelta(hours = 1)
+                    current_hour_end = current_datetime + timedelta(hours=1)
 
                     filtered_orders = orders.filter(OrderDate__range = (current_hour_start, current_hour_end))
 
-                    hour_stats = filtered_orders.aggregate(
-                        total_sale = Coalesce(Sum(F('subtotal') - F('discount'), filter = Q(orderpayment__status = True) & ~Q(Status = canceled_status_code)), Value(0.0)),
-                        total_orders_count = Count('id'),
-                        cancelled_orders_count = Count('id', filter=Q(Status = canceled_status_code))
-                    )
+                    orders_with_payment = filtered_orders.filter(orderpayment__status = True).exclude(Status = canceled_status_code)
 
-                    if hour_stats['total_orders_count'] > 0:
-                        sales_order_list.append({
-                            "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
-                            "total_sale": str(hour_stats["total_sale"]),
-                            "total_orders_count": filtered_orders.count(),
-                            "cancelled_orders_count": hour_stats["cancelled_orders_count"],
-                        })
+                    subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+                    
+                    subtotal_sum = subtotal_sum or 0.0
+                    discount_sum = discount_sum or 0.0
 
-                    current_datetime = current_datetime + timedelta(hours = 1)
+                    total_sale_hourly = "{:.2f}".format(subtotal_sum - discount_sum)
 
-            else:
-                for unique_date in orders.dates('OrderDate', 'day'):
-                    filtered_orders = orders.filter(OrderDate__date = unique_date)
-
-                    day_stats = filtered_orders.aggregate(
-                        total_sale = Coalesce(Sum(F('subtotal') - F('discount'), filter = Q(orderpayment__status=True) & ~Q(Status = canceled_status_code)), Value(0.0)),
-                        total_orders_count = Count('id'),
-                        cancelled_orders_count = Count('id', filter = Q(Status = canceled_status_code))
-                    )
+                    cancelled_order_count = filtered_orders.filter(Status = canceled_status_code).count()
 
                     if filtered_orders.count() != 0:
                         sales_order_list.append({
-                            "date": unique_date.strftime("%Y-%m-%d 00:00"),
-                            "total_sale": str(day_stats["total_sale"]),
+                            "date": current_hour_start.astimezone(local_timezone).strftime('%Y-%m-%d %H:%M'),
+                            "total_sale": total_sale_hourly,
                             "total_orders_count": filtered_orders.count(),
-                            "cancelled_orders_count": day_stats["cancelled_orders_count"],
+                            "cancelled_orders_count": cancelled_order_count,
                         })
-        
-            if len(sales_order_list) == 1:
-                date_value = sales_order_list[0]["date"]
 
-                date_obj = datetime.strptime(date_value, '%Y-%m-%d %H:%M')
+                    current_datetime = current_datetime + timedelta(hours=1)
 
-                if start_date == end_date:
-                    date_obj = date_obj - timedelta(hours = 1)
+            else:
+                unique_order_dates = sorted(set(orders.values_list('OrderDate__date', flat=True)))
+                
+                for unique_date in unique_order_dates:
+                    filtered_orders = orders.filter(OrderDate__date = unique_date)
 
-                    date_value = date_obj.replace(minute = 0).strftime('%Y-%m-%d %H:%M')
+                    orders_with_payment = filtered_orders.filter(orderpayment__status=True).exclude(Status=canceled_status_code)
 
-                else:
-                    date_obj = date_obj - timedelta(days = 1)
+                    subtotal_sum, discount_sum = orders_with_payment.aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+                    
+                    subtotal_sum = subtotal_sum or 0.0
+                    discount_sum = discount_sum or 0.0
 
-                    date_value = date_obj.replace(hour = 1, minute = 0).strftime('%Y-%m-%d %H:%M')
+                    total_sale = "{:.2f}".format(subtotal_sum - discount_sum)
 
-                sales_order_list.append({
-                    "date": date_value,
-                    "total_sale": "0.0",
-                    "total_orders_count": 0,
-                    "cancelled_orders_count": 0,
-                })
+                    cancelled_order_count = filtered_orders.filter(Status = canceled_status_code).count()
+
+                    if filtered_orders.count() != 0:
+                        sales_order_list.append({
+                            "date": f"{unique_date} 00:00",
+                            "total_sale": total_sale,
+                            "total_orders_count": filtered_orders.count(),
+                            "cancelled_orders_count": cancelled_order_count,
+                        })
         
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
@@ -1309,36 +1499,49 @@ def dashboard(request):
         list_of_items = []
 
         for item in top_selling_items:
-            product_info = Product.objects.filter(PLU = item['SKU'], vendorId = vendor_id).values(
-                "pk", "productName", "productName_locale", "productPrice"
+            product = Product.objects.filter(PLU=item['SKU'], vendorId=vendor_id).first()
+            
+            product_image = ProductImage.objects.filter(
+                product = product.pk,
+                vendorId = vendor_id
             ).first()
 
-            image_url = ProductImage.objects.filter(product = product_info["pk"], vendorId = vendor_id) \
-                .values_list('url', flat = True).first()
+            image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
             
-            item['id'] = product_info["pk"]
-            item['product_name'] = product_info["productName_locale"] if language != "English" else product_info["productName"]
-            item['image'] = image_url or 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
-            item['price'] = product_info["productPrice"]
-            item['sale'] = item['quantity_sold'] * product_info["productPrice"]
+            if product_image:    
+                image_url = product_image.url
+
+            product_name = ""
+
+            if language == "English":
+                product_name = product.productName
+            
+            else:
+                product_name = product.productName_locale
+            
+            item['id'] = product.pk
+            item['product_name'] = product_name
+            item['image'] = image_url
+            item['price'] = product.productPrice
+            item['sale'] = item['quantity_sold'] * product.productPrice
 
             list_of_items.append(item)
 
         order_details = {
-            "online_order_platform_id": str(online_order_platform_id) or "", # Required for Flutter model
+            "online_order_platform_id": online_order_platform_id, # Required for Flutter model
             "active_products": active_product_count,
             "total_sale": total_revenue,
-            "total_orders": order_stats["total_orders"],
+            "total_orders": total_orders,
             "items_sold": total_items_sold,
             "new_orders": new_orders_count,
-            "orders_inprogress": order_stats["total_orders_inprogress"],
-            "orders_completed": order_stats["total_orders_completed"],
-            "orders_canceled": order_stats["total_orders_canceled"],
+            "orders_inprogress": total_orders_inprogress,
+            "orders_completed": total_orders_completed,
+            "orders_canceled": total_orders_canceled,
             "orders_onhold": onhold_orders_count,
-            "orders_pickedup": order_stats["total_orders_pickedup"],
-            "orders_delivered": order_stats["total_orders_delivered"],
-            "orders_dined": order_stats["total_orders_dined"],
-            "online_orders": order_stats["online_orders_count"],
+            "orders_pickedup": total_orders_pickedup,
+            "orders_delivered": total_orders_delivered,
+            "orders_dined": total_orders_dined,
+            "online_orders": online_orders_count,
             "sales_order": sales_order_list,
             "top_selling": list_of_items
         }
@@ -1350,60 +1553,283 @@ def dashboard(request):
 
 
 @api_view(["POST"])
+def modifier_update(request):
+    try:
+        vendor_id = request.GET.get("vendorId")
+
+        if not vendor_id:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    
+        try:
+            vendor_id = int(vendor_id)
+
+        except ValueError:
+            return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+        if not vendor_instance:
+            return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_id = request.data.get('id')
+
+        if not modifier_id:
+            return JsonResponse({"message": "Invalid modifier ID"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_instance = ProductModifier.objects.filter(pk=modifier_id).first()
+
+        if not modifier_instance:
+            return JsonResponse({"message": "Modifier not found"}, status=status.HTTP_400_BAD_REQUEST)
+
+        modifier_instance.active = request.data['active']
+
+        modifier_instance.save()
+
+        return JsonResponse({"message": "Modifier status updated successfully"})
+    
+    except Exception as e:
+        return JsonResponse({"message": f"{str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST"])
+def top_selling_product_details(request):
+    required_fields = {"vendor_id", "start_date", "end_date", "product_id", "page_number", "page_limit"}
+    
+    missing_fields = required_fields - set(request.data.keys())
+
+    if missing_fields:
+        return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_id = request.data.get('vendor_id')
+    start_date = request.data.get('start_date')
+    end_date = request.data.get('end_date')
+    product_id = request.data.get('product_id')
+    page_number = request.data.get('page_number')
+    page_limit = request.data.get('page_limit')
+
+    if not (vendor_id and product_id):
+        return Response("Invalid vendor ID or product ID", status=status.HTTP_400_BAD_REQUEST)
+    
+    if (not (start_date and end_date)) or (start_date > end_date):
+        return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
+    
+    if (not (page_limit and page_number)) or (page_number < 0):
+        return Response("Invalid page_limit or page_number parameter", status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendor_id = int(vendor_id)
+        product_id = int(product_id)
+        page_limit = int(page_limit)
+        page_number = int(page_number)
+
+        start_date = datetime.strptime(start_date, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_date, '%Y-%m-%d').date()
+
+    except ValueError:
+        return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+
+    product_instance = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+
+    if not (vendor_instance and product_instance):
+        return Response("Vendor or Product does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
+    paginated_data = []
+    
+    orders = Order_content.objects.filter(
+        SKU = product_instance.PLU,
+        orderId__order_status = 10,
+        orderId__master_order__Status = master_order_status_number["Completed"],
+        orderId__master_order__orderpayment__status = True,
+        orderId__master_order__OrderDate__date__range = (start_date, end_date),
+        orderId__master_order__vendorId = vendor_id,
+        orderId__vendorId = vendor_id
+    ).order_by("-orderId__master_order__OrderDate__date")
+    
+    if not orders.exists():
+        return JsonResponse({
+            "page_number": 1,
+            "total_pages": 1,
+            "orders": paginated_data
+        })
+    
+    order_summary = []
+
+    product_price = product_instance.productPrice
+
+    if start_date != end_date:
+        orders = orders.annotate(order_date=TruncDate('orderId__master_order__OrderDate'))\
+            .values('order_date').annotate(total_quantity=Sum('quantity')).order_by('order_date')
+
+        for summary in orders:
+            order_date = summary['order_date']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
+
+            order_summary.append({
+                "order_date": order_date.strftime("%Y-%m-%d"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
+
+    else:
+        orders = orders.annotate(
+            order_hour = TruncHour('orderId__master_order__OrderDate')) \
+                .values('order_hour').annotate(total_quantity=Sum('quantity')).order_by('order_hour')
+
+        for summary in orders:
+            order_hour = summary['order_hour']
+            quantity_sold = summary['total_quantity'] if summary['total_quantity'] else 0
+            total_sale = quantity_sold * product_price
+
+            order_summary.append({
+                "order_date": order_hour.strftime("%Y-%m-%d %H:00"),
+                "quantity_sold": quantity_sold,
+                "total_sale": total_sale
+            })
+        
+    paginator = Paginator(order_summary, page_limit)
+    page = paginator.get_page(page_number) 
+    
+    for order in page:
+        paginated_data.append({
+            "order_date": order['order_date'],
+            "quantity_sold": order['quantity_sold'],
+            "total_sale": order['total_sale']
+        })
+
+    return JsonResponse({
+        "page_number": page.number,
+        "total_pages": paginator.num_pages,
+        "orders": paginated_data
+    })
+
+
+@api_view(["POST"])
 def order_status_type_summary(request):
     try:
+        required_fields = {"vendor_id", "order_type_code", "start_date", "end_date", "page_number", "page_limit"}
+        
+        missing_fields = required_fields - set(request.data.keys())
+
+        if missing_fields:
+            return Response(f"Missing required fields: {', '.join(missing_fields)}", status=status.HTTP_400_BAD_REQUEST)
+
         try:
             vendor_id = int(request.data.get('vendor_id'))
             order_type_code = int(request.data.get('order_type_code'))
             page_number = int(request.data.get('page_number'))
             page_limit = int(request.data.get('page_limit'))
 
+            if any(value < 0 for value in (vendor_id, page_number, page_limit)):
+                raise ValueError
+            
             start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
             end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
 
-            if vendor_id <= 0 or order_type_code < 0 or page_number <= 0 or page_limit <= 0 or start_date > end_date:
-                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
-            
-        except:
-            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            return Response("Invalid request data", status=status.HTTP_400_BAD_REQUEST)
+        
+        if start_date > end_date:
+            return Response("Invalid start date or end date", status=status.HTTP_400_BAD_REQUEST)
 
-        if not Vendor.objects.filter(pk = vendor_id).exists():
-            return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+        vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
 
-        order_filters = {
-            "master_order__OrderDate__date__range": (start_date, end_date),
-            "master_order__vendorId": vendor_id,
-            "vendorId": vendor_id
-        }
+        if not vendor_instance:
+            return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+
+        orders = KOMSOrder.objects.filter(
+            master_order__OrderDate__date__range = (start_date, end_date),
+            master_order__vendorId = vendor_id,
+            vendorId = vendor_id
+        )
         
         if order_type_code != 0:
-            order_filters["order_type"] = order_type_code
-
-        order_status_aggregation = {
-            'total_orders': Count('id'),
-            'onhold_orders': Count('id', filter = Q(order_status = 4)),
-            'closed_orders': Count('id', filter = Q(
-                order_status = 10,
-                master_order__Status = master_order_status_number["Completed"],
-                master_order__orderpayment__status = True
-            )),
-            'cancelled_orders': Count('id', filter = Q(
-                order_status = 5,
-                master_order__Status = master_order_status_number["Canceled"]
-            ))
-        }
+            orders = orders.filter(order_type = order_type_code)
+        
+        if not orders.exists():
+            return JsonResponse({
+                "page_number": 1,
+                "total_pages": 1,
+                "orders": [],
+            })
+        
+        orders = orders.order_by("arrival_time")
         
         order_list = []
         
-        trunc_function = TruncDate
-
         if start_date == end_date:
-            trunc_function = TruncHour
+            current_start_date = current_end_date = datetime.now().date()
             
-            order_filters["arrival_time__date__range"] = (start_date, end_date)
+            if (start_date == current_start_date) and (end_date == current_end_date):
+                end_datetime = datetime.now().replace(minute=59, second=59, microsecond=0)
 
-        order_list = KOMSOrder.objects.filter(**order_filters).annotate(order_date = trunc_function('arrival_time')) \
-            .values('order_date').annotate(**order_status_aggregation).order_by('order_date')
+            else:
+                end_datetime = datetime.combine(end_date, time(0, 0, 0)) + timedelta(days=1)
+
+            current_time = datetime.combine(start_date, time(0, 0, 0))
+
+            while current_time < end_datetime:
+                next_time = current_time + timedelta(hours=1)
+
+                filtered_orders = orders.filter(arrival_time__range = (current_time, next_time))
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = master_order_status_number["Completed"],
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = master_order_status_number["Canceled"],
+                    ).count()
+
+                    order_list.append({
+                        "order_date": current_time.astimezone(local_timezone).strftime("%Y-%m-%d %H:%M"),
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
+
+                current_time = next_time
+        
+        else:
+            unique_order_dates = sorted(set(orders.values_list('arrival_time__date', flat=True)))
+
+            for unique_date in unique_order_dates:
+                filtered_orders = orders.filter(arrival_time__date = unique_date)
+
+                total_orders_count = filtered_orders.count()
+                
+                if total_orders_count != 0:
+                    onhold_orders_count = filtered_orders.filter(order_status = 4).count()
+
+                    closed_orders_count = filtered_orders.filter(
+                        order_status = 10,
+                        master_order__Status = master_order_status_number["Completed"],
+                        master_order__orderpayment__status = True
+                    ).count()
+
+                    cancelled_orders_count = filtered_orders.filter(
+                        order_status = 5,
+                        master_order__Status = master_order_status_number["Canceled"],
+                    ).count()
+
+                    order_list.append({
+                        "order_date": unique_date,
+                        "total_orders": total_orders_count,
+                        "closed_orders": closed_orders_count,
+                        "onhold_orders": onhold_orders_count,
+                        "cancelled_orders": cancelled_orders_count,
+                    })
 
         paginated_data = []
         
@@ -1411,14 +1837,8 @@ def order_status_type_summary(request):
         page = paginator.get_page(page_number) 
 
         for order in page:
-            if start_date == end_date:
-                order_date = order['order_date'].astimezone(local_timezone).strftime("%Y-%m-%d %H:%M")
-            
-            else:
-                order_date = datetime.combine(order['order_date'], datetime.min.time()).astimezone(local_timezone).strftime("%Y-%m-%d 00:00")
-
             paginated_data.append({
-                "order_date": order_date,
+                "order_date": order['order_date'],
                 "total_orders": order['total_orders'],
                 "closed_orders": order['closed_orders'],
                 "onhold_orders": order['onhold_orders'],
@@ -1432,455 +1852,20 @@ def order_status_type_summary(request):
         })
     
     except Exception as e:
-        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
+        return Response(str(e), status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
-@api_view(["POST"])
-def top_selling_product_details(request):
+@api_view(["GET"])
+def showtabledetails(request):
     try:
-        try:
-            vendor_id = int(request.data.get('vendor_id'))
-            product_id = int(request.data.get('product_id'))
-            start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
-            end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
-            page_number = int(request.data.get('page_number'))
-            page_limit = int(request.data.get('page_limit'))
+        data=HotelTable.objects.filter(vendorId=request.GET.get('vendorId'))
+        data=data.order_by('tableNumber')
+        return Response([ get_table_data(i,request.GET.get('vendorId')) for i in data ]) 
+    except Exception as e :
+            print(e)
+            return []
 
-            if vendor_id <= 0 or product_id <=0 or page_limit <= 0 or page_number <= 0 or start_date > end_date:
-                return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-        except:
-            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
-
-        if not Vendor.objects.filter(pk = vendor_id).exists():
-            return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
-
-        product_info = Product.objects.filter(pk = product_id, vendorId = vendor_id).values("PLU", "productPrice").first()
-
-        if not product_info:
-            return Response("Product not found", status = status.HTTP_400_BAD_REQUEST)
-        
-        orders = Order_content.objects.filter(
-            SKU = product_info["PLU"],
-            orderId__order_status = 10,
-            orderId__master_order__Status = master_order_status_number["Completed"],
-            orderId__master_order__orderpayment__status = True,
-            orderId__master_order__OrderDate__date__range = (start_date, end_date),
-            orderId__master_order__vendorId = vendor_id,
-            orderId__vendorId = vendor_id
-        ).order_by("-orderId__master_order__OrderDate__date")
-        
-        if not orders.exists():
-            return JsonResponse({"page_number": 1, "total_pages": 1, "orders": []})
-        
-        trunc_func = TruncDate
-
-        datetime_format = "%Y-%m-%d"
-
-        if start_date == end_date:
-            trunc_func = TruncHour
-
-            datetime_format = "%Y-%m-%d %H:00"
-        
-        orders = orders.annotate(order_date = trunc_func('orderId__master_order__OrderDate')).values('order_date') \
-            .annotate(quantity_sold = Sum('quantity'), total_sale = Sum(F('quantity') * product_info["productPrice"])) \
-            .order_by('order_date')
-        
-        order_summary = []
-
-        for summary in orders:
-            order_summary.append({
-                "order_date": summary['order_date'].strftime(datetime_format),
-                "quantity_sold": summary['quantity_sold'],
-                "total_sale": summary['total_sale']
-            })
-            
-        paginated_data = []
-
-        paginator = Paginator(order_summary, page_limit)
-        page = paginator.get_page(page_number) 
-        
-        for order in page:
-            paginated_data.append({
-                "order_date": order['order_date'],
-                "quantity_sold": order['quantity_sold'],
-                "total_sale": order['total_sale']
-            })
-
-        return JsonResponse({"page_number": page.number, "total_pages": paginator.num_pages, "orders": paginated_data})
-    
-    except Exception as e:
-        return Response(str(e), status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["POST"])
-def excel_download_for_dashboard(request):
-    try:
-        try:
-            vendor_id = int(request.data.get("vendor_id"))
-            start_date = datetime.strptime(request.data.get("start_date"), '%Y-%m-%d').date()
-            end_date = datetime.strptime(request.data.get("end_date"), '%Y-%m-%d').date()
-            platform_id = request.data.get("platform_id", "All")
-            order_type = request.data.get("order_type", "All")
-            order_status = request.data.get("order_status", "All")
-            language = request.data.get("language", "English")
-
-            if vendor_id <= 0 or start_date > end_date or not language:
-                return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
-            
-            koms_order_filters = {"arrival_time__range": (start_date, end_date), "vendorId": vendor_id}
-            
-            platform_parameter = "All" if language == "English" else language_localization["All"]
-
-            if platform_id != "All":
-                platform_id = int(platform_id)
-
-                if platform_id <= 0:
-                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
-
-                platform_info = Platform.objects.filter(pk = platform_id, VendorId = vendor_id).values("Name", "Name_locale").first()
-            
-                if not platform_info:
-                    return JsonResponse({"error": "Platform does not exist"}, status = status.HTTP_400_BAD_REQUEST)
-
-                koms_order_filters["master_order__platform"] = platform_id
-
-                platform_parameter = platform_info["Name"] if language == "English" else platform_info["Name_locale"]
-
-            if order_type != "All":
-                order_type = int(order_type)
-
-                if order_type <= 0:
-                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
-
-                koms_order_filters["order_type"] = order_type
-
-            if order_status != "All":
-                order_status = int(order_status)
-
-                if order_status <= 0:
-                    return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
-
-                koms_order_filters["order_status"] = order_status
-            
-        except:
-            return JsonResponse({"error": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
-        
-        if check_key_exists("order_type", order_type) == False:
-            return JsonResponse({"error": "Order Type does not exist"}, status = status.HTTP_400_BAD_REQUEST)
-        
-        if check_key_exists("koms_order_status", order_status) == False:
-            return JsonResponse({"error": "Order Status does not exist"}, status = status.HTTP_400_BAD_REQUEST)
-        
-        order_type_parameter = order_type_english[order_type]
-        order_status_parameter = koms_order_status_english[order_status]
-                    
-        if language != "English":
-            order_type_parameter = language_localization[order_type_english[order_type]]
-            order_status_parameter = language_localization[koms_order_status_english[order_status]]
-
-        start_date_parameter = start_date.strftime('%d-%m-%Y')
-        end_date_parameter = end_date.strftime('%d-%m-%Y')
-
-        start_date = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
-        end_date = datetime.strptime(str(end_date) + " 23:59:59.000000", '%Y-%m-%d %H:%M:%S.%f')
-        
-        order_details = {}
-
-        order_ids = tuple(KOMSOrder.objects.filter(**koms_order_filters).values_list('pk', flat=True))
-
-        order_content = Order_content.objects.filter(orderId__in = order_ids).select_related("orderId", "orderId__master_order") \
-            .values("orderId__master_order__pk", "orderId__order_status")
-
-        for content in order_content:
-            order_id = content["orderId__master_order__pk"]
-            koms_order_status = content["orderId__order_status"]
-            
-            order_detail = Order.objects.filter(pk = order_id).select_related("platform").values(
-                "pk", "arrivalTime", "orderType", "platform__Name", "platform__Name_locale"
-            ).first()
-
-            if not order_detail:
-                return JsonResponse(
-                    {"error": f"Order details not found for order ID {order_id}"},
-                    status = status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-            
-            order_time = order_detail["arrivalTime"].astimezone(local_timezone).replace(tzinfo = None)
-
-            order_type = order_type_english[order_detail["orderType"]]
-            order_status = koms_order_status_english[koms_order_status]
-    
-            if language != "English":
-                order_type = language_localization[order_type_english[order_detail["orderType"]]]
-                order_status = language_localization[koms_order_status_english[koms_order_status]]
-            
-            payment_detail = OrderPayment.objects.filter(orderId = order_detail["pk"]).last()
-
-            if not payment_detail:
-                transaction_id = ""
-                payment_type = ""
-
-                payment_status = payment_status_english["Unknown"] if language == "English" else language_localization[payment_status_english["Unknown"]]
-
-            if payment_detail.status == True:
-                payment_status = payment_status_english["True"] if language == "English" else language_localization[payment_status_english["True"]]
-            
-            else:
-                payment_status = payment_status_english["False"] if language == "English" else language_localization[payment_status_english["False"]]
-            
-            amount_paid = payment_detail.paid
-            transaction_id = payment_detail.paymentKey
-
-            payment_type = payment_type_english[payment_detail.type] if language == "English" else language_localization[payment_type_english[payment_detail.type]]
-                
-            platform_name = order_detail["platform__Name"] if language == "English" else order_detail["platform__Name_locale"]
-
-            order_details[order_id] = {
-                "order_id": order_id,
-                "platform_name": platform_name,
-                "amount_paid": amount_paid,
-                "order_type": order_type,
-                "order_status": order_status,
-                "order_time": order_time,
-                "payment_type": payment_type,
-                "payment_status": payment_status,
-                "transaction_id": transaction_id,
-            }
-
-        new_order_details = OrderedDict()
-        sorted_items = []
-
-        for key, value in order_details.items():
-            order_time = value.get("order_time", "")
-            sorted_items.append((order_time, int(key)))
-
-        sorted_items.sort()
-
-        for order_time, order_id in sorted_items:
-            new_order_details[order_id] = order_details[order_id]
-
-        order_details = new_order_details
-        
-        order_count = len(order_details)
-        
-        total_amount_paid = 0.0
-
-        subtotal_sum, discount_sum = Order.objects.filter(
-            OrderDate__date__range = (start_date, end_date),
-            orderpayment__status = True,
-            vendorId = vendor_id
-        ).exclude(Status = master_order_status_number["Canceled"]) \
-        .aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
-
-        subtotal_sum = subtotal_sum or 0.0
-        discount_sum = discount_sum or 0.0
-        
-        total_amount_paid = "{:.2f}".format(subtotal_sum - discount_sum)
-
-        workbook = openpyxl.Workbook()
-        sheet = workbook.active
-        
-        if language == "English":
-            sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['', '', '', '', '', '', '', '', ''])
-
-            sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
-
-        else:
-            sheet.append([language_localization['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
-            sheet.append([language_localization['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
-            sheet.append([language_localization['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
-            sheet.append([language_localization['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
-            sheet.append([language_localization['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
-            sheet.append(['', '', '', '', '', '', '', '', ''])
-
-            sheet.append([
-                language_localization['Order ID'],
-                language_localization['Platform'],
-                language_localization['Amount'],
-                language_localization['Order Type'],
-                language_localization['Order Status'],
-                language_localization['Order Time'],
-                language_localization['Payment Type'],
-                language_localization['Payment Status'],
-                language_localization['Transaction ID']
-            ])
-
-        for order_id, details in order_details.items():
-            sheet.append([
-                details["order_id"],
-                details["platform_name"],
-                details["amount_paid"],
-                details["order_type"],
-                details["order_status"],
-                details["order_time"].strftime('%d-%m-%Y %I:%M:%S %p') if details["order_time"] else "",
-                details["payment_type"],
-                details["payment_status"],
-                details["transaction_id"],
-            ])
-        
-        if language == "English":
-            sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
-
-        else:
-            sheet.append([f'{language_localization["Total orders"]} = {order_count}', '', f'{language_localization["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
-        
-        directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
-        os.makedirs(directory, exist_ok = True) # Create the directory if it doesn't exist inside MEDIA_ROOT
-
-        file_name = f"Order_data_Vendor{vendor_id}.xlsx"
-
-        relative_file_path = os.path.join('Excel Downloads', file_name)
-
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_file_path)
-
-        workbook.save(file_path)
-
-        print(f"Excel file '{file_name}' has been created.")
-        
-        response = "/media/" + relative_file_path
-        
-        return HttpResponse(response, status = status.HTTP_200_OK)
-    
-    except Exception as e:
-        print(e)
-        return JsonResponse({"error": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-def get_categories(request):
-    try:
-        vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "English")
-
-        if not vendor_id:
-            return JsonResponse({"message": "Invalid Vendor ID", "categories": []}, status = status.HTTP_400_BAD_REQUEST)
-
-        category_list = []
-
-        categories = ProductCategoryJoint.objects.filter(vendorId = vendor_id).select_related("category").values(
-            'category__id',
-            'category__categoryName',
-            'category__categoryName_locale',
-            'category__categoryDescription',
-            'category__categoryDescription_locale',
-            'category__categoryPLU',
-            'category__categoryImageUrl',
-            'category__is_active',
-        ).distinct('category')
-
-        for category in categories:
-            category_name = category["category__categoryName"]
-            category_description = category["category__categoryDescription"]
-            
-            if language != "English":
-                category_name = category["category__categoryName_locale"]
-                category_description = category["category__categoryDescription_locale"]
-            
-            category_list.append({
-                "categoryId": category["category__id"],
-                "categoryPlu": category["category__categoryPLU"],
-                "name": category_name,
-                "description": category_description or "",
-                "image": category["category__categoryImageUrl"] or "https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg",
-                "is_active": category["category__is_active"]
-            })
-
-        return JsonResponse({"message": "", "categories": category_list}, status = status.HTTP_200_OK)
-    
-    except Exception as e:
-        return JsonResponse({"message": str(e), "categories": []}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(['GET'])
-def productByCategory(request, id = 0):
-    try:
-        vendor_id = request.GET.get("vendorId")
-        language = request.GET.get("language", "English")
-        search_text = request.GET.get("search")
-        platform = request.GET.get("platform")
-        product_tag = request.GET.get("tag")
-
-        if not vendor_id:
-            return JsonResponse({"message": "Invalid Vendor ID", "products": {}}, status = status.HTTP_400_BAD_REQUEST)
-
-        if id != 0:
-            category_details = ProductCategory.objects.filter(pk = id)
-
-        else:
-            category_details = ProductCategory.objects.filter(vendorId = vendor_id)
-
-        if search_text:
-            product_filter = {"vendorId": vendor_id}
-
-            if (platform == "Website" or platform == "Mobile App") and product_tag == "veg":
-                product_filter["tag"] = "veg"
-
-            products = Product.objects.filter(**product_filter).filter(
-                Q(productName__icontains = search_text) | Q(productName_locale__icontains = search_text)
-            )
-            
-            product_list = get_product_by_category_data(products, language, vendor_id)
-
-            return JsonResponse({"message": "", "products": {"1": product_list}}, status = status.HTTP_200_OK)
-        
-        products_by_category = {}
-
-        for category in category_details:
-            product_ids = ProductCategoryJoint.objects.filter(category = category.pk, vendorId = vendor_id).values_list("product", flat = True)
-
-            filtered_products = Product.objects.filter(pk__in = product_ids, vendorId = vendor_id)
-            
-            product_list = get_product_by_category_data(filtered_products, language, vendor_id)
-            
-            products_by_category[category.pk] = product_list
-
-        return JsonResponse({"message": "", "products": products_by_category}, status = status.HTTP_200_OK)
-    
-    except Exception as e:
-        return JsonResponse({"message": str(e), "products": {}}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["POST"])
-def product_on_off(request):
-    try:
-        product = Product.objects.filter(pk = request.data.get("productId"), vendorId = request.data.get("vendorId"))
-
-        if not product.exists():
-            return JsonResponse({'error': 'Product not found'}, status = status.HTTP_400_BAD_REQUEST)
-        
-        product.update(active = request.data.get("status"))
-
-        product = product.values("pk", "active").first()
-
-        return JsonResponse({'productId': product["pk"], 'status': product["active"]})
-    
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-@api_view(["POST"])
-def modifier_on_off(request):
-    try:
-        modifier = ProductModifier.objects.filter(pk = request.data.get('id'), vendorId = request.GET.get("vendorId"))
-
-        if not modifier.exists():
-            return JsonResponse({"message": "Modifier not found"}, status = status.HTTP_400_BAD_REQUEST)
-        
-        modifier.update(active = request.data.get('active'))
-
-        return JsonResponse({"message": "Modifier status updated successfully"})
-    
-    except Exception as e:
-        return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
-
-
-# remove this API
 @api_view(['GET'])
 def show_tableCapacity(request):
     vendorId=request.GET.get("vendorId")
@@ -1893,15 +1878,62 @@ def show_tableCapacity(request):
         return JsonResponse({"error":str(e)})
 
 
-def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard = 0, s_date = None, e_date = None, language = "English"):
+@api_view(["POST", "GET"])
+def productStatusChange(request):
     try:
-        if not vendor_id:
+        data = JSONParser().parse(request)
+
+        product = Product.objects.filter(pk=data["productId"])
+        vendor_id = data["vendorId"]
+
+        if product:
+            product.update(active=data["status"])
+
+            res = Product.objects.get(pk=data["productId"], vendorId=vendor_id)
+
+            return JsonResponse({'productId': res.pk, 'status':res.active})
+        
+        else:
+            return JsonResponse({'error': 'Product not found'}, status=400)
+    
+    except Exception as e:
+            return JsonResponse({'error': e}, status=400)
+
+
+def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
+        print("Starting koms thread...")
+        thr = threading.Thread(
+                target=order_data, args=(), kwargs={
+                    "vendor_id":vendor_id,
+                    "page_number":page_number,
+                    "search":search,
+                    "order_status":order_status,
+                    'order_type':order_type,
+                    "platform":platform,
+                    "search":search,
+                    "platform":platform,
+                    "s_date":s_date,
+                    "e_date":e_date,
+                    "is_dashboard":is_dashboard,
+                    "language": language
+                }
+            )
+        
+        thr.setDaemon(True)
+        thr.start()
+
+        return {"connecting":False}
+
+
+def order_data(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard=0, s_date=None, e_date=None, language="English"):
+    try:
+        if vendor_id == None:
             return "Vendor ID cannot be empty"
             
         order_details = {}
 
-        start_date_parameter = s_date or ""
-        end_date_parameter = e_date or ""
+        start_date_parameter = s_date if s_date is not  None else ""
+        end_date_parameter = e_date if e_date is not None else ""
         search_text_parameter = search if search != "All" else ""
         platform_parameter = platform if platform != "All" else ""
         page_number_parameter = page_number if page_number != "All" else 1
@@ -1909,54 +1941,50 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         order_type_parameter = order_type if order_type != "All" else ""
 
         current_date = datetime.today().strftime("%Y-%m-%d")
-
-        order_data = None
         
-        koms_order_filters = {"vendorId": vendor_id}
-        
-        if s_date and e_date:
+        if (s_date != None) and (e_date != None):
             s_date = str(s_date).replace("T", "-")
             e_date = str(e_date).replace("T", "-")
             
-            koms_order_filters["arrival_time__date__range"] = (s_date, e_date)
+            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (s_date, e_date), vendorId = vendor_id)
         
         else:
-            koms_order_filters["arrival_time__date"] = current_date
+            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId = vendor_id)
         
         if order_status != "All":
             if is_dashboard == 0:
-                koms_order_filters["order_status"] = order_status
+                order_data = order_data.filter(order_status = order_status)
 
             elif is_dashboard == 1:
                 if order_status == 10 :
                     if s_date and e_date:
-                        koms_order_filters["order_status__in"] = (4, 5, 10)
+                        order_data = order_data.filter(order_status__in = (4, 5, 10))
 
                     else:
-                        koms_order_filters["order_status__in"] = (5, 10)
+                        order_data = order_data.filter(order_status__in = (5, 10))
 
                 else:
-                    koms_order_filters["order_status"] = order_status
+                    order_data = order_data.filter(order_status = order_status)
 
         else:
             if is_dashboard == 1:
-                koms_order_filters["order_status__in"] = (2, 3, 4, 6, 7, 8, 9)
+                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
 
         if order_type != "All":
-            koms_order_filters["order_type"] = order_type
+            order_data = order_data.filter(order_type = order_type)
 
         if platform != "All":
             if is_dashboard == 1:
-                koms_order_filters["master_order__platform"] = platform
+                order_data = order_data.filter(master_order__platform = platform)
 
             else:
-                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat = True)
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
 
                 if platform in online_platform_ids:
-                    koms_order_filters["master_order__platform__Name__in"] = ("Website", "Mobile App")
+                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
 
                 else:
-                    koms_order_filters["master_order__platform"] = platform
+                    order_data = order_data.filter(master_order__platform = platform)
 
         if search != 'All':
             output = re.search(r'\d+', search)
@@ -1964,9 +1992,7 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
             if output:
                 master_order_id = output.group()
 
-                koms_order_filters["master_order__pk__icontains"] = master_order_id
-
-                order_data = KOMSOrder.objects.filter(**koms_order_filters)
+                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -1974,47 +2000,39 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
                 if output:
                     customer_name = output.group()
 
-                    order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
+                    order_data = order_data.filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
+                    
+        if order_data.exists():
+            order_data = order_data.order_by("-master_order__OrderDate")
+            
+            paginator = Paginator(order_data, 10)
+
+            page_obj = paginator.get_page(page_number)
+
+            orders_for_page = page_obj.object_list
+
+            for order in orders_for_page:
+                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = vendor_id)
+
+                order_details[order.pk] = order_info
+
+            response_data = {
+                'page_number': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'data_count': paginator.count,
+                'order_details': order_details,
+            }
 
         else:
-            order_data = KOMSOrder.objects.filter(**koms_order_filters)
-
-        if not order_data.exists():
             response_data = {
                 'page_number': 1,
                 'total_pages': 1,
                 'data_count': 0,
                 'order_details': {},
             }
-
-        order_data = order_data.order_by("-master_order__OrderDate") \
-            .select_related("master_order", "master_order__platform", "master_order__customerId", "vendorId") \
-            .values(
-                "pk", "master_order__pk", "master_order__TotalAmount", "master_order__subtotal", "master_order__tax",
-                "master_order__delivery_charge", "master_order__discount", "master_order__platform__pk", "master_order__platform__Name",
-                "master_order__platform__Name_locale", "master_order__customerId__pk", "master_order__customerId__FirstName",
-                "master_order__customerId__LastName", "master_order__customerId__Phone_Number", "master_order__customerId__Email",
-                "vendorId", "vendorId__franchise_location"
-            )
-        
-        paginator = Paginator(order_data, 10)
-
-        page_obj = paginator.get_page(page_number)
-
-        orders_for_page = page_obj.object_list
-
-        for order in orders_for_page:
-            order_details[order["pk"]] = get_order_info_for_socket(order_info = order, language = language, vendor_id = vendor_id)
-
-        response_data = {
-            'page_number': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'data_count': paginator.count,
-            'order_details': order_details,
-        }
         
         webSocketPush(
             message = response_data,
@@ -2035,63 +2053,43 @@ def order_data(vendor_id, page_number, search, order_status, order_type, platfor
         return str(e)
 
 
-def order_data_start_thread(vendor_id, page_number, search, order_status, order_type, platform, is_dashboard = 0, s_date = None, e_date = None, language = "English"):
-        print("Starting koms thread...")
-        
-        thr = threading.Thread(target = order_data, args = (), kwargs = {
-            "vendor_id":vendor_id,
-            "page_number":page_number,
-            "search":search,
-            "order_status":order_status,
-            'order_type':order_type,
-            "platform":platform,
-            "search":search,
-            "platform":platform,
-            "s_date":s_date,
-            "e_date":e_date,
-            "is_dashboard":is_dashboard,
-            "language": language
-        })
-        
-        thr.setDaemon(True)
-        thr.start()
-
-        return {"connecting":False}
-
-
 # Replica of order_data function
 @api_view(["POST"])
 def get_order_data(request):
     try:
-        vendor_id = request.data.get("vendor_id")
-        page_number = request.data.get("page_number")
-        search = request.data.get("search")
-        order_status = request.data.get("order_status")
-        order_type = request.data.get("order_type")
-        platform = request.data.get("platform")
-        is_dashboard = request.data.get("is_dashboard")
-        start_date = request.data.get("start_date")
-        end_date = request.data.get("end_date")
-        language = request.data.get("language", "English")
-        get_all_vendor_data = request.data.get("get_all_vendor_data")
-        franchise_vendor_id = request.data.get("franchise_vendor_id")
-        is_range = request.data.get("is_range")
+        request_data = request.data
 
+        vendor_id = request_data.get("vendor_id")
+        page_number = request_data.get("page_number")
+        search = request_data.get("search")
+        order_status = request_data.get("order_status")
+        order_type = request_data.get("order_type")
+        platform = request_data.get("platform")
+        is_dashboard = request_data.get("is_dashboard")
+        start_date = request_data.get("start_date")
+        end_date = request_data.get("end_date")
+        language = request_data.get("language", "English")
+        get_all_vendor_data = request_data.get("get_all_vendor_data")
+        franchise_vendor_id = request_data.get("franchise_vendor_id")
+
+        if not vendor_id:
+            return Response("Vendor ID cannot be empty", status = status.HTTP_400_BAD_REQUEST)
+        
         try:
             vendor_id = int(vendor_id)
 
-        except:
+        except ValueError:
             return Response("Invalid vendor ID", status = status.HTTP_400_BAD_REQUEST)
         
-        vendor = Vendor.objects.filter(pk = vendor_id, is_active = True)
+        vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
 
-        if not vendor.exists():
+        if not vendor_instance:
             return Response("Vendor does not exist or not active", status = status.HTTP_400_BAD_REQUEST)
             
         if get_all_vendor_data == True:
             vendor_ids = tuple(Vendor.objects.filter(franchise = vendor_id).values_list("pk", flat = True))
 
-        elif get_all_vendor_data == False and franchise_vendor_id:
+        elif (get_all_vendor_data == False) and franchise_vendor_id:
             vendor_ids = (franchise_vendor_id,)
             vendor_id = franchise_vendor_id
 
@@ -2100,50 +2098,46 @@ def get_order_data(request):
 
         current_date = datetime.today().strftime("%Y-%m-%d")
         
-        koms_order_filters = {"vendorId__in": vendor_ids}
-        
-        if start_date and end_date:
-            koms_order_filters["arrival_time__date__range"] = (start_date, end_date)
+        if (start_date != None) and (end_date != None):
+            order_data = KOMSOrder.objects.filter(arrival_time__date__range = (start_date, end_date), vendorId__in = vendor_ids)
         
         else:
-            koms_order_filters["arrival_time__date"] = current_date
+            order_data = KOMSOrder.objects.filter(arrival_time__date = current_date, vendorId__in = vendor_ids)
         
         if order_status != "All":
             if is_dashboard == 0:
-                koms_order_filters["order_status"] = order_status
+                order_data = order_data.filter(order_status = order_status)
 
             elif is_dashboard == 1:
                 if order_status == 10 :
                     if start_date and end_date:
-                        koms_order_filters["order_status__in"] = (4, 5, 10)
+                        order_data = order_data.filter(order_status__in = (4, 5, 10))
 
                     else:
-                        koms_order_filters["order_status__in"] = (5, 10)
+                        order_data = order_data.filter(order_status__in = (5, 10))
 
                 else:
-                    koms_order_filters["order_status"] = order_status
+                    order_data = order_data.filter(order_status = order_status)
 
         else:
-            if is_dashboard == 1 and start_date == current_date and end_date == current_date:
-                if is_range == False:
-                    koms_order_filters["order_status__in"] = (2, 3, 4, 6, 7, 8, 9)
-            
+            if is_dashboard == 1:
+                order_data = order_data.filter(order_status__in = (2, 3, 4, 6, 7, 8, 9))
 
         if order_type != "All":
-            koms_order_filters["order_type"] = order_type
+            order_data = order_data.filter(order_type = order_type)
 
         if platform != "All":
             if is_dashboard == 1:
-                koms_order_filters["master_order__platform"] = platform
+                order_data = order_data.filter(master_order__platform = platform)
 
             else:
-                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat = True)
+                online_platform_ids = Platform.objects.filter(Name__in = ("Website", "Mobile App")).values_list("pk", flat=True)
 
                 if platform in online_platform_ids:
-                    koms_order_filters["master_order__platform__Name__in"] = ("Website", "Mobile App")
+                    order_data = order_data.filter(master_order__platform__Name__in = ("Website", "Mobile App"))
 
                 else:
-                    koms_order_filters["master_order__platform"] = platform
+                    order_data = order_data.filter(master_order__platform = platform)
 
         if search != 'All':
             output = re.search(r'\d+', search)
@@ -2151,9 +2145,7 @@ def get_order_data(request):
             if output:
                 master_order_id = output.group()
 
-                koms_order_filters["master_order__pk__icontains"] = master_order_id
-
-                order_data = KOMSOrder.objects.filter(**koms_order_filters)
+                order_data = order_data.filter(master_order__pk__icontains = master_order_id)
 
             else:
                 output = re.search(r'[A-Za-z ]+', search)
@@ -2161,49 +2153,45 @@ def get_order_data(request):
                 if output:
                     customer_name = output.group()
 
-                    order_data = KOMSOrder.objects.filter(**koms_order_filters).filter(
+                    order_data = order_data.filter(
                         Q(master_order__customerId__FirstName__icontains = customer_name) | \
                         Q(master_order__customerId__LastName__icontains = customer_name)
                     )
 
+        if order_data.exists():
+            order_details = {}
+
+            if get_all_vendor_data == True:
+                order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
+
+            else:
+                order_data = order_data.order_by("-master_order__OrderDate")
+                
+            paginator = Paginator(order_data, 10)
+
+            page_obj = paginator.get_page(page_number)
+
+            orders_for_page = page_obj.object_list
+
+            for order in orders_for_page:
+                order_info = get_order_info_for_socket(order_instance = order, language = language, vendor_id = order.vendorId.pk)
+
+                order_details[order.pk] = order_info
+
+            response_data = {
+                'page_number': page_obj.number,
+                'total_pages': paginator.num_pages,
+                'data_count': paginator.count,
+                'order_details': order_details,
+            }
+
         else:
-            order_data = KOMSOrder.objects.filter(**koms_order_filters)
-        
-        if not order_data.exists():
-            response_data = {'page_number': 1, 'total_pages': 1, 'data_count': 0, 'order_details': {}}
-
-        order_details = {}
-
-        if get_all_vendor_data == True:
-            order_data = order_data.order_by("vendorId", "-master_order__OrderDate")
-
-        else:
-            order_data = order_data.order_by("-master_order__OrderDate")
-
-        order_data = order_data.select_related("master_order", "master_order__platform", "master_order__customerId", "vendorId") \
-        .values(
-            "pk", "master_order__pk", "master_order__TotalAmount", "master_order__subtotal", "master_order__tax",
-            "master_order__delivery_charge", "master_order__discount", "master_order__platform__pk", "master_order__platform__Name",
-            "master_order__platform__Name_locale", "master_order__customerId__pk", "master_order__customerId__FirstName",
-            "master_order__customerId__LastName", "master_order__customerId__Phone_Number", "master_order__customerId__Email",
-            "vendorId", "vendorId__franchise_location"
-        )
-            
-        paginator = Paginator(order_data, 10)
-
-        page_obj = paginator.get_page(page_number)
-
-        orders_for_page = page_obj.object_list
-
-        for order in orders_for_page:
-            order_details[order["pk"]] = get_order_info_for_socket(order_info = order, language = language, vendor_id = order["vendorId"])
-
-        response_data = {
-            'page_number': page_obj.number,
-            'total_pages': paginator.num_pages,
-            'data_count': paginator.count,
-            'order_details': order_details,
-        }
+            response_data = {
+                'page_number': 1,
+                'total_pages': 1,
+                'data_count': 0,
+                'order_details': {},
+            }
         
         return Response(response_data, status = status.HTTP_200_OK)
     
@@ -2390,27 +2378,41 @@ def platform_list(request):
     vendor_id = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
 
-    if not vendor_id:
-        return JsonResponse({"error": "Vendor Id cannot be empty"}, status = status.HTTP_400_BAD_REQUEST)
+    if vendor_id == None:
+        return JsonResponse({"error": "Vendor Id cannot be empty"}, safe=False, status=status.HTTP_400_BAD_REQUEST)
 
     platform_details = []
 
     if language == "English":
-        platform_details.append({"id": "", "name": "All"})
-
-    else:
-        platform_details.append({"id": "", "name": language_localization["All"]})
-    
-    platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id).exclude(Name = "Inventory") \
-        .values("pk", "Name", "Name_locale")
-    
-    for platform in platforms:
         platform_details.append({
-            "id": platform["pk"],
-            "name": platform["Name"] if language == "English" else platform["Name_locale"]
+            "id": "",
+            "name": "All"
         })
 
-    return JsonResponse({'platforms': platform_details}, status = status.HTTP_200_OK)
+    else:
+        platform_details.append({
+            "id": "",
+            "name": language_localization["All"]
+        })
+    
+    platforms = Platform.objects.filter(isActive=True, VendorId=vendor_id).exclude(Name="Inventory")
+
+    platform_name = ""
+    
+    if platforms:
+        for platform in platforms:
+            if language == "English":
+                platform_name = platform.Name
+                
+            else:
+                platform_name = platform.Name_locale
+
+            platform_details.append({
+                "id": platform.pk,
+                "name": platform_name
+            })
+
+    return JsonResponse({'platforms': platform_details}, status=status.HTTP_200_OK)
 
 
 @api_view(["GET"])
@@ -2429,229 +2431,221 @@ def order_details(request):
             vendor_id = int(vendor_id)
             platform_id = int(platform_id)
 
-        except:
+        except ValueError:
             return Response({"error": "Invalid vendor ID or Platform ID"}, status = status.HTTP_400_BAD_REQUEST)
         
-        if not Vendor.objects.filter(pk = vendor_id, is_active = True).exists():
+        vendor_instance = Vendor.objects.filter(pk = vendor_id, is_active = True).first()
+
+        if not vendor_instance:
             return Response({"error": "Vendor does not exist or not active"}, status = status.HTTP_400_BAD_REQUEST)
         
-        koms_order = KOMSOrder.objects.filter(externalOrderId = external_order_id, master_order__vendorId = vendor_id)\
-            .select_related('master_order', 'master_order__customerId', 'master_order__platform') \
-            .prefetch_related(
-                Prefetch('master_order__customerId__address_set', queryset = Address.objects.filter(type = 'shipping_address', is_selected = True)),
-                Prefetch('master_order__orderpayment_set', queryset = OrderPayment.objects.filter(masterPaymentId__isnull = True)),
-                Prefetch('order_tables_set', queryset = Order_tables.objects.select_related('tableId', 'tableId__waiterId')),
-                Prefetch('order_content_set', queryset = Order_content.objects.select_related('orderId')),
-            ).first()
+        koms_order = KOMSOrder.objects.filter(externalOrderId = external_order_id).first()
 
         if not koms_order:
             return JsonResponse({"error": "Order not found"}, status = status.HTTP_400_BAD_REQUEST)
 
-        if not Platform.objects.filter(pk = platform_id, isActive = True, VendorId = vendor_id).exists():
+        platform_instance = Platform.objects.filter(pk = platform_id, isActive = True, VendorId = vendor_id).first()
+
+        if not platform_instance:
             return JsonResponse({"error": "Platform invalid or not active"}, status = status.HTTP_400_BAD_REQUEST)
 
-        order_id = koms_order.master_order.pk
-
-        customer = koms_order.master_order.customerId
-
-        address = customer.address_set.first()
-
-        customer_details = {
-            "FirstName": customer.FirstName or "",
-            "LastName": customer.LastName or "",
-            "Phone_Number": customer.Phone_Number or "",
-            "Email": customer.Email or "",
-            "loyalty_points_balance": customer.loyalty_points_balance,
-            "Shipping_Address": {
-                "address_line_1": address.address_line1 if address else "",
-                "address_line_2": address.address_line2 if address else "",
-                "city": address.city if address else "",
-                "state": address.state if address else "",
-                "country": address.country if address else "",
-                "zipcode": address.zipcode if address else "",
-                "type": address.type if address else "",
-                "is_selected": address.is_selected if address else ""
-            }
-        }
-
-        payment = koms_order.master_order.orderpayment_set.first()
-
-        payment_details = {
-            "paymentId": payment.pk if payment else 0,
-            "paymentBy": payment.paymentBy if payment else "",
-            "paymentKey": payment.paymentKey if payment else "",
-            "amount_paid": payment.paid if payment else 0.0,
-            "paymentType": payment_type_english.get(payment.type, "Cash") if payment else "Cash",
-            "paymentStatus": payment.status if payment else False,
-            "splitType": payment.splitType if payment else None,
-            "split_payments": []
-        }
-
-        split_orders = Order.objects.filter(masterOrder = koms_order.master_order) \
-            .prefetch_related('orderpayment_set', 'splitorderitem_set__order_content_id')
-        
-        for split_order in split_orders:
-            split_payment = split_order.orderpayment_set.first()
-
-            if split_payment:
-                split_items = []
-
-                for item in split_order.splitorderitem_set.all():
-                    product_info = Product.objects.filter(
-                        PLU = item.order_content_id.SKU, vendorId = vendor_id
-                    ).values("pk", "productPrice").first()
-                    
-                    images = ProductImage.objects.filter(product_id = product_info["pk"]).values_list('url', flat=True)
-
-                    image_list = list(images) if images else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg']
-                    
-                    modifiers = []
-
-                    order_modifiers = Order_modifer.objects.filter(contentID = item.order_content_id.pk).values("SKU", "quantity")
-
-                    for modifier in order_modifiers:
-                        modifier_info = ProductModifier.objects.filter(modifierPLU__in = modifier["SKU"], vendorId = vendor_id) \
-                            .values("pk", "modifierName", "modifierPrice").first()
-                        
-                        modifiers.append({
-                            "modifer_id": modifier_info["pk"],
-                            "modifer_name": modifier_info["modifierName"],
-                            "modifer_quantity": modifier["quantity"],
-                            "modifer_price": modifier_info["modifierPrice"],
-                            "order_content_id": item.order_content_id.pk,
-                        })
-                    
-                    split_items.append({
-                        "order_content_id": item.order_content_id.pk,
-                        "order_content_name": item.order_content_id.name,
-                        "order_content_quantity": item.order_content_qty,
-                        "order_content_price": product_info["productPrice"],
-                        "order_content_images": image_list,
-                        "order_content_modifer": modifiers
-                    })
-                
-                payment_mode = payment_type_english[split_payment.type]
-                
-                if language != "English":
-                    payment_mode = language_localization[payment_type_english[split_payment.type]]
-                
-                payment_details["split_payments"].append({
-                    "paymentId": split_payment.pk,
-                    "paymentBy": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
-                    "customer_name": f"{split_order.customerId.FirstName or ''} {split_order.customerId.LastName or ''}",
-                    "customer_mobile": split_order.customerId.Phone_Number,
-                    "customer_email": split_order.customerId.Email or "",
-                    "paymentKey": split_payment.paymentKey,
-                    "amount_paid": split_payment.paid,
-                    "paymentType": split_payment.type,
-                    "paymentSplitPer": (split_payment.paid / koms_order.master_order.TotalAmount) * 100,
-                    "paymentStatus": split_payment.status,
-                    "amount_subtotal": split_order.subtotal,
-                    "amount_tax": split_order.tax,
-                    "status": split_payment.status,
-                    "platform": split_payment.platform,
-                    "mode": payment_mode,
-                    "splitType": split_payment.splitType,
-                    "splitItems": split_items
-                })
-
+        order_info = {}
+        payment_details = {}
+        customer_details = {}
+        platform_details = {}
         table_details = []
         
-        tables = koms_order.order_tables_set.filter(orderId__externalOrderId = external_order_id) \
-            .select_related("tableId", "tableId__waiterId").values(
-                "tableId__pk", "tableId__tableNumber", "tableId__status", "tableId__tableCapacity", "tableId__guestCount",
-                "tableId__waiterId__pk", "tableId__waiterId__name", "tableId__waiterId__name_locale"
-            )
+        koms_order_id = koms_order.pk
 
-        for table in tables:
-            table_details.append({
-                "tableId": table["tableId__pk"],
-                "tableNumber": table["tableId__tableNumber"],
-                "status": table["tableId__status"],
-                "tableCapacity": table["tableId__tableCapacity"],
-                "guestCount": table["tableId__guestCount"],
-                "waiterId": table["tableId__waiterId__pk"],
-                "waiterName": table["tableId__waiterId__name"] if language == "English" else table["tableId__waiterId__name_locale"],
-            })
+        core_order = koms_order.master_order
+
+        order_id = core_order.pk
+
+        if core_order.customerId == None:
+            customer_first_name = ""
+            customer_last_name = ""
+            customer_phone = ""
+            customer_email = ""
+            customer_loyalty_points_balance = 0
             
-        order_items = []
+        else:
+            customer_first_name = core_order.customerId.FirstName if core_order.customerId.FirstName else ""
+            customer_last_name = core_order.customerId.LastName if core_order.customerId.LastName else ""
+            customer_phone = core_order.customerId.Phone_Number if core_order.customerId.Phone_Number else ""
+            customer_email = core_order.customerId.Email if core_order.customerId.Email else ""
+            customer_loyalty_points_balance = core_order.customerId.loyalty_points_balance
 
-        koms_order_details = koms_order.order_content_set.filter(orderId = koms_order.pk) \
-            .values("pk", "SKU", "quantity", "note", "status")
-
-        for content in koms_order_details:
-            product = ProductCategoryJoint.objects.filter(product__PLU = content["SKU"], product__vendorId = vendor_id) \
-                .select_related("category", "product").values(
-                    "product__pk", "product__productName", "product__productName_locale", "product__taxable",
-                    "product__productPrice", "category__categoryName", "category__categoryName_locale"
-                ).first()
-
-            images = ProductImage.objects.filter(product_id = product["product__pk"]).values_list('url', flat = True)
+            customer_address = Address.objects.filter(customer = core_order.customerId.pk, type = "shipping_address", is_selected = True).first()    
             
-            image_list = list(images) if images else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg']
-            
-            modifier_groups = defaultdict(list)
+            if customer_address == None:
+                shipping_address = {
+                    "address_line_1": "",
+                    "address_line_2": "",
+                    "city": "",
+                    "state": "",
+                    "country": "",
+                    "zipcode": "",
+                    "type": "",
+                    "is_selected": ""
+                }
 
-            modifiers = Order_modifer.objects.filter(contentID = content["pk"], status = "1").values("SKU", "quantity")
-            
-            for modifier in modifiers:
-                modifier_info = ProductModifierAndModifierGroupJoint.objects.filter(
-                    modifier__modifierPLU = modifier["SKU"]
-                ).select_related("modifier", "modifierGroup").values(
-                    "modifier__pk", "modifier__modifierName", "modifier__modifierName_locale", "modifier__modifierPLU",
-                    "modifier__modifierSKU", "modifier__modifierPrice", "modifier__modifierImg", "modifierGroup__pk",
-                ).first()
+            else:
+                shipping_address = {
+                    "address_line_1": customer_address.address_line1 if customer_address.address_line1 else "",
+                    "address_line_2": customer_address.address_line2 if customer_address.address_line2 else "",
+                    "city": customer_address.city if customer_address.city else "",
+                    "state": customer_address.state if customer_address.state else "",
+                    "country": customer_address.country if customer_address.country else "",
+                    "zipcode": customer_address.zipcode if customer_address.zipcode else "",
+                    "type": customer_address.type,
+                    "is_selected": customer_address.is_selected
+                }
 
-                modifier_groups[modifier_info["modifierGroup__pk"]].append({
-                    'modifierId': modifier_info["modifier__pk"],
-                    'name': modifier_info["modifier__modifierName_locale"] if language != "English" else modifier_info["modifier__modifierName"],
-                    'plu': modifier_info["modifier__modifierPLU"],
-                    'sku': modifier_info["modifier__modifierSKU"],
-                    'quantity': modifier["quantity"],
-                    'cost': modifier_info["modifier__modifierPrice"],
-                    'status': True,
-                    'image': modifier_info["modifier__modifierImg"]
+        customer_details["FirstName"] = customer_first_name
+        customer_details["LastName"] = customer_last_name
+        customer_details["Phone_Number"] = customer_phone
+        customer_details["Email"] = customer_email
+        customer_details["loyalty_points_balance"] = customer_loyalty_points_balance
+        customer_details["Shipping_Address"] = shipping_address
+
+        payment = OrderPayment.objects.filter(orderId = order_id, masterPaymentId = None).first()
+
+        payment_details["paymentId"] = payment.pk if payment else 0
+        payment_details["paymentBy"] = payment.paymentBy if payment else ''
+        payment_details["paymentKey"] = payment.paymentKey if payment else ''
+        payment_details["amount_paid"] = payment.paid if payment else 0.0
+        payment_details["paymentType"] = payment_type_english[payment.type] if payment else "Cash"
+        payment_details["paymentStatus"] = payment.status if payment else False
+
+        tables = Order_tables.objects.filter(orderId__externalOrderId=external_order_id)
+
+        if tables:
+            for table in tables:
+                waiter_name = ""
+
+                if language == "English":
+                    waiter_name = table.tableId.waiterId.name
+
+                else:
+                    waiter_name = table.tableId.waiterId.name_locale
+
+                table_details.append({
+                    "tableId": table.tableId.pk,
+                    "tableNumber": table.tableId.tableNumber,
+                    "waiterId": table.tableId.waiterId.pk,
+                    "waiterName": waiter_name,
+                    "status": table.tableId.status,
+                    "tableCapacity": table.tableId.tableCapacity,
+                    "guestCount": table.tableId.guestCount
                 })
+
+        order_items = defaultdict(list)
+
+        koms_order_details = Order_content.objects.filter(orderId = koms_order_id)
+
+        for order in koms_order_details:
+            image_list = []
+
+            item = ProductCategoryJoint.objects.filter(product__PLU = order.SKU, product__vendorId = vendor_id).first()
             
-            modifiers_group = []
+            if item:
+                images = ProductImage.objects.filter(product = item.product.pk)
 
-            for group_id, modifiers in modifier_groups.items():
-                group = ProductModifierGroup.objects.get(pk = group_id)
+                for image in images:
+                    image_list.append(image.url)
 
-                modifiers_group.append({
-                    "id": group.pk,
-                    "name": group.name_locale if language != "English" else group.name,
-                    "plu": group.PLU,
-                    "min": group.min,
-                    "max": group.max,
-                    "active": group.active,
-                    "modifiers": modifiers
+            modifier_list = defaultdict(list)
+            modifier_group_list = defaultdict(list)
+            modifier_mapping = defaultdict(list)
+
+            modifiers = Order_modifer.objects.filter(contentID = order.pk, status = "1")
+
+            if modifiers:    
+                for modifier in modifiers:
+                    if modifier.group == None:
+                        modifier_info = ProductModifier.objects.get(modifierSKU = modifier.SKU, vendorId = vendor_id)
+                        modifier_group = ProductModifierAndModifierGroupJoint.objects.filter(modifier = modifier_info.pk).first ()
+                        modifier_mapping[modifier_group.modifierGroup.pk].append(modifier.pk)
+                    else:
+                        modifier_mapping[modifier.group].append(modifier.pk)
+            
+            for key, values in modifier_mapping.items():
+                for value in values:
+                    modifier = Order_modifer.objects.get(pk=value)
+                    modifier_info = ProductModifier.objects.get(modifierPLU = modifier.SKU, vendorId = vendor_id)
+
+                    modifier_name = ""
+
+                    if language == "English":
+                        modifier_name = modifier_info.modifierName
+
+                    else:
+                        modifier_name = modifier_info.modifierName_locale
+                    
+                    modifier_list[key].append({
+                        'modifierId': modifier.pk,
+                        'name': modifier_name,
+                        'plu': modifier_info.modifierPLU,
+                        'sku': modifier_info.modifierSKU,
+                        'quantity': modifier.quantity if modifier.quantity else 0,
+                        'cost': modifier_info.modifierPrice,
+                        'status': True, # Required for flutter model
+                        'image': modifier_info.modifierImg
+                    })
+
+                modifier_group_info = ProductModifierGroup.objects.get(pk = key, vendorId = vendor_id)
+
+                modifier_group_name = ""
+
+                if language == "English":
+                    modifier_group_name = modifier_group_info.name
+
+                else:
+                    modifier_group_name = modifier_group_info.name_locale
+                
+                modifier_group_list[order_id].append({
+                    "name": modifier_group_name,
+                    "plu": modifier_group_info.PLU,
+                    "min": modifier_group_info.min,
+                    "max": modifier_group_info.max,
+                    "id": modifier_group_info.pk,
+                    "active": modifier_group_info.active,
+                    "modifiers": modifier_list[key]
                 })
+
+            product_name = ""
+            category_name = ""
+
+            if language == "English":
+                product_name = item.product.productName
+                category_name = item.category.categoryName
+
+            else:
+                product_name = item.product.productName_locale
+                category_name = item.category.categoryName_locale
             
-            order_items.append({
-                "order_content_id": content["pk"],
-                "productId": product["product__pk"],
-                "quantity": content["quantity"],
-                "plu": content["SKU"],
-                "name": product["product__productName_locale"] if language != "English" else product["product__productName"],
-                "isTaxable": product["product__taxable"],
-                "imagePath": image_list[0],
-                "images": image_list,
-                "categoryName": product["category__categoryName_locale"] if language != "English" else product["category__categoryName"],
-                "note": content["note"] or "",
-                "cost": product["product__productPrice"],
-                "status": int(content["status"]),
-                "modifiersGroup": modifiers_group
+            order_items[order_id].append({
+                "order_content_id": order.pk,
+                "productId": item.product.pk,
+                "quantity": order.quantity,
+                "plu": order.SKU,
+                "name": product_name,
+                "isTaxable": item.product.taxable,
+                "imagePath": image_list[0] if len(image_list)!=0 else 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg',
+                "images": image_list if len(image_list)>0  else ['https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'],
+                "categoryName": category_name,
+                "note": order.note if order.note else "",
+                "cost": Product.objects.get(PLU=order.SKU, vendorId=vendor_id).productPrice,
+                "status": int(order.status),
+                "modifiersGroup": modifier_group_list[order_id],
             })
             
         total_points_redeemed = 0
         
-        loyalty_program = LoyaltyProgramSettings.objects.filter(is_active = True, vendor = vendor_id).first()
+        loyalty_program = LoyaltyProgramSettings.objects.filter(is_active=True, vendor=vendor_id).first()
 
         if loyalty_program:
-            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-                customer = koms_order.master_order.customerId.pk, order = order_id
-            )
+            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=core_order.customerId.pk, order=order.pk)
 
             if loyalty_points_redeem_history.exists():
                 total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
@@ -2659,48 +2653,55 @@ def order_details(request):
                 if not total_points_redeemed:
                     total_points_redeemed = 0
 
-        order_info = {}
-        
-        order_info["staging_orderId"] = int(koms_order.pk)
+        order_info["staging_orderId"] = int(koms_order_id)
         order_info["core_orderId"] = order_id
         order_info["orderId"] = external_order_id
-        order_info["customerNote"] = koms_order.order_note or ""
-        order_info["tax"] = koms_order.master_order.tax or 0.0
-        order_info["discount"] = koms_order.master_order.discount or 0.0
-        order_info["delivery_charge"] = koms_order.master_order.delivery_charge
-        order_info["subtotal"] = koms_order.master_order.subtotal
+        order_info["customerNote"] = koms_order.order_note if koms_order.order_note else ""
+        order_info["tax"] = core_order.tax if core_order.tax else 0.0
+        order_info["discount"] = core_order.discount if core_order.discount else 0.0
+        order_info["delivery_charge"] = core_order.delivery_charge
+        order_info["subtotal"] = core_order.subtotal
         order_info["total_points_redeemed"] = total_points_redeemed
-        order_info["finalTotal"] = koms_order.master_order.TotalAmount
-        order_info["order_datetime"] = koms_order.master_order.OrderDate
-        order_info["arrival_time"] = koms_order.master_order.arrivalTime
+        order_info["finalTotal"] = core_order.TotalAmount
+        order_info["order_datetime"] = core_order.OrderDate
+        order_info["arrival_time"] = core_order.arrivalTime
         order_info["type"] = koms_order.order_type
-        order_info["products"] = order_items
+        order_info["products"] = order_items[order_id]
         
         if payment_id:
-            payment = OrderPayment.objects.filter(pk = payment_id).select_related("orderId").values(
-                "pk", "paymentBy", "paymentKey", "paid", "type", "status", "orderId__pk", "orderId__externalOrderId",
-                "orderId__tax", "orderId__discount", "orderId__delivery_charge", "orderId__subtotal", "orderId__TotalAmount"
-            ).last()
+            payment = OrderPayment.objects.filter(pk = payment_id).last()
 
-            payment_details["paymentId"] = payment["pk"] or 0
-            payment_details["paymentBy"] = payment["paymentBy"] or ""
-            payment_details["paymentKey"] = payment["paymentKey"] or ""
-            payment_details["amount_paid"] = payment["paid"] or 0.0
-            payment_details["paymentType"] = payment_type_english[payment["type"]] if payment else "Cash"
-            payment_details["paymentStatus"] = payment["status"] or False
+            payment_details["paymentId"] = payment.pk if payment else 0
+            payment_details["paymentBy"] = payment.paymentBy if payment else ''
+            payment_details["paymentKey"] = payment.paymentKey if payment else ''
+            payment_details["amount_paid"] = payment.paid if payment else 0.0
+            payment_details["paymentType"] = payment_type_english[payment.type] if payment else "Cash"
+            payment_details["paymentStatus"] = payment.status if payment else False
             
-            order_info["core_orderId"] = payment["orderId__pk"]
-            order_info["orderId"] = payment["orderId__externalOrderId"]
-            order_info["tax"] = payment["orderId__tax"] or 0.0
-            order_info["discount"] = payment["orderId__discount"] or 0.0
-            order_info["delivery_charge"] = payment["orderId__delivery_charge"]
-            order_info["subtotal"] = payment["orderId__subtotal"]
-            order_info["finalTotal"] = payment["orderId__TotalAmount"]
+            order_info["core_orderId"] = payment.orderId.pk
+            order_info["orderId"] = payment.orderId.externalOrderId
+            order_info["tax"] = payment.orderId.tax if payment.orderId.tax else 0.0
+            order_info["discount"] = payment.orderId.discount if payment.orderId.discount else 0.0
+            order_info["delivery_charge"] = payment.orderId.delivery_charge
+            order_info["subtotal"] = payment.orderId.subtotal
+            order_info["finalTotal"] = payment.orderId.TotalAmount
             
-        platform_details = {
-            "id": koms_order.master_order.platform.pk,
-            "name": koms_order.master_order.platform.Name if language == "English" else koms_order.master_order.platform.Name_locale
-        }
+        if core_order.platform == None:
+            platform_id = 0
+            platform_name = ""
+
+        else:
+            platform_id = core_order.platform.pk
+            platform_name = ""
+
+            if language == "English":
+                platform_name = core_order.platform.Name
+
+            else:
+                platform_name = core_order.platform.Name_locale
+
+        platform_details["id"] = platform_id
+        platform_details["name"] = platform_name
 
         return JsonResponse({
             "payment_details": payment_details,
@@ -2715,260 +2716,237 @@ def order_details(request):
 
 
 @api_view(['POST'])
-def make_payment(request):
-    vendorId = request.GET.get('vendorId')
+def updatePaymentDetails(request):
+    data = request.data
+
+    vendorId = request.GET.get('vendorId', None)
     language = request.GET.get('language', 'English')
 
-    if not vendorId:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
-    try:
-        vendorId = int(vendorId)
-
-    except:
-        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
-
-    vendor_info = Vendor.objects.filter(pk = vendorId).values("pk", "secondary_language").first()
-
-    if not vendor_info:
-        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
-    
-    request_data = request.data
-    
-    order = KOMSOrder.objects.get(externalOrderId = request_data['orderid'])
-
-    old_order_status = order.order_status
-    
-    master_order = Order.objects.filter(externalOrderId = order.externalOrderId, vendorId = vendorId).last()
-
-    if request_data.get("payment_id"):
-        payment = OrderPayment.objects.filter(pk = request_data.get("payment_id")).last()
-
-    else:
-        payment = OrderPayment.objects.filter(orderId = master_order.pk).last()
-
-    if payment:
-        payment.paymentBy = request_data['payment']['paymentBy']
-        payment.paymentKey = request_data['payment']['paymentKey']
-        payment.type = request_data['payment']['type']
-        payment.status = True
-        payment.platform = request_data['payment']['platform']
-
-        payment.save()
-
-    else:
-        OrderPayment.objects.create(
-            orderId = master_order,
-            paymentBy = request_data['payment']['paymentBy'],
-            paymentKey = request_data['payment']['paymentKey'],
-            paid = master_order.TotalAmount,
-            due = 0,
-            tip = 0,
-            type = request_data['payment']['type'],
-            status = True,
-            platform = request_data['payment']['platform']
-        )
-
-    all_status_true = True
-
-    if request_data.get("payment_id"):
-        master_order_id = OrderPayment.objects.filter(pk = request_data.get("payment_id")) \
-            .values_list("orderId__masterOrder__pk", flat = True).last()
-
-        split_orders = Order.objects.filter(masterOrder = master_order_id).values_list("pk", flat = True)
-
-        for order_payment in OrderPayment.objects.filter(orderId__in = split_orders):
-            if not order_payment.status:
-                all_status_true = False
-                break
-
-        if all_status_true == True:
-            OrderPayment.objects.filter(orderId = master_order_id).update(status = True)
-
-    if master_order.orderType == 3:
-        order.order_status = 10
-        order.save()
-        
-        master_order.Status = 2
-        master_order.save() # core order status this needs to be changed by updateCoreOrder function
-
-        waiter_heads = Waiter.objects.filter(is_waiter_head = True, vendorId = vendorId).values_list("pk", flat = True)
-        
-        tables = Order_tables.objects.filter(orderId = order)
-        
-        for table in tables:
-            table.tableId.status = 1 # EMPTY TABLE
-            table.tableId.guestCount = 0
-            table.tableId.save()
-
-            waiter_id = 0
-
-            if table.tableId.waiterId:
-                waiter_id = table.tableId.waiterId.pk
-
-            filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
-            
-            table_data = get_table_data(hotelTable = table.tableId, language = "English", vendorId = vendorId)
-            
-            webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
-                username = "CORE",
-            )
-            
-            webSocketPush(
-                message = {"result": table_data, "UPDATE": "UPDATE"},
-                room_name = f"WOMSPOS------English-{str(vendorId)}",
-                username = "CORE",
-            )
-            
-            for waiter_head_id in filtered_waiter_heads:
-                webSocketPush(
-                    message = {"result": table_data, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
-                    username = "CORE",
-                )
-
-            secondary_language = vendor_info["secondary_language"]
-            
-            if secondary_language:
-                table_data_locale = get_table_data(hotelTable = table.tableId, language = secondary_language, vendorId = vendorId)
-                
-                webSocketPush(
-                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                    room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
-                    username = "CORE",
-                )
-
-                webSocketPush(
-                    message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                    room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
-                    username = "CORE",
-                )
-
-                for waiter_head_id in filtered_waiter_heads:
-                    webSocketPush(
-                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
-                        room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
-                        username = "CORE",
-                    )
-
-    elif ((master_order.orderType == 1) or (master_order.orderType == 2)) and (order.order_status == 3):
-        order.order_status = 10
-        order.save()
-            
-        master_order.Status = 2
-        master_order.save()
-    
-    webSocketPush(
-        message = {"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
-        room_name = str(vendorId)+'-'+str(old_order_status),
-        username = "CORE",
-    )  # WheelMan order remove order from old status
-    
-    allStationWiseRemove(id = order.pk, old = str(old_order_status), current = str(old_order_status), vendorId = vendorId)
-    allStationWiseSingle(id = order.pk, vendorId = vendorId)
-    allStationWiseCategory(vendorId = vendorId) 
-    
-    waiteOrderUpdate(orderid = order.pk, language = language, vendorId = vendorId)
-
-    return JsonResponse({})
-
-
-@api_view(["POST", "PATCH"])
-def split_order_and_payment(request):
-    request_data = request.data
-
-    vendorId = request.GET.get('vendorId')
-    language = request.GET.get('language', 'English')
-
-    if not vendorId:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
+    if vendorId is None:
+        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
     
     try:
         vendorId = int(vendorId)
 
     except ValueError:
-        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
-    
-    vendor_instance = Vendor.objects.filter(pk = vendorId).first()
+        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+
+    vendor_instance = Vendor.objects.filter(pk=vendorId).first()
 
     if not vendor_instance:
-        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
     
-    order = KOMSOrder.objects.get(externalOrderId = request_data['orderid'])
+    order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
 
-    master_order = Order.objects.filter(pk = order.master_order.pk).last()
-
-    payment = OrderPayment.objects.filter(orderId = master_order.pk).last()
-
-    if not payment:
-        return Response("Payment record does not exist", status = status.HTTP_400_BAD_REQUEST)
+    oldStatus = order.order_status
     
-    payment.type = payment_type_number["Split"]
+    coreOrder = Order.objects.filter(externalOrderId=order.externalOrderId, vendorId=vendorId).last()
+    
+    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+    if data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
 
-    payment.splitType = request_data.get('splitBy', None)
+    if payment:
+        payment.paymentBy = data['payment']['paymentBy']
+        payment.paymentKey = data['payment']['paymentKey']
+        payment.type = data['payment']['type']
+        payment.status = True
+        payment.platform = data['payment']['platform']
 
-    payment.save()
+        payment.save()
 
-    Order.objects.filter(masterOrder = master_order.pk).delete()
+    else:
+        OrderPayment.objects.create(
+            orderId = coreOrder,
+            paymentBy = data['payment']['paymentBy'],
+            paymentKey = data['payment']['paymentKey'],
+            paid = coreOrder.TotalAmount,
+            due = 0,
+            tip = 0,
+            type = data['payment']['type'],
+            status = True,
+            platform = data['payment']['platform']
+        )
+    if data.get("payment_id"):
+        payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+        splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+        if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+            OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+    if coreOrder.orderType == 3:
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
 
-    count = 1
+                waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+                
+                tables = Order_tables.objects.filter(orderId=order)
+                
+                for table in tables:
+                    table.tableId.status = 1 # EMPTY TABLE
+                    table.tableId.guestCount = 0
+                    table.tableId.save()
 
-    for splitPayment in request_data["payments"]:
-        split_customer = Customer.objects.filter(pk = splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+                    waiter_id = 0
 
-        split_order = Order(
-            Status = master_order_status_number["Open"],
-            masterOrder = master_order,
-            TotalAmount = splitPayment.get("amount_paid", 0.0),
-            OrderDate = timezone.now(),
-            Notes = request_data.get("note"),
-            externalOrderId = master_order.externalOrderId + f"_{count}",
-            orderType = master_order.orderType,
-            arrivalTime = timezone.now(),
-            tax = splitPayment.get("amount_tax") or 0.0 ,
-            discount = 0.0,
-            tip = 0.0,
-            delivery_charge = 0.0,
-            subtotal = (splitPayment.get("amount_paid", 0.0)) - (splitPayment.get("amount_tax") or 0.0) ,
-            customerId = split_customer.first() if split_customer and split_customer.exists() else master_order.customerId,
-            vendorId = vendor_instance,
-            platform = master_order.platform
-        ).save()
-        
-        count = count + 1
+                    if table.tableId.waiterId:
+                        waiter_id = table.tableId.waiterId.pk
 
-        payment_type = splitPayment.get("paymentType", "Cash")
+                    filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
+                    
+                    table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
+                    
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
+                        username = "CORE",
+                    )
+                    
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMSPOS------English-{str(vendorId)}",
+                        username = "CORE",
+                    )
+                    
+                    for waiter_head_id in filtered_waiter_heads:
+                        webSocketPush(
+                            message = {"result": table_data, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
+                            username = "CORE",
+                        )
 
-        payment_type = payment_type.capitalize()
+                    secondary_language = vendor_instance.secondary_language
+                    
+                    if secondary_language:
+                        table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                        
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
 
-        if request_data.get('splitBy', None) == "by_product":
-            for item in splitPayment.get("splitItems",[]):
-                order_content = Order_content.objects.get(pk = item['order_content_id'])
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
 
-                SplitOrderItem(
-                    order_id = split_order,
-                    order_content_id = order_content,
-                    order_content_qty = item.get('order_content_qty') or order_content.quantity
-                ).save()
+                        waiter_head_id = 0
 
-        OrderPayment(
-            orderId = split_order,
-            paymentBy = master_order.customerId.Email or "",
-            paymentKey = splitPayment.get("paymentKey", ""),
-            paid = splitPayment.get("amount_paid", 0.0),
-            due = 0.0,
-            tip = splitPayment.get('tip', 0.0),
-            status = splitPayment.get("paymentStatus") or False,
-            type = payment_type_number[payment_type],
-            platform = splitPayment.get("platform") or "",
-            splitType = request_data.get('splitBy', None),
-        ).save()
+                        for waiter_head_id in filtered_waiter_heads:
+                            webSocketPush(
+                                message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                                room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
+                                username = "CORE",
+                            )  
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()                # core order status this needs to be changed by updateCoreOrder function
 
-    waiteOrderUpdate(orderid = order.pk, language = language, vendorId = vendorId)
+            waiter_heads = Waiter.objects.filter(is_waiter_head=True, vendorId=vendorId).values_list("pk", flat=True)
+            
+            tables = Order_tables.objects.filter(orderId=order)
+            
+            for table in tables:
+                table.tableId.status = 1 # EMPTY TABLE
+                table.tableId.guestCount = 0
+                table.tableId.save()
 
-    return Response({"success": True})
+                waiter_id = 0
+
+                if table.tableId.waiterId:
+                    waiter_id = table.tableId.waiterId.pk
+
+                filtered_waiter_heads = set(waiter_heads) - set((waiter_id,))
+                
+                table_data = get_table_data(hotelTable=table.tableId, language="English", vendorId=vendorId)
+                
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMS{str(waiter_id)}------English-{str(vendorId)}",
+                    username = "CORE",
+                )
+                
+                webSocketPush(
+                    message = {"result": table_data, "UPDATE": "UPDATE"},
+                    room_name = f"WOMSPOS------English-{str(vendorId)}",
+                    username = "CORE",
+                )
+                
+                for waiter_head_id in filtered_waiter_heads:
+                    webSocketPush(
+                        message = {"result": table_data, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_head_id)}------English-{str(vendorId)}",
+                        username = "CORE",
+                    )
+
+                secondary_language = vendor_instance.secondary_language
+                
+                if secondary_language:
+                    table_data_locale = get_table_data(hotelTable=table.tableId, language=secondary_language, vendorId=vendorId)
+                    
+                    webSocketPush(
+                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                        room_name = f"WOMS{str(waiter_id)}------{secondary_language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
+
+                    webSocketPush(
+                        message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                        room_name = f"WOMSPOS------{secondary_language}-{str(vendorId)}",
+                        username = "CORE",
+                    )
+
+                    waiter_head_id = 0
+
+                    for waiter_head_id in filtered_waiter_heads:
+                        webSocketPush(
+                            message = {"result": table_data_locale, "UPDATE": "UPDATE"},
+                            room_name = f"WOMS{str(waiter_head_id)}------{secondary_language}-{str(vendorId)}",
+                            username = "CORE",
+                        )
+
+    elif ((coreOrder.orderType == 1) or (coreOrder.orderType == 2)) and (order.order_status == 3):
+        if data.get("payment_id"):
+            payment = OrderPayment.objects.filter(pk=data.get("payment_id")).last()
+            splitOrders = [i.pk for i in Order.objects.filter(masterOrder=payment.orderId.masterOrder.pk)]
+            if False not in [i.status for i in  OrderPayment.objects.filter(orderId__in=splitOrders)]:
+                OrderPayment.objects.filter(orderId=payment.orderId.masterOrder.pk).update(status=True)
+                order.order_status = 10
+                order.save()
+                
+                coreOrder.Status = 2
+                coreOrder.save()
+        else :
+            order.order_status = 10
+            order.save()
+            
+            coreOrder.Status = 2
+            coreOrder.save()
+    
+    webSocketPush(
+        message={"id": order.pk, "orderId": order.externalOrderId, "UPDATE": "REMOVE",},
+        room_name=str(vendorId)+'-'+str(oldStatus),
+        username="CORE",
+    )  # WheelMan order remove order from old status
+    
+    allStationWiseRemove(id=order.pk, old=str(oldStatus), current=str(oldStatus), vendorId=vendorId)
+    allStationWiseSingle(id=order.pk, vendorId=vendorId)
+    allStationWiseCategory(vendorId=vendorId) 
+    
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+
+    return JsonResponse({})
 
 
 @api_view(["POST"])
@@ -3333,6 +3311,300 @@ def excel_upload(request):
         vendors = Vendor.objects.all()
         return render( request, "adminlte/upload_products.html", {"vendors":vendors})
         
+
+@api_view(["POST"])
+def excel_download_for_dashboard(request):
+    try:
+        json_data = json.loads(request.body)
+
+        vendor_id = json_data.get("vendor_id")
+        start_date = json_data.get("start_date")
+        end_date = json_data.get("end_date")
+        platform_id = json_data.get("platform_id", "All")
+        order_type = json_data.get("order_type", "All")
+        order_status = json_data.get("order_status", "All")
+        language = json_data.get("language", "English")
+
+        if (vendor_id == None) or (vendor_id == ""):
+            return JsonResponse({"error": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if (start_date == None) or (start_date == ""):
+            return JsonResponse({"error": "Start date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if (end_date == None) or (end_date == ""):
+            return JsonResponse({"error": "End date cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if platform_id == "":
+            platform_id = "All"
+
+        if order_type == "":
+            order_type = "All"
+
+        if order_status == "":
+            order_status = "All"
+
+        if language == "":
+            language = "English"
+
+        if platform_id != "All":
+            platform_id = int(platform_id)
+
+        if order_type != "All":
+            order_type = int(order_type)
+
+        if order_status != "All":
+            order_status = int(order_status)
+        
+        if check_key_exists("order_type", order_type) == False:
+            return JsonResponse({"error": "Order Type does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        if check_key_exists("koms_order_status", order_status) == False:
+            return JsonResponse({"error": "Order Status does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        order_type_parameter = order_type_english[order_type]
+        order_status_parameter = koms_order_status_english[order_status]
+                    
+        if language != "English":
+            order_type_parameter = language_localization[order_type_english[order_type]]
+            order_status_parameter = language_localization[koms_order_status_english[order_status]]
+
+        if platform_id == "All":
+            platform_parameter = "All"
+
+            if language != "English":
+                platform_parameter = language_localization["All"]
+            
+        else:
+            platform_instance = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
+            
+            if platform_parameter:
+                platform_parameter = platform_instance.Name
+
+                if language != "English":
+                    platform_parameter = platform_instance.Name_locale
+
+            else:
+                return JsonResponse({"error": "Platform does not exist"}, status=status.HTTP_400_BAD_REQUEST)
+        
+        start_date_parameter = datetime.strptime(str(start_date), '%Y-%m-%d').date()
+        end_date_parameter = datetime.strptime(str(end_date), '%Y-%m-%d').date()
+
+        start_date_parameter = start_date_parameter.strftime('%d-%m-%Y')
+        end_date_parameter = end_date_parameter.strftime('%d-%m-%Y')
+        
+        vendor_id = int(vendor_id)
+
+        start_date = datetime.strptime(str(start_date) + " 00:00:00.000000", '%Y-%m-%d %H:%M:%S.%f')
+        end_date = datetime.strptime(str(end_date) + " 23:59:59.000000", '%Y-%m-%d %H:%M:%S.%f')
+        
+        order_details = {}
+
+        koms_order_data = KOMSOrder.objects.filter(arrival_time__range=(start_date, end_date), vendorId=vendor_id)
+
+        if (platform_id == "All") or (platform_id == ""):
+            pass
+
+        else:
+            platform_info = Platform.objects.filter(pk=platform_id, VendorId=vendor_id).first()
+
+            if platform_info:
+                koms_order_data = koms_order_data.filter(master_order__platform=platform_id)
+            
+            else:
+                return JsonResponse({"error": "Platform not found"}, status=status.HTTP_400_BAD_REQUEST)
+            
+        if (order_type == "All") or (order_type == ""):
+            pass
+        
+        else:
+            koms_order_data = koms_order_data.filter(order_type=order_type)
+
+        if (order_status == "All") or (order_status == ""):
+            pass
+        
+        else:
+            koms_order_data = koms_order_data.filter(order_status=order_status)
+
+        order_ids = list(koms_order_data.values_list('pk', flat=True))
+
+        order_content = Order_content.objects.filter(orderId__in = order_ids)
+
+        for content in order_content:
+            order_id = content.orderId.master_order.pk
+            koms_order_status = content.orderId.order_status
+            
+            order_detail = Order.objects.filter(pk=order_id).first()
+            
+            payment_detail = OrderPayment.objects.filter(orderId=order_detail.pk).last()
+
+            if order_detail:
+                order_time = order_detail.arrivalTime.astimezone(local_timezone).replace(tzinfo=None)
+
+                order_type = order_type_english[order_detail.orderType]
+                order_status = koms_order_status_english[koms_order_status]
+        
+                if language != "English":
+                    order_type = language_localization[order_type_english[order_detail.orderType]]
+                    order_status = language_localization[koms_order_status_english[koms_order_status]]
+                
+                if payment_detail:
+                    if payment_detail.status == True:
+                        payment_status = payment_status_english["True"]
+        
+                        if language != "English":
+                            payment_status = language_localization[payment_status_english["True"]]
+                    
+                    else:
+                        payment_status = payment_status_english["False"]
+        
+                        if language != "English":
+                            payment_status = language_localization[payment_status_english["False"]]
+                    
+                    amount_paid = payment_detail.paid
+                    transaction_id = payment_detail.paymentKey
+
+                    payment_type = payment_type_english[payment_detail.type]
+        
+                    if language != "English":
+                        payment_type = language_localization[payment_type_english[payment_detail.type]]
+                    
+                else:
+                    transaction_id = ""
+                    payment_type = ""
+
+                    payment_status = payment_status_english["Unknown"]
+        
+                    if language != "English":
+                        payment_status = language_localization[payment_status_english["Unknown"]]
+                    
+                platform_name = ""
+
+                if language == "English":
+                    platform_name = order_detail.platform.Name
+
+                else:
+                    platform_name = order_detail.platform.Name_locale
+
+                order_details[order_id] = {
+                    "order_id": order_id,
+                    "platform_name": platform_name,
+                    "amount_paid": amount_paid,
+                    "order_type": order_type,
+                    "order_status": order_status,
+                    "order_time": order_time,
+                    "payment_type": payment_type,
+                    "payment_status": payment_status,
+                    "transaction_id": transaction_id,
+                }
+                
+            else:
+                return JsonResponse(
+                    {"error": f"Order details not found for order ID {order_id}"},
+                    status = status.HTTP_500_INTERNAL_SERVER_ERROR
+                )
+
+        new_order_details = OrderedDict()
+        sorted_items = []
+
+        for key, value in order_details.items():
+            order_time = value.get("order_time", "")
+            sorted_items.append((order_time, int(key)))
+
+        sorted_items.sort()
+
+        for order_time, order_id in sorted_items:
+            new_order_details[order_id] = order_details[order_id]
+
+        order_details = new_order_details
+        
+        order_count = len(order_details)
+        
+        total_amount_paid = 0.0
+
+        subtotal_sum, discount_sum = Order.objects.filter(
+            OrderDate__date__range = (start_date, end_date),
+            orderpayment__status = True,
+            vendorId = vendor_id
+        ).exclude(Status = master_order_status_number["Canceled"]).aggregate(subtotal_sum = Sum('subtotal'), discount_sum = Sum('discount')).values()
+
+        subtotal_sum = subtotal_sum or 0.0
+        discount_sum = discount_sum or 0.0
+        
+        total_amount_paid = "{:.2f}".format(subtotal_sum - discount_sum)
+
+        workbook = openpyxl.Workbook()
+        sheet = workbook.active
+        
+        if language == "English":
+            sheet.append(['Start Date', f'{start_date_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['End Date', f'{end_date_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['Platform', f'{platform_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['Order Type', f'{order_type_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['Order Status', f'{order_status_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['', '', '', '', '', '', '', '', ''])
+
+            sheet.append(['Order ID', 'Platform', 'Amount', 'Order Type', 'Order Status', 'Order Time', 'Payment Type', 'Payment Status', 'Transaction ID'])
+
+        else:
+            sheet.append([language_localization['Start Date'], f'{start_date_parameter}', '', '', '', '', '', '', ''])
+            sheet.append([language_localization['End Date'], f'{end_date_parameter}', '', '', '', '', '', '', ''])
+            sheet.append([language_localization['Platform'], f'{platform_parameter}', '', '', '', '', '', '', ''])
+            sheet.append([language_localization['Order Type'], f'{order_type_parameter}', '', '', '', '', '', '', ''])
+            sheet.append([language_localization['Order Status'], f'{order_status_parameter}', '', '', '', '', '', '', ''])
+            sheet.append(['', '', '', '', '', '', '', '', ''])
+
+            sheet.append([
+                language_localization['Order ID'],
+                language_localization['Platform'],
+                language_localization['Amount'],
+                language_localization['Order Type'],
+                language_localization['Order Status'],
+                language_localization['Order Time'],
+                language_localization['Payment Type'],
+                language_localization['Payment Status'],
+                language_localization['Transaction ID']
+            ])
+
+        for order_id, details in order_details.items():
+            sheet.append([
+                details["order_id"],
+                details["platform_name"],
+                details["amount_paid"],
+                details["order_type"],
+                details["order_status"],
+                details["order_time"].strftime('%d-%m-%Y %I:%M:%S %p') if details["order_time"] else "",
+                details["payment_type"],
+                details["payment_status"],
+                details["transaction_id"],
+            ])
+        
+        if language == "English":
+            sheet.append([f'Total orders = {order_count}', '', f'Total revenue = {total_amount_paid}', '', '', '', '', '', ''])
+
+        else:
+            sheet.append([f'{language_localization["Total orders"]} = {order_count}', '', f'{language_localization["Total revenue"]} = {total_amount_paid}', '', '', '', '', '', ''])
+        
+        directory = os.path.join(settings.MEDIA_ROOT, 'Excel Downloads')
+        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
+
+        file_name = f"Order_data_Vendor{vendor_id}.xlsx"
+
+        relative_file_path = os.path.join('Excel Downloads', file_name)
+
+        file_path = os.path.join(settings.MEDIA_ROOT, relative_file_path)
+
+        workbook.save(file_path)
+
+        print(f"Excel file '{file_name}' has been created.")
+        
+        response = "/media/" + relative_file_path
+        
+        return HttpResponse(response, status=status.HTTP_200_OK)
+    
+    except Exception as e:
+        print(e)
+        return JsonResponse({"error": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
 
 @api_view(["POST"])
 def delete_excel(request):
@@ -5498,17 +5770,17 @@ def top_selling_products_report(request):
     elif order_type == "delivery":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = order_type_number["Delivery"],
+            orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
             orderId__vendorId = vendor_id,
-        ).exclude(status = 5)
+        ).exclude(status=5)
 
     elif order_type == "pickup":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = order_type_number["Pickup"],
+            orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
@@ -5518,7 +5790,7 @@ def top_selling_products_report(request):
     elif order_type == "dinein":
         order_items = Order_content.objects.filter(
             orderId__order_status = 10,
-            orderId__master_order__orderType = order_type_number["Dinein"],
+            orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
             orderId__master_order__Status = master_order_status_number["Completed"],
             orderId__master_order__OrderDate__date__range = (start_date, end_date),
             orderId__master_order__vendorId = vendor_id,
@@ -5737,7 +6009,7 @@ def most_repeating_customers_report(request):
     
     elif order_type == "delivery":
         orders = Order.objects.filter(
-            orderType = order_type_number["Delivery"],
+            orderType = OrderType.get_order_type_value('DELIVERY'),
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id,
@@ -5745,7 +6017,7 @@ def most_repeating_customers_report(request):
     
     elif order_type == "pickup":
         orders = Order.objects.filter(
-            orderType = order_type_number["Pickup"],
+            orderType = OrderType.get_order_type_value('PICKUP'),
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id
@@ -5753,7 +6025,7 @@ def most_repeating_customers_report(request):
 
     elif order_type == "dinein":
         orders = Order.objects.filter(
-            orderType = order_type_number["Dinein"],
+            orderType = OrderType.get_order_type_value('DINEIN'),
             Status = master_order_status_number["Completed"],
             OrderDate__date__range = (start_date, end_date),
             vendorId = vendor_id
@@ -5817,7 +6089,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Delivery"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -5828,7 +6100,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Pickup"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -5839,7 +6111,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Dinein"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -5910,9 +6182,9 @@ def most_repeating_customers_report(request):
             )
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
-            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
-            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
+            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
+            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
+            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
 
             if platform:
                 online_orders_count = customer_orders.filter(platform=platform.pk).count()
@@ -6101,7 +6373,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Delivery"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('DELIVERY'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6112,7 +6384,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Pickup"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('PICKUP'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6123,7 +6395,7 @@ def most_repeating_customers_report(request):
                 order_items = Order_content.objects.filter(
                     orderId__order_status = 10,
                     orderId__master_order__customerId = customer["customerId"],
-                    orderId__master_order__orderType = order_type_number["Dinein"],
+                    orderId__master_order__orderType = OrderType.get_order_type_value('DINEIN'),
                     orderId__master_order__Status = master_order_status_number["Completed"],
                     orderId__master_order__OrderDate__date__range = (start_date, end_date),
                     orderId__master_order__vendorId = vendor_id,
@@ -6185,9 +6457,9 @@ def most_repeating_customers_report(request):
 
             total_orders_count = customer_orders.count()
 
-            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
-            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
-            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
+            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
+            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
+            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
 
             if platform:
                 online_orders_count = customer_orders.filter(platform=platform.pk).count()
@@ -6396,9 +6668,9 @@ def customers_redeemed_most_points_report(request):
             customer_orders = orders.filter(customerId=customer["customer"])
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
-            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
-            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
+            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
+            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
+            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
             
             online_orders_count = 0
             offline_orders_count = 0
@@ -6560,17 +6832,17 @@ def customers_redeemed_most_points_report(request):
             customer_orders = orders.filter(customerId=customer["customer"])
 
             total_orders_count = customer_orders.count()
-            delivery_orders_count = customer_orders.filter(orderType = order_type_number["Delivery"]).count()
-            pickup_orders_count = customer_orders.filter(orderType = order_type_number["Pickup"]).count()
-            dinein_orders_count = customer_orders.filter(orderType = order_type_number["Dinein"]).count()
+            delivery_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DELIVERY')).count()
+            pickup_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('PICKUP')).count()
+            dinein_orders_count = customer_orders.filter(orderType=OrderType.get_order_type_value('DINEIN')).count()
 
             if platform:
-                online_orders_count = customer_orders.filter(platform = platform.pk).count()
-                offline_orders_count = customer_orders.exclude(platform = platform.pk).count()
+                online_orders_count = customer_orders.filter(platform=platform.pk).count()
+                offline_orders_count = customer_orders.exclude(platform=platform.pk).count()
             
-            customer_info = Customer.objects.filter(pk = customer["customer"]).first()
+            customer_info = Customer.objects.filter(pk=customer["customer"]).first()
 
-            customer_address = Address.objects.filter(customer = customer["customer"], type = 'shipping_address', is_selected = True).first()
+            customer_address = Address.objects.filter(customer=customer["customer"], type='shipping_address', is_selected=True).first()
 
             if customer_info.FirstName and customer_info.LastName:
                 customer_name = customer_info.FirstName + " " + customer_info.LastName
@@ -6681,9 +6953,9 @@ def finance_report(request):
         orderId__masterOrder = None
     ).exclude(orderId__Status = master_order_status_number["Canceled"])
 
-    delivery_orders = orders.filter(orderId__orderType = order_type_number["Delivery"])
-    pickup_orders = orders.filter(orderId__orderType = order_type_number["Pickup"])
-    dinein_orders = orders.filter(orderId__orderType = order_type_number["Dinein"])
+    delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
+    pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
+    dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
     cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
     online_payment_orders = orders.filter(type = payment_type_number["Online"])
     card_payment_orders = orders.filter(type = payment_type_number["Card"])
@@ -7052,9 +7324,9 @@ def footfall_revenue_report(request):
             actual_instance = datetime.strptime(str(instance['order_hour']), '%H').strftime('%I%p') + ' - ' + \
             datetime.strptime(str(instance['order_hour'] + 1), '%H').strftime('%I%p')
 
-        delivery_orders = orders.filter(orderId__orderType = order_type_number["Delivery"])
-        pickup_orders = orders.filter(orderId__orderType = order_type_number["Pickup"])
-        dinein_orders = orders.filter(orderId__orderType = order_type_number["Dinein"])
+        delivery_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DELIVERY'))
+        pickup_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('PICKUP'))
+        dinein_orders = orders.filter(orderId__orderType = OrderType.get_order_type_value('DINEIN'))
         cash_payment_orders = orders.filter(type = payment_type_number["Cash"])
         online_payment_orders = orders.filter(type = payment_type_number["Online"])
         card_payment_orders = orders.filter(type = payment_type_number["Card"])
@@ -7658,15 +7930,15 @@ def cancel_order_report(request):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
     if order_type == "delivery":
-        order_type_code = order_type_number["Delivery"]
+        order_type_code = OrderType.get_order_type_value('DELIVERY')
 
     elif order_type == "pickup":
-        order_type_code = order_type_number["Pickup"]
+        order_type_code = OrderType.get_order_type_value('PICKUP')
 
     elif order_type == "dinein":
-        order_type_code = order_type_number["Dinein"]
+        order_type_code = OrderType.get_order_type_value('DINEIN')
     
-    platform = Platform.objects.filter(Name__in = ('Mobile App', 'Website'), isActive = True, VendorId = vendor_id).first()
+    platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
     
     cancelled_orders = KOMSOrder.objects.filter(
         master_order__Status = master_order_status_number["Canceled"],
@@ -7889,13 +8161,13 @@ def pincode_report(request):
         return Response("Invalid sort parameter", status=status.HTTP_400_BAD_REQUEST)
     
     if order_type == "delivery":
-        order_type_code = order_type_number["Delivery"]
+        order_type_code = OrderType.get_order_type_value('DELIVERY')
 
     elif order_type == "pickup":
-        order_type_code = order_type_number["Pickup"]
+        order_type_code = OrderType.get_order_type_value('PICKUP')
 
     elif order_type == "dinein":
-        order_type_code = order_type_number["Dinein"]
+        order_type_code = OrderType.get_order_type_value('DINEIN')
     
     platform = Platform.objects.filter(Name__in=('Mobile App', 'Website'), isActive=True, VendorId=vendor_id).first()
 
@@ -8970,3 +9242,96 @@ def delete_core_user_category(request):
             transaction.set_rollback(True)
 
             return JsonResponse({"message": str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(["POST", "PATCH"])
+def splitOrderPayment(request):
+    data = request.data
+
+    vendorId = request.GET.get('vendorId')
+    language = request.GET.get('language', 'English')
+
+    if vendorId is None:
+        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    
+    try:
+        vendorId = int(vendorId)
+
+    except ValueError:
+        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+    
+    vendor_instance = Vendor.objects.filter(pk=vendorId).first()
+
+    if not vendor_instance:
+        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
+    order = KOMSOrder.objects.get(externalOrderId=data['orderid'])
+
+    coreOrder = Order.objects.filter(pk=order.master_order.pk).last()
+
+    payment = OrderPayment.objects.filter(orderId=coreOrder.pk).last()
+
+    if not payment:
+        return Response("Payment record does not exist", status=status.HTTP_400_BAD_REQUEST)
+    
+    payment.type = payment_type_number["Split"]
+
+    payment.splitType = data.get('splitBy', None)
+
+    payment.save()
+
+    Order.objects.filter(masterOrder = coreOrder.pk).delete()
+
+    count = 1
+
+    for splitPayment in data["payments"]:
+        split_customer = Customer.objects.filter(pk = splitPayment.get('customerId')) if splitPayment.get('customerId') else None
+
+        split_order = Order(
+                Status = master_order_status_number["Open"],
+                masterOrder = coreOrder,
+                TotalAmount = splitPayment.get("amount_paid",0.0),
+                OrderDate = timezone.now(),
+                Notes = data.get("note"),
+                externalOrderId = coreOrder.externalOrderId + f"_{count}",
+                orderType = coreOrder.orderType,
+                arrivalTime = timezone.now(),
+                tax = splitPayment.get("amount_tax") or 0.0 ,
+                discount = 0.0,
+                tip = 0.0,
+                delivery_charge = 0.0,
+                subtotal = (splitPayment.get("amount_paid", 0.0)) - (splitPayment.get("amount_tax") or 0.0 ) ,
+                customerId = split_customer.first() if split_customer and split_customer.exists() else coreOrder.customerId,
+                vendorId = vendor_instance,
+                platform = coreOrder.platform
+            ).save()
+        
+        count = count + 1
+
+        payment_type = splitPayment.get("paymentType", "Cash")
+
+        payment_type = payment_type.capitalize()
+        if data.get('splitBy', None) == "by_product":
+            for item in splitPayment.get("splitItems",[]):
+                order_content = Order_content.objects.get(pk=item['order_content_id'])
+                SplitOrderItem(
+                    order_id = split_order,
+                    order_content_id = order_content,
+                    order_content_qty = item.get('order_content_qty') or order_content.quantity
+                ).save()
+        OrderPayment(
+            orderId = split_order,
+            paymentBy = coreOrder.customerId.Email or "",
+            paymentKey = splitPayment.get("paymentKey",""),
+            paid = splitPayment.get("amount_paid",0.0),
+            due = 0.0,
+            tip = splitPayment.get('tip',0.0),
+            status = splitPayment.get("paymentStatus") or  False,
+            type = payment_type_number[payment_type],
+            platform = splitPayment.get("platform") or "",
+            splitType = data.get('splitBy', None),
+        ).save()
+
+    waiteOrderUpdate(orderid=order.pk, language=language, vendorId=vendorId)
+
+    return Response({"success":True})
