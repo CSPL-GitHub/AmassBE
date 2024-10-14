@@ -1,0 +1,223 @@
+{% extends 'adminlte/adminlte_base.html' %}
+
+{% block title %} Vendor {% endblock title %}
+
+{% block sidebar_vendor %} active {% endblock sidebar_vendor %}
+
+{% block page_heading %} Vendor Management{% endblock page_heading %}
+
+{% block head %}
+<style>
+    #jsGrid {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+</style>
+
+<script>
+    // Selectize.js
+    $(document).ready(function () {
+        $('#type_of_vendor').selectize({
+            maxItems: 1,
+            sortField: 'text',
+            searchField: ['text'],
+        });
+    });
+</script>
+{% endblock head %}
+
+{% block content %}
+<script>
+    var vendorTypeChoices = [
+        {% for vendor in vendor_types %}
+            { value: {{ vendor.id }}, text: '{{ vendor.type }}' },
+        {% endfor %}
+    ];
+
+    $(document).ready(function () {
+        // jsGrid
+        $("#jsGrid").jsGrid({
+            width: "100%",
+            height: "auto",
+            autoload: true,
+            pageLoading: true,
+            paging: true,
+            pageSize: 10,
+            // filtering: true,
+            editing: true,
+            selecting: true,
+            sorting: true,
+            deleteConfirm: "Are you sure you want to delete?",
+            rowClick: function(args) {},
+            rowDoubleClick: function(args) { 
+                $("#jsGrid").jsGrid("editItem", args.item);
+            },
+            controller: {
+                loadData: function (filter) {
+                    return $.ajax({
+                        type: "GET",
+                        url: "/vendor/get/",
+                        data: filter,
+                    });
+                },
+                updateItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/vendor/update/${item.id}/`,
+                        data: item,
+                        success: function (resp, status, xyz) {
+                            toastr.success("Vendor updated successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                },
+                deleteItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/vendor/delete/${item.id}/`,
+                        success: function (resp, status, xyz) {
+                            toastr.success("Vendor deleted successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                }
+            },
+            fields: [
+                { name: "id", title: "ID", type: "number", css: "text-center" },
+                { name: "Name", title: "Name", type: "text" },
+                { name: "address_line_1", title: "Address line 1", type: "text" },
+                { name: "address_line_2", title: "Address line 2", type: "text" },
+                { name: "city", title: "City", type: "text" },
+                { name: "state", title: "State", type: "text" },
+                { name: "country", title: "Country", type: "text" },
+                { name: "phone_number", title: "Phone Number", type: "number" },
+                { name: "Email", title: "Email", type: "text" },
+                { name: "vendor_type", title: "Vendor Type", type: "select", items: vendorTypeChoices, valueField: "value",textField: "text", css: "text-center" },
+                { name: "gst_number", title: "GST Number", type: "text" },
+                { name: "contact_person_name", title: "Contact Person Name", type: "text" },
+                { name: "contact_person_phone_number", title: "Contact Person Phone Number", type: "text" },
+                { name: "is_active", title: "Is Active", type: "checkbox" },
+                { type: "control" }
+            ]
+        });
+    });
+</script>
+
+<!-- Main content -->
+<section class="content">
+    <!-- Default box -->
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Vendor Registration</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'vendor' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor Name">Name</label>
+                        <input type="text" class="form-control" id="vendor_name" name="Name" placeholder="Enter name" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Address 1">Address Line 1</label>
+                        <input type="text" class="form-control" id="vendor_address_1" name="address_line_1" placeholder="Enter Address Line 1" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Address 2">Address Line 2</label>
+                        <input type="text" class="form-control" id="vendor_address_2" name="address_line_2" placeholder="Enter Address Line 2" >
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="City">City</label>
+                        <input type="text" class="form-control" id="vendor_city" name="city" placeholder="Enter City" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="State">State</label>
+                        <input type="text" class="form-control" id="vendor_state" name="state" placeholder="Enter State" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Country">Country</label>
+                        <input type="text" class="form-control" id="vendor_country" name="country" placeholder="Enter Country" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="User Type">Phone Number</label>
+                        <input type="number" class="form-control" id="vendor_phone_number" name="phone_number" placeholder="Enter Vendor's Phone Number" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor Email">Email address</label>
+                        <input type="email" class="form-control" id="vendor_email" name="Email"
+                            placeholder="Enter Email" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor Type">Vendor Type</label>
+                        <select class="form-control" id="type_of_vendor" name="vendor_type" placeholder="Select Vendor Type" required>
+                            {% for vendor in vendor_types %}
+                            <option value="{{vendor.id}}">{{vendor.type}}</option>
+                            {% endfor %}
+                        </select>
+                        <!-- <input type="number" class="form-control" id="type_of_vendor" name="vendor_type" placeholder="Enter Vendor type" required> -->
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor GST Number">GST Number</label>
+                        <input type="text" class="form-control" id="vendor_gst_number" name="gst_number" placeholder="Enter GST Number" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Contact Person">Contact Person Name</label>
+                        <input type="text" class="form-control" id="contact_person" name="contact_person_name" placeholder="Enter Contact Person's Name" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Contact Person Number">Contact Person Phone Number</label>
+                        <input type="number" class="form-control" id="contact_person_number" name="contact_person_phone_number" placeholder="Enter Contact Person's Number" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6 form-check align-self-center">
+                        <div class="row pt-4 pl-4">
+                            <label for="Is Active">Is Active</label>
+                            <input type="checkbox" class="form-check-input checkbox-container" id="isActive" name="is_active">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center d-grid gap-2 col-sm-2 mx-auto">
+                    <button type="submit" class="btn btn-primary ">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- /.card -->
+
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">Vendor Management</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body" id="jsGrid">
+
+        </div>
+    </div>
+</section>
+<!-- /.content -->
+{% endblock content %}

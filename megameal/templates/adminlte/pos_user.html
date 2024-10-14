@@ -1,0 +1,178 @@
+{% extends 'adminlte/adminlte_base.html' %}
+
+{% block title %} POS Users {% endblock title %}
+
+{% block sidebar_vendor %} active {% endblock sidebar_vendor %}
+
+{% block page_heading %} POS User Management{% endblock page_heading %}
+
+{% block head %}
+<style>
+    #jsGrid {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: auto;
+    }
+</style>
+
+<script>
+    // Selectize.js
+    $(document).ready(function () {
+        $('#pos_user_vendor').selectize({
+            maxItems: 1,
+            sortField: 'text',
+            searchField: ['text'],
+        });
+    });
+</script>
+{% endblock head %}
+
+{% block content %}
+<script>
+    var vendorChoices = [
+        {% for vendor in vendors %}
+            { value: {{ vendor.id }}, text: '{{ vendor.Name }}' },
+        {% endfor %}
+    ];
+
+    $(document).ready(function () {
+        // jsGrid
+        $("#jsGrid").jsGrid({
+            width: "100%",
+            height: "auto",
+            autoload: true,
+            pageLoading: true,
+            paging: true,
+            pageSize: 10,
+            // filtering: true,
+            editing: true,
+            selecting: true,
+            sorting: true,
+            deleteConfirm: "Are you sure you want to delete?",
+            rowClick: function(args) {},
+            rowDoubleClick: function(args) { 
+                $("#jsGrid").jsGrid("editItem", args.item);
+            },
+            controller: {
+                loadData: function (filter) {
+                    return $.ajax({
+                        type: "GET",
+                        url: "/pos/pos_user/get/",
+                        data: filter,
+                    });
+                },
+                updateItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/pos/pos_user/update/${item.id}/`,
+                        data: item,
+                        success: function (resp, status, xyz) {
+                            toastr.success("POS User updated successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                },
+                deleteItem: function (item) {
+                    return $.ajax({
+                        type: "POST",
+                        url: `/pos/pos_user/delete/${item.id}/`,
+                        success: function (resp, status, xyz) {
+                            toastr.success("POS User deleted successfully!");
+                        },
+                        error: function (resp, status, xyz) {
+                            alert(JSON.stringify(resp));
+                        }
+                    });
+                }
+            },
+            fields: [
+                { name: "id", title: "ID", type: "number", css: "text-center" },
+                { name: "username", title: "Username", type: "text" },
+                { name: "password", title: "Password", type: "text" },
+                { name: "name", title: "Name", type: "text" },
+                { name: "email", title: "Email", type: "text" },
+                { name: "vendor", title: "Vendor", type: "select", items: vendorChoices, valueField: "value",textField: "text", css: "text-center" },
+                { name: "is_active", title: "Is Active", type: "checkbox" },
+                { type: "control" }
+            ]
+        });
+    });
+</script>
+
+<!-- Main content -->
+<section class="content">
+    <!-- Default box -->
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">POS User Registration</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <form method="post" action="{% url 'pos_user' %}">
+                {% csrf_token %}
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Username">Username</label>
+                        <input type="text" class="form-control" id="pos_user_username" name="username" placeholder="Enter username" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Password">Password</label>
+                        <input type="text" class="form-control" id="pos_user_password" name="password" placeholder="*********" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="User Name">Name</label>
+                        <input type="text" class="form-control" id="pos_user_name" name="name" placeholder="Enter name" required>
+                    </div>
+                    <div class="form-group col-sm-6">
+                        <label for="Email">Email</label>
+                        <input type="email" class="form-control" id="pos_user_email" name="email" placeholder="Enter email" required>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="form-group col-sm-6">
+                        <label for="Vendor Type">Vendor</label>
+                        <select class="form-control" id="pos_user_vendor" name="vendor" placeholder="Select Vendor" required>
+                            {% for vendor in vendors %}
+                            <option value="{{vendor.id}}">{{vendor.Name}}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group col-sm-6 form-check align-self-center">
+                        <div class="row pt-4 pl-4">
+                            <label for="Is Active">Is Active</label>
+                            <input type="checkbox" class="form-check-input checkbox-container" id="isActive" name="is_active">
+                        </div>
+                    </div>
+                </div>
+                <div class="text-center d-grid gap-2 col-sm-2 mx-auto">
+                    <button type="submit" class="btn btn-primary ">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    <!-- /.card -->
+
+    <div class="card card-primary">
+        <div class="card-header">
+            <h3 class="card-title">POS User Management</h3>
+            <div class="card-tools">
+                <button type="button" class="btn btn-tool" data-card-widget="collapse" title="Collapse">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+        </div>
+        <div class="card-body" id="jsGrid">
+
+        </div>
+    </div>
+</section>
+<!-- /.content -->
+{% endblock content %}

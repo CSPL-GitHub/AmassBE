@@ -1,0 +1,149 @@
+from django.db import models
+from core.models import Vendor, Platform
+from django.contrib.auth.models import Group, User
+
+
+
+class StoreTiming(models.Model):
+    DAYS_OF_WEEK_CHOICES = [
+        ('Monday', 'Monday'),
+        ('Tuesday', 'Tuesday'),
+        ('Wednesday', 'Wednesday'),
+        ('Thursday', 'Thursday'),
+        ('Friday', 'Friday'),
+        ('Saturday', 'Saturday'),
+        ('Sunday', 'Sunday'),
+    ]
+    slot_identity = models.CharField( max_length=50)
+    day = models.CharField(max_length=50, choices=DAYS_OF_WEEK_CHOICES,)
+    is_holiday = models.BooleanField( default=False)
+    is_active = models.BooleanField( default=False)
+    open_time = models.TimeField()
+    close_time = models.TimeField()
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+    platform = models.ForeignKey(Platform, on_delete=models.CASCADE, null=True, blank=True)
+
+
+class Banner(models.Model):
+    image = models.URLField(max_length=200)
+    is_active = models.BooleanField(default=True)
+    platform_type = models.CharField(max_length=20, choices=(('website', 'website'), ('app', 'app'),), default='website')
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+
+class POSSetting(models.Model):
+    store_status = models.BooleanField(default=False)
+    delivery_kilometer_limit = models.IntegerField(default=5)
+    delivery_charges_for_kilometer_limit = models.IntegerField(default=0)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.vendor.Name
+
+
+class Department(models.Model):
+    name = models.CharField(max_length=150)
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    is_active = models.BooleanField(default=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_departments")
+
+    class Meta:
+        unique_together = ('name', 'vendor')
+
+    def save(self, *args, **kwargs):
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        super().save(*args, **kwargs)
+        
+        return self
+
+    def __str__(self):
+        return f"{self.name} ({self.vendor.pk})"
+
+
+class CoreUserCategory(Group):
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    is_editable = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True)
+    department = models.ForeignKey(Department, on_delete=models.SET_NULL, null=True, blank=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_user_categories")
+
+    def save(self, *args, **kwargs):
+        if not self.name_locale:
+            self.name_locale = self.name
+
+        super().save(*args, **kwargs)
+        
+        return self
+
+
+class WorkingShift(models.Model):
+    name = models.CharField(max_length=200)
+    name_locale = models.CharField(max_length=150, null=True, blank=True)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    def __str__(self):
+        return self.name
+
+
+class CoreUser(User):
+    phone_number = models.PositiveBigIntegerField()
+    current_address = models.TextField(max_length=2000, null=True, blank=True)
+    permanent_address = models.TextField(max_length=2000, null=True, blank=True)
+    profile_picture = models.ImageField(upload_to="user", max_length=500, null=True, blank=True)
+    document_1 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
+    document_2 = models.ImageField(upload_to="user/document", max_length=500, null=True, blank=True)
+    is_head = models.BooleanField(default=False)
+    reports_to = models.ForeignKey('self', on_delete=models.SET_NULL, null=True, blank=True, related_name='user_reports_to')
+    working_shift = models.ForeignKey(WorkingShift, on_delete=models.SET_NULL, null=True, blank=True)
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.SET_NULL, null=True, blank=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_users")
+
+    def save(self, *args, **kwargs):
+        self.is_staff = True
+
+        super(CoreUser, self).save(*args, **kwargs)
+    
+    class Meta:
+        unique_together = ('phone_number', 'vendor')
+
+
+class POSPermission(models.Model):
+    show_dashboard = models.BooleanField(default=False)
+    show_tables_page = models.BooleanField(default=False)
+    show_place_order_page = models.BooleanField(default=False)
+    show_order_history_page = models.BooleanField(default=False)
+    show_product_menu = models.BooleanField(default=False)
+    show_store_time_setting = models.BooleanField(default=False)
+    show_tax_setting = models.BooleanField(default=False)
+    show_delivery_charge_setting = models.BooleanField(default=False)
+    show_loyalty_points_setting = models.BooleanField(default=False)
+    show_cash_register_setting = models.BooleanField(default=False)
+    show_customer_setting = models.BooleanField(default=False)
+    show_printer_setting = models.BooleanField(default=False)
+    show_payment_machine_setting = models.BooleanField(default=False)
+    show_banner_setting = models.BooleanField(default=False)
+    show_excel_file_setting = models.BooleanField(default=False)
+    show_employee_setting = models.BooleanField(default=False)
+    show_reports = models.BooleanField(default=False)
+    show_sop = models.BooleanField(default=False)
+    show_language_setting = models.BooleanField(default=False)
+    show_franchise_list = models.BooleanField(default=False)
+    core_user_category = models.ForeignKey(CoreUserCategory, on_delete=models.CASCADE)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE)
+
+    class Meta:
+        unique_together = ('core_user_category', 'vendor')
+
+
+class CashRegister(models.Model):
+    balance_while_store_opening = models.FloatField()
+    balance_while_store_closing = models.FloatField(default=0.0)
+    created_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="opening_cash_entered_by")
+    created_at = models.DateTimeField(auto_now_add=True)
+    edited_by = models.ForeignKey(CoreUser, on_delete=models.CASCADE, related_name="closing_cash_entered_by")
+    edited_at = models.DateTimeField(auto_now=True)
+    vendor = models.ForeignKey(Vendor, on_delete=models.CASCADE, related_name="vendor_cash_register")

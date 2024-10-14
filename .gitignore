@@ -1,0 +1,47 @@
+.vscode
+*.pyc
+*.pys
+env
+__pycache__
+# *.json
+venv
+
+megameal/db.sqlite3
+error.log
+megameal/static
+
+megameal/media/Product Details Excel
+megameal/media/Excel Downloads
+megameal/media/vendor_logo
+megameal/media/waiter
+megameal/media/user
+megameal/media/Language Translation Excel
+
+megameal/static/__pycache__
+
+megameal/core/__pycache__
+megameal/core/migrations
+megameal/kiosk/__pycache__
+megameal/kiosk/migrations
+megameal/kiosk/__pycache__
+megameal/kiosk/migrations
+megameal/koms/__pycache__
+megameal/koms/migrations
+megameal/nextjs/__pycache__
+megameal/nextjs/migrations
+megameal/order/__pycache__
+megameal/order/migrations
+megameal/pos/__pycache__
+megameal/pos/migrations
+megameal/realtime/__pycache__
+megameal/realtime/migrations
+megameal/useradmin/__pycache__
+megameal/useradmin/migrations
+megameal/webhook/__pycache__
+megameal/webhook/migrations
+megameal/woms/__pycache__
+megameal/woms/migrations
+megameal/inventory/__pycache__
+megameal/inventory/migrations
+megameal/sop/__pycache__
+megameal/sop/migrations

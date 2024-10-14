@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>Order Confirmation</title>
+
+  <style type="text/css">
+    @charset "UTF-8";
+
+    *, *::before, *::after {
+      box-sizing: border-box;
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      :root {
+        scroll-behavior: smooth;
+      }
+    }
+
+    body {
+      margin: 0;
+      font-family: sans-serif;
+      font-size: 1rem;
+      font-weight: 400;
+      line-height: 1.5;
+      color: black;
+      background-color: white;
+      -webkit-text-size-adjust: 100%;
+      -webkit-tap-highlight-color: black;
+    }
+
+    p {
+      margin-top: 0;
+      margin-bottom: 1rem;
+    }
+
+    b, strong {
+      font-weight: bolder;
+    }
+
+    .container,
+    .container-fluid,
+    .container-xxl,
+    .container-xl,
+    .container-lg,
+    .container-md,
+    .container-sm {
+      --bs-gutter-x: 1.5rem;
+      --bs-gutter-y: 0;
+      width: 100%;
+      padding-right: calc(var(--bs-gutter-x) * 0.5);
+      padding-left: calc(var(--bs-gutter-x) * 0.5);
+      margin-right: auto;
+      margin-left: auto;
+    }
+
+    @media (min-width: 576px) {
+      .container-sm, .container {
+        max-width: 540px;
+      }
+    }
+
+    @media (min-width: 768px) {
+      .container-md, .container-sm, .container {
+        max-width: 720px;
+      }
+    }
+
+    @media (min-width: 992px) {
+      .container-lg, .container-md, .container-sm, .container {
+        max-width: 960px;
+      }
+    }
+
+    @media (min-width: 1200px) {
+      .container-xl, .container-lg, .container-md, .container-sm, .container {
+        max-width: 1140px;
+      }
+    }
+
+    @media (min-width: 1400px) {
+      .container-xxl, .container-xl, .container-lg, .container-md, .container-sm, .container {
+        max-width: 1320px;
+      }
+    }
+
+    table {
+      caption-side: bottom;
+      border-collapse: collapse;
+    }
+
+    th {
+      text-align: inherit;
+      text-align: -webkit-match-parent;
+    }
+
+    thead, tbody, tfoot, tr, td, th {
+      border-color: inherit;
+      border-style: solid;
+      border-width: 0;
+    }
+
+    .table {
+      --bs-emphasis-color: black;
+      --bs-emphasis-color-rgb: 0, 0, 0;
+      --bs-border-color: #dee2e6;
+      --bs-border-width: 1px;
+      --bs-table-color-type: initial;
+      --bs-table-bg-type: initial;
+      --bs-table-color-state: initial;
+      --bs-table-bg-state: initial;
+      --bs-table-color: var(--bs-emphasis-color);
+      --bs-table-border-color: var(--bs-border-color);
+      --bs-table-accent-bg: transparent;
+      width: 100%;
+      margin-bottom: 1rem;
+      vertical-align: top;
+      border-color: var(--bs-table-border-color);
+    }
+
+    .table> :not(caption)>*>* {
+      padding: 0.5rem 0.5rem;
+      color: var(--bs-table-color-state, var(--bs-table-color-type, var(--bs-table-color)));
+      border-bottom-width: var(--bs-border-width);
+      box-shadow: inset 0 0 0 9999px var(--bs-table-bg-state, var(--bs-table-bg-type, var(--bs-table-accent-bg)));
+    }
+
+    .table>tbody {
+      vertical-align: inherit;
+    }
+
+    .table>thead {
+      vertical-align: bottom;
+    }
+
+    .table-bordered> :not(caption)>* {
+      border-width: var(--bs-border-width) 0;
+    }
+
+    .table-bordered> :not(caption)>*>* {
+      border-width: 0 var(--bs-border-width);
+    }
+
+    .table-borderless> :not(caption)>*>* {
+      border-bottom-width: 0;
+    }
+
+    .table-borderless> :not(:first-child) {
+      border-top-width: 0;
+    }
+
+    .center-text {
+      text-align: center;
+    }
+
+    .align-items-center {
+      display: flex;
+      align-items: center;
+    }
+
+    @media only screen and (max-width: 380px) {
+      #logo {
+        height: 50px;
+        width: 50px;
+      }
+
+      #order-online-text {
+        font-size: 20px;
+      }
+    }
+
+    @media only screen and (min-device-width: 381px) and (max-device-width: 640px) {
+      #logo {
+        height: 60px;
+        width: 60px;
+      }
+
+      #order-online-text {
+        font-size: 25px;
+      }
+    }
+
+    @media only screen and (min-device-width: 641px) and (max-device-width: 767px) {
+      #logo {
+        height: 70px;
+        width: 70px;
+      }
+
+      #order-online-text {
+        font-size: 30px;
+      }
+    }
+
+    @media only screen and (min-device-width: 768px) and (max-device-width: 1023px) {
+      #logo {
+        height: 70px;
+        width: 70px;
+      }
+
+      #order-online-text {
+        font-size: 35px;
+      }
+    }
+
+    @media only screen and (min-device-width: 1024px) and (max-device-width: 2048px) {
+      #logo {
+        height: 80px;
+        width: 80px;
+      }
+
+      #order-online-text {
+        font-size: 35px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <table class="table table-borderless">
+      <thead style="background-color:#F0FFFF;">
+        <th>
+          <div class="align-items-center">
+            <img src="{{ logo_url }}" id="logo">
+
+            &nbsp;&nbsp;&nbsp;&nbsp;<p id="order-online-text" style="margin-top: 20px;">Order Confirmation</p>
+          </div>
+        </th>
+      </thead>
+
+      <tbody>
+        <td>
+          <br>Hi {{ first_name }},<br>
+          Your <b>{{ order_type }}</b> order is placed successfully. Your Order ID is <b>#{{ order_id }}</b>.
+        </td>
+      </tbody>
+
+      <table class="table table-bordered">
+        <thead>
+          <th style="background-color: #3ab1c8; color: white;" colspan="2">Personal Details</th>
+        </thead>
+
+        <tbody style="background-color: #F0FFFF;">
+          <tr>
+            <td>Name</td>
+            <td>{{ full_name }}</td>
+          </tr>
+
+          <tr>
+            <td>Phone number</td>
+            <td>{{ phone_number }}</td>
+          </tr>
+
+          <tr>
+            <td>Email ID</td>
+            <td>{{ email }}</td>
+          </tr>
+
+          <tr>
+            {% if order_type != 'PICKUP'%}
+              <td>Delivery Address</td>
+              <td>
+                Address line 1: {{ shipping_address.address_line1 }}<br>
+                Address line 2: {{ shipping_address.address_line2 }}<br>
+                City: {{ shipping_address.city }}<br>
+                State: {{ shipping_address.state }}<br> 
+                Country: {{ shipping_address.country }}
+                Pincode: {{ shipping_address.zipcode }}
+              </td>
+            {% endif %}
+          </tr>
+
+          <tr>
+            <table class="table table-bordered">
+              <thead>
+                <tr>
+                  <th style="background-color: #3ab1c8; color: white;" colspan="4">Order Details</th>
+                </tr>
+                <tr class="center-text" style="background-color: #F0FFFF	;">
+                  <th>#</th>
+                  <th>Item</th>
+                  <th>Quantity</th>
+                  <th>Price (in {{currency}})</th>
+                </tr>
+              </thead>
+
+              <tbody class="table-info center-text" style="background-color: #F0FFFF;">
+                {% for product in product_details %}
+                  <tr>
+                    {% if product.modifiers %}
+                      <td>{{ product.counter }}</td>
+
+                      <td style="text-align: left;">
+                        {{ product.name }} ({{ currency }} {{ product.price }})
+
+                        {% for modifier in product.modifiers %}
+                          <br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;-&nbsp;{{ modifier.name }} ({{ currency }} {{ modifier.price }})
+                        {% endfor %}
+                      </td>
+
+                      <td>
+                        {{ product.quantity }}
+
+                        {% for modifier in product.modifiers %}
+                          <br>{{ modifier.quantity }}
+                        {% endfor %}
+                      </td>
+
+                      <td>
+                        {{ product.amount }}
+
+                        {% for modifier in product.modifiers %}
+                          <br>{{ modifier.amount }}
+                        {% endfor %}
+                      </td>
+
+                    {% else %}
+                      <td>{{ product.counter }}</td>
+                      <td style="text-align: left;">{{ product.name }} ({{ currency }} {{ product.price }})</td>
+                      <td>{{ product.quantity }}</td>
+                      <td>{{ product.amount }}</td>
+                    {% endif %}
+                  </tr>
+                {%endfor%}
+              </tbody>
+              
+              <tfoot style="background-color: #F0FFFF;">
+                <tr>
+                  <td colspan="3">Subtotal</td>
+                  <td class="center-text">{{ subtotal }}</td>
+                </tr>
+
+                <tr>
+                  <td colspan="3">Discount (if applicable)</td>
+                  <td class="center-text">{{ discount }}</td>
+                </tr>
+
+                <tr>
+                  <td colspan="3">Delivery charge (if applicable)</td>
+                  <td class="center-text">{{ delivery_charge }}</td>
+                </tr>
+
+                {% if tax_details %}
+                  {% for tax in tax_details %}
+                    <tr>
+                      <td colspan="3">{{ tax.name }} ({{ tax.percentage }}%)</td>
+                      <td class="center-text">{{ tax.amount }}</td>
+                    </tr>
+                  {% endfor %}
+                {% endif %}
+                <tr>
+                  <td colspan="3"><b>Total amount</b></td>
+                  <td class="center-text"><b>{{ total_amount }}</b></td>
+                </tr>
+              </tfoot>
+            </table>
+          </tr>
+        </tbody>
+      </table>
+    </table>
+    <br>
+    <p>Thank you of ordering. Have a great day!</p>
+  </div>
+</body>
+
+</html>
