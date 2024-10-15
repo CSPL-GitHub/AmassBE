@@ -105,7 +105,7 @@ class OrderPayment(models.Model):
     paid = models.FloatField()
     due = models.FloatField()
     tip = models.FloatField(default = 0.0)
-    type = models.IntegerField(choices=((1, "Cash"), (2, "Online"), (3, "Card"), (4, "Split")), default = 1)
+    type = models.IntegerField(choices=((1, "Cash"), (2, "Online"), (3, "Card"), (4, "Split"),(5,"Mix")), default = 1)
     splitType = models.CharField(
         max_length = 50,
         choices = (("by_percent", "by_percent"), ("by_person", "by_person"), ("by_product", "by_product")),

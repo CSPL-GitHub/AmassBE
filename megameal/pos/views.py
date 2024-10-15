@@ -2757,7 +2757,7 @@ def make_payment(request):
         payment.save()
 
     else:
-        OrderPayment.objects.create(
+        payment = OrderPayment.objects.create(
             orderId = master_order,
             paymentBy = request_data['payment']['paymentBy'],
             paymentKey = request_data['payment']['paymentKey'],
@@ -2768,7 +2768,21 @@ def make_payment(request):
             status = True,
             platform = request_data['payment']['platform']
         )
-
+    if request_data['payment']['type'] == 5:            # 5 = Mix payment type 
+        OrderPayment.objects.filter(masterPaymentId = payment.pk).delete()
+        for single_payment in request_data['payment']['payment_list']:
+            OrderPayment.objects.create(
+            orderId = master_order,
+            masterPaymentId = payment,
+            paymentBy = single_payment['paymentBy'],
+            paymentKey = single_payment['paymentKey'],
+            paid = single_payment['paid'],
+            due = 0,
+            tip = 0,
+            type = single_payment['type'],
+            status = True,
+            platform = single_payment['platform']
+            )
     all_status_true = True
 
     if request_data.get("payment_id"):

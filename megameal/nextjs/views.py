@@ -640,16 +640,37 @@ def getTags(request):
     return Response(list(set(tagSet)))
 
 
-def getDIstance(source,destination):
-    url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyBpil2D8QGyYQaxh-kcy_XuYWooNYb_eiE"
-    payload = {}
-    headers = {}
-    response = requests.request("GET", url, headers=headers, data=payload)
-    data = response.json()
-    if data['rows'][0]['elements'][0]['status'] == "OK":
-        return data['rows'][0]['elements'][0]['distance']['value']
-    else:
-        None
+def get_coordinates(api_key, address):
+    url = f"https://api.opencagedata.com/geocode/v1/json?q={address}&key={api_key}"
+    response = requests.get(url).json()
+    return response['results'][0]['geometry']['lat'], response['results'][0]['geometry']['lng']
+
+def get_route_distance(api_key, start_lat, start_lon, end_lat, end_lon):
+    url = f"https://api.tomtom.com/routing/1/calculateRoute/{start_lat},{start_lon}:{end_lat},{end_lon}/json?key={api_key}"
+    data = requests.get(url).json()
+    return data['routes'][0]['summary']['lengthInMeters'], data['routes'][0]['summary']['travelTimeInSeconds']
+
+def getDIstance(source, destination):
+    try:
+        api_key_geocode = "c4a268ad0ca441efbdb3a21a1febb084"
+        api_key_route = "zFvXjK9XVlxeUXxmL4Aq08HH6nksVm1d"
+        start_lat, start_lon = get_coordinates(api_key_geocode, source)
+        end_lat, end_lon = get_coordinates(api_key_geocode, destination)
+        return get_route_distance(api_key_route, start_lat, start_lon, end_lat, end_lon)[0]
+    except Exception as e:
+        print(e)
+        return 0
+
+# def getDIstance(source,destination):
+#     url = f"https://maps.googleapis.com/maps/api/distancematrix/json?origins={source}&destinations={destination}&key=AIzaSyBpil2D8QGyYQaxh-kcy_XuYWooNYb_eiE"
+#     payload = {}
+#     headers = {}
+#     response = requests.request("GET", url, headers=headers, data=payload)
+#     data = response.json()
+#     if data['rows'][0]['elements'][0]['status'] == "OK":
+#         return data['rows'][0]['elements'][0]['distance']['value']
+#     else:
+#         None
 
 
 @api_view(['GET'])

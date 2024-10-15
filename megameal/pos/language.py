@@ -61,7 +61,8 @@ payment_type_english = {
     1: 'Cash',
     2: 'Online',
     3: 'Card',
-    4: 'Split'
+    4: 'Split',
+    5: 'Mix'
 }
 
 
@@ -130,6 +131,7 @@ language_localization = {
     "Instance": "مثال",
     "Locality": "محلية",
     "Loss Made": "الخسارة التي تم تحقيقها",
+    "Mix": "مزج",
     "Monday": "الاثنين",
     "Most Ordered Items": "العناصر الأكثر طلبًا",
     "Most Ordered Products": "المنتجات الأكثر طلبا",
