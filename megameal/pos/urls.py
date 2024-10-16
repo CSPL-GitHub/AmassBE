@@ -42,7 +42,6 @@ urlpatterns = [
    path('update_order_koms/', views.update_order_koms, name="update_order_koms"),
    path('store_status/', views.update_store_status, name="store_status"),
    path('order_data/', views.get_order_data, name="order_data"),
-   path('excel_upload/', views.excel_upload, name="excel_upload"),
    path('excel_delete/', views.delete_excel, name="excel_delete"),
    path('get_store_timings', views.get_store_timings, name='get_store_timings'),
    path('set_store_timings', views.set_store_timings, name='set_store_timings'),

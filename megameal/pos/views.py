@@ -2987,43 +2987,41 @@ def split_order_and_payment(request):
 
 @api_view(["POST"])
 def update_order_koms(request):
-    print(request.data)
-
     vendor_id = request.GET['vendorId']
     external_order_id = request.GET['id']
     language = request.GET.get("language", "English")
 
-    if vendor_id == None or vendor_id == '""' or vendor_id == '':
-        return JsonResponse({"message": "Vendor ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id:
+        return JsonResponse({"message": "Vendor ID cannot be empty"}, status = status.HTTP_400_BAD_REQUEST)
     
-    if external_order_id == None or external_order_id == '""' or external_order_id == '':
-        return JsonResponse({"message": "External Order ID cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+    if not external_order_id:
+        return JsonResponse({"message": "External Order ID cannot be empty"}, status = status.HTTP_400_BAD_REQUEST)
 
-    data = request.data
+    request_data = request.data
 
-    if data:
+    if not request_data:
+        return JsonResponse({"message": "JSON data cannot be empty"}, status = status.HTTP_400_BAD_REQUEST)
+    
+    with transaction.atomic():
         try:
-            core_id = data['order_info'].get('core_orderId')
+            core_id = request_data['order_info'].get('core_orderId')
 
             if core_id:
-                core_order = Order.objects.get(pk=core_id)
+                core_order = Order.objects.get(pk = core_id)
 
                 if core_order:
-                    core_order.Notes = data['order_info'].get('customerNote', "")
-                    core_order.subtotal = data['order_info'].get('subtotal')
-                    core_order.tax = data['order_info'].get('tax')
-                    core_order.discount = data['order_info'].get('discount')
-                    core_order.delivery_charge = data['order_info'].get('delivery_charge')
-                    core_order.TotalAmount = data['order_info'].get('finalTotal')
+                    core_order.Notes = request_data['order_info'].get('customerNote', "")
+                    core_order.subtotal = request_data['order_info'].get('subtotal')
+                    core_order.tax = request_data['order_info'].get('tax')
+                    core_order.discount = request_data['order_info'].get('discount')
+                    core_order.delivery_charge = request_data['order_info'].get('delivery_charge')
+                    core_order.TotalAmount = request_data['order_info'].get('finalTotal')
                     core_order.save()
             
             new_data = []
 
-            for product in data["order_info"]["products"]:
-                if product.get("order_content_id") == None:
-                    pass
-                
-                else:
+            for product in request_data["order_info"]["products"]:
+                if product.get("order_content_id"):
                     order_detail = {
                         "order_content_id": product["order_content_id"],
                         "name": product["name"],
@@ -3053,22 +3051,22 @@ def update_order_koms(request):
 
             old_data = []
 
-            koms_order = KOMSOrder.objects.get(externalOrderId=external_order_id, vendorId=vendor_id)
+            koms_order = KOMSOrder.objects.get(externalOrderId = external_order_id, vendorId = vendor_id)
 
             old_status_of_order = koms_order.order_status
             
             koms_order_id = koms_order.pk
 
-            koms_order.order_note = data.get('order_info').get('customerNote')
+            koms_order.order_note = request_data.get('order_info').get('customerNote')
 
             koms_order.is_edited = True
 
             koms_order.save()
 
-            koms_order_content = Order_content.objects.filter(orderId=koms_order_id)
+            koms_order_content = Order_content.objects.filter(orderId = koms_order_id)
 
             for order in koms_order_content:
-                koms_order_modifiers = Order_modifer.objects.filter(contentID=order.pk)
+                koms_order_modifiers = Order_modifer.objects.filter(contentID = order.pk)
 
                 for modifier in koms_order_modifiers:
                     modifier_details[order.pk].append({
@@ -3112,19 +3110,15 @@ def update_order_koms(request):
                 new_products[(order_content_id, sku)] = []
 
             for key in old_products:
-                    if key in new_products:
-                        if old_products[key] == new_products[key]:
-                            pass
-
-                    else:
-                        deleted_products.add(key)
+                if key not in new_products:
+                    deleted_products.add(key)
             
             for key in deleted_products:
-                product = Order_content.objects.get(pk=key[0], SKU=key[1])
+                product = Order_content.objects.get(pk = key[0], SKU = key[1])
                 product.quantityStatus = 1
                 product.status = 5
 
-                modifiers = Order_modifer.objects.filter(contentID=product.pk).update(quantityStatus=0, status=5) # quantityStatus=0 is deleted
+                modifiers = Order_modifer.objects.filter(contentID = product.pk).update(quantityStatus = 0, status = 5) # quantityStatus=0 is deleted
 
                 product.save()
 
@@ -3132,39 +3126,36 @@ def update_order_koms(request):
                 for item2 in new_data:
                     if item1["SKU"] == item2["SKU"]:
                         if item1["quantity"] != item2["quantity"]:
-                            product = Order_content.objects.get(pk=item2["order_content_id"], SKU=item2["SKU"])
+                            product = Order_content.objects.get(pk = item2["order_content_id"], SKU = item2["SKU"])
 
                             product.quantity = item2["quantity"]
 
-                            contdata={
-                                "contentID":product.pk,
-                                "update_time":datetime.today().strftime("20%y-%m-%d"),
-                                "quantity":item1["quantity"],
-                                "unit":"qty"
+                            contdata = {
+                                "contentID": product.pk,
+                                "update_time": datetime.today().strftime("%Y-%m-%d"),
+                                "quantity": item1["quantity"],
+                                "unit": "qty"
                             }
 
-                            cont=Content_history_serializer(data=contdata, partial=True)
+                            cont = Content_history_serializer(data = contdata, partial = True)
 
                             if cont.is_valid():
                                 cont.save()
-                                print("history noted")
-
-                            print(cont.errors)
 
                             product.isEdited = True
                             product.save()
 
                         if item1["note"] != item2["note"]:
-                            product = Order_content.objects.get(pk=item2["order_content_id"], SKU=item2["SKU"])
+                            product = Order_content.objects.get(pk = item2["order_content_id"], SKU = item2["SKU"])
 
                             product.note = item2["note"]
 
                             product.isEdited = True
                             product.save()
 
-            for product in data["order_info"]["products"]:
+            for product in request_data["order_info"]["products"]:
                 if product.get("order_content_id") == None:
-                    koms_order_details = KOMSOrder.objects.get(pk=data["order_info"].get("staging_orderId"))
+                    koms_order_details = KOMSOrder.objects.get(pk = request_data["order_info"].get("staging_orderId"))
 
                     if koms_order_details.order_status == 1:
                         order_status = 1
@@ -3172,17 +3163,15 @@ def update_order_koms(request):
                     else:
                         order_status = 8
                     
-                    category_station = None
-
                     product_category_joint = ProductCategoryJoint.objects.filter(
-                        product__PLU=product["plu"], product__vendorId=vendor_id, vendorId=vendor_id
-                    ).first()
+                        product__PLU = product["plu"], product__vendorId = vendor_id, vendorId = vendor_id
+                    ).select_related("category").first()
 
                     if product_category_joint:
                         category_station = product_category_joint.category.categoryStation
 
                     else:
-                        category_station = Station.objects.filter(vendorId=vendor_id).first()
+                        category_station = Station.objects.filter(vendorId = vendor_id).first()
                     
                     item = Order_content.objects.create(
                         orderId = koms_order_details,
@@ -3213,7 +3202,7 @@ def update_order_koms(request):
                             for modifier in modifiers:
                                 if modifier["status"] == True:
                                     item_modifier = Order_modifer.objects.create(
-                                        contentID = Order_content.objects.get(pk=item.pk),
+                                        contentID = Order_content.objects.get(pk = item.pk),
                                         name = modifier.get('name', ""),
                                         quantityStatus = 1, # not deleted
                                         unit = "qty",
@@ -3225,31 +3214,32 @@ def update_order_koms(request):
                                         group = mod_group.get('id')
                                     )
 
-                                    item_modifier.save()
-
-            platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-            
-            if platform:
+            if Platform.objects.filter(Name = "Inventory", isActive = True, VendorId = vendor_id).exists():
                 sync_order_content_with_inventory(core_id, vendor_id)
             
-            koms_order = KOMSOrder.objects.get(externalOrderId=external_order_id, vendorId=vendor_id)
+            koms_order = KOMSOrder.objects.get(externalOrderId = external_order_id, vendorId = vendor_id)
 
             new_status_of_order = koms_order.order_status
             
-            webSocketPush(message={"id": koms_order_id,"orderId": koms_order.externalOrderId,"UPDATE": "REMOVE",},room_name=str(vendor_id)+'-'+str(old_status_of_order),username="CORE",) 
-            allStationWiseRemove(id=koms_order_id, old=str(old_status_of_order), current=str(new_status_of_order), vendorId=vendor_id)
-            allStationWiseSingle(id=koms_order_id,vendorId=vendor_id)
-            waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
-            allStationWiseCategory(vendorId=vendor_id)
+            webSocketPush(
+                message = {"id": koms_order_id, "orderId": koms_order.externalOrderId, "UPDATE": "REMOVE",},
+                room_name = str(vendor_id) + '-' + str(old_status_of_order),
+                username = "CORE",
+            ) 
+
+            allStationWiseRemove(
+                id = koms_order_id, old = str(old_status_of_order), current = str(new_status_of_order), vendorId = vendor_id
+            )
+
+            allStationWiseSingle(id = koms_order_id, vendorId = vendor_id)
+            waiteOrderUpdate(orderid = koms_order_id, language = language, vendorId = vendor_id)
+            allStationWiseCategory(vendorId = vendor_id)
             
-            return JsonResponse({"message": "Success"}, status=status.HTTP_200_OK)
+            return JsonResponse({"message": "Success"}, status = status.HTTP_200_OK)
 
         except Exception as e:
-            print("POS-update_order_koms_api: ", str(e))
-            return JsonResponse({"message": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-
-    else:
-        return JsonResponse({"message": "JSON data cannot be empty"}, status=status.HTTP_400_BAD_REQUEST)
+            transaction.set_rollback(True)
+            return JsonResponse({"message": str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["POST"])
@@ -3257,96 +3247,28 @@ def update_store_status(request):
     vendor_id = request.GET.get("vendorId")
     store_status = request.data.get("store")
 
-    if not vendor_id:
-        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id or store_status is None:
+        return JsonResponse({"message": "Invalid request data"}, status = status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
 
-    except ValueError:
-        return JsonResponse({"message": "Invalid vendor ID"}, status=status.HTTP_400_BAD_REQUEST)
+    except:
+        return JsonResponse({"message": "Invalid vendor ID"}, status = status.HTTP_400_BAD_REQUEST)
     
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return JsonResponse({"message": "Vendor does not exist"}, status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor_instance:
-        return JsonResponse({"message": "Vendor does not exist"}, status=status.HTTP_400_BAD_REQUEST)
-
-    if store_status is None:
-        return JsonResponse({"message": "Invalid store status"}, status=status.HTTP_400_BAD_REQUEST)
-    
-    pos_store_setting = POSSetting.objects.filter(vendor=vendor_id).first()
+    pos_store_setting = POSSetting.objects.filter(vendor = vendor_id).first()
 
     if not pos_store_setting:
-        return JsonResponse({"message": "POS setting not created for the Vendor"}, status=status.HTTP_400_BAD_REQUEST)
+        return JsonResponse({"message": "POS setting not created for the Vendor"}, status = status.HTTP_400_BAD_REQUEST)
 
     pos_store_setting.store_status = store_status
     pos_store_setting.save()
 
-    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status=status.HTTP_200_OK) 
+    return JsonResponse({"message": "", "store_status": pos_store_setting.store_status}, status = status.HTTP_200_OK) 
 
-
-def excel_upload(request):
-    if request.method == "POST":
-        if 'excel_file' not in request.FILES:
-            messages.error(request, "No file uploaded")
-            return JsonResponse({"error": "No file uploaded"}, status=400)
-    
-        vendor_id = request.POST.get("vendor")
-
-        if vendor_id == None:
-            messages.error(request, "Vendor ID empty")
-            return JsonResponse({"error": "Vendor ID cannot be empty"}, status=400)
-        
-        vendor = Vendor.objects.filter(pk=vendor_id).first()
-
-        if not vendor:
-            messages.error(request, "Vendor does not exist")
-            return JsonResponse({"error": "Vendor does not exist"}, status=400)
-
-        uploaded_file = request.FILES['excel_file']
-
-        directory = os.path.join(settings.MEDIA_ROOT, 'Product Details Excel')
-        os.makedirs(directory, exist_ok=True) # Create the directory if it doesn't exist inside MEDIA_ROOT
-
-        file_name = f"{uploaded_file.name.split('.')[0]}_Vendor{vendor_id}.{uploaded_file.name.split('.')[-1]}"
-
-        relative_file_path = os.path.join('Product Details Excel', file_name)
-
-        file_path = os.path.join(settings.MEDIA_ROOT, relative_file_path)
-
-        print(file_path)
-
-        with default_storage.open(file_path, 'wb+') as destination:
-            for chunk in uploaded_file.chunks():
-                destination.write(chunk)
-
-        file_status, response = process_excel(file_path, 'Sheet1', vendor_id)
-
-        # print(file_status, failed_file_path)
-
-        vendors = Vendor.objects.all()
-        
-        if (file_status == 1) and (response == None):
-            messages.success(request, "Excel file uploaded successfully")
-            return render(request, "adminlte/upload_products.html", {"vendors":vendors})
-
-        elif (file_status == 1) and (response != None):
-            # uploaded_file_path = os.path.join(request.build_absolute_uri('/'), f'media/{relative_file_path}')
-            error_file_path = response
-
-            messages.success(request, "Excel file uploaded successfully")
-            messages.warning(request, "Check the Error file")
-
-            return render(request, "adminlte/upload_products.html", {"vendors":vendors, "failed_file_path": error_file_path, "host": request.build_absolute_uri('/')})
-        
-        else:
-            messages.error(request, "Excel file upload failed")
-            messages.warning(request, f"{response}")
-            return render( request, "adminlte/upload_products.html", {"vendors":vendors})
-    else:
-        vendors = Vendor.objects.all()
-        return render( request, "adminlte/upload_products.html", {"vendors":vendors})
-        
 
 @api_view(["POST"])
 def delete_excel(request):
