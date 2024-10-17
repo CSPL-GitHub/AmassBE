@@ -2401,7 +2401,7 @@ def platform_list(request):
     else:
         platform_details.append({"id": "", "name": language_localization["All"]})
     
-    platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id).exclude(Name = "Inventory") \
+    platforms = Platform.objects.filter(isActive = True, VendorId = vendor_id).exclude(Name__in = ("KOMS", "Inventory")) \
         .values("pk", "Name", "Name_locale")
     
     for platform in platforms:
