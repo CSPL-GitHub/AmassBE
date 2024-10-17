@@ -1159,6 +1159,8 @@ def dashboard(request):
             if vendor_id <= 0 or not language or start_date > end_date:
                 return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
+            get_all_vendor_data = {'True': True, 'False': False}.get(get_all_vendor_data.capitalize())
+
         except:
             return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
         
@@ -1167,12 +1169,12 @@ def dashboard(request):
         if not vendor_info:
             return Response("Vendor not found", status = status.HTTP_400_BAD_REQUEST)
 
-        vendor_ids = {vendor_id,}
+        vendor_ids = (vendor_id,)
         
         if get_all_vendor_data == True and vendor_info["is_franchise_owner"] == True:
-            vendor_ids = vendor_ids.add(set(Vendor.objects.filter(franchise = vendor_id).values_list("id", flat=True)))
-
-        vendor_ids = tuple(vendor_ids)
+            vendor_ids = vendor_ids + tuple(
+                Vendor.objects.filter(franchise = vendor_id).exclude(pk = vendor_id).values_list("id", flat = True)
+            )
 
         orders = Order.objects.filter(
             OrderDate__date__range = (start_date, end_date),
