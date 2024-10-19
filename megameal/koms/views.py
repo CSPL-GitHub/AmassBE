@@ -1320,7 +1320,7 @@ def orderCount(request):
 
         response = []
     
-        for key, value in koms_order_status_number:
+        for key, value in koms_order_status_number.items():
             data = {
                 "status": value,
                 "name": key,
