@@ -1390,22 +1390,19 @@ def getOrder(ticketId, vendorId, language="English"):
     for singleContent in orderContentList:
         mapOfSingleContent = {}
 
-        product_name = ""
-        station_name = ""
-
         product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
         
-        if language == "English":
-            product_name = product_instance.productName
-            station_name = singleContent.stationId.station_name
+        product_name = product_instance.productName
+        station_name = singleContent.stationId.station_name
 
-        else:
+        if language != "English":
             product_name = product_instance.productName_locale
             station_name = singleContent.stationId.station_name_locale
 
         mapOfSingleContent["id"] = singleContent.pk
         mapOfSingleContent["plu"] = singleContent.SKU
         mapOfSingleContent["name"] = product_name
+        mapOfSingleContent["tag"] = product_instance.tag
         mapOfSingleContent["quantity"] = singleContent.quantity
         mapOfSingleContent["status"] = singleContent.status
         mapOfSingleContent["stationId"] = singleContent.stationId.pk
