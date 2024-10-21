@@ -23,7 +23,6 @@ from pos.language import (
     order_has_arrived_locale, payment_type_english, language_localization, local_timezone,
     koms_order_status_number, order_type_number,
 )
-from inventory.utils import sync_order_content_with_inventory
 import secrets
 
 
@@ -167,22 +166,19 @@ def getOrder(ticketId, vendorId, language="English"):
     for single_content in order_content:
         single_content_data = {}
 
-        product_name = ""
-        station_name = ""
-
         product_instance = Product.objects.filter(PLU=single_content.SKU, vendorId=vendorId).first()
         
-        if language == "English":
-            product_name = product_instance.productName
-            station_name = single_content.stationId.station_name
+        product_name = product_instance.productName
+        station_name = single_content.stationId.station_name
 
-        else:
+        if language != "English":
             product_name = product_instance.productName_locale
             station_name = single_content.stationId.station_name_locale
 
         single_content_data["id"] = single_content.pk
         single_content_data["plu"] = single_content.SKU
         single_content_data["name"] = product_name
+        single_content_data["tag"] = product_instance.tag
         single_content_data["quantity"] = single_content.quantity
         single_content_data["status"] = single_content.status
         single_content_data["stationId"] = single_content.stationId.pk
@@ -865,6 +861,9 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
 
 
 def createOrderInKomsAndWoms(orderJson):
+    # Placed here due to circular import
+    from inventory.utils import sync_order_content_with_inventory
+
     try:
         vendor_id = orderJson.get("vendorId")
 
