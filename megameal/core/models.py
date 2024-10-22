@@ -147,7 +147,7 @@ class Product(models.Model):
     productType = models.CharField(max_length=50)## Regular ,Variant
     is_unlimited = models.BooleanField(default=False)
     taxable = models.BooleanField(default=False)
-    tag = models.CharField(max_length=50, null=True, blank=True, choices=(("veg", "veg"), ("non-veg", "non-veg")))
+    tag = models.CharField(max_length=50, choices=(("veg", "veg"), ("non-veg", "non-veg")))
     is_displayed_online = models.BooleanField(default=True)
     is_todays_special = models.BooleanField(default=False)
     is_in_recommendations = models.BooleanField(default=False)
