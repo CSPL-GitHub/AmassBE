@@ -191,86 +191,102 @@ def get_product_by_category_data(products, language, vendor_id):
     return product_list
 
 
-def get_product_data(product_instance ,vendor_id):
-    selected_image = ProductImage.objects.filter(product=product_instance.pk).first()
-
+def get_product_data(product_instance, vendor_id):
     product_data = {
         "id": product_instance.pk,
         "plu": product_instance.PLU,
         "name": product_instance.productName,
         "name_locale": product_instance.productName_locale,
-        "description": product_instance.productDesc if product_instance.productDesc else "",
-        "description_locale": product_instance.productDesc_locale if product_instance.productDesc_locale else "",
+        "description": product_instance.productDesc or "",
+        "description_locale": product_instance.productDesc_locale or "",
         "price": product_instance.productPrice,
         "is_active": product_instance.active,
-        "tag": product_instance.tag if product_instance.tag else "",
+        "tag": product_instance.tag,
         "is_displayed_online": product_instance.is_displayed_online,
-        "selected_image": selected_image.url if selected_image and selected_image.url else "",
-        "vendorId": product_instance.vendorId.pk,
+        "selected_image": "",
+        "vendorId": vendor_id,
         "categories": [],
         "images": [],
         "modifier_groups": [],
     }
 
-    product_category = ProductCategoryJoint.objects.filter(product=product_instance.pk, vendorId=vendor_id).first()
+    product_category = ProductCategoryJoint.objects.filter(product = product_instance.pk, vendorId = vendor_id) \
+        .select_related("category").values(
+            "category__pk", "category__categoryPLU", "category__categoryName", "category__categoryName_locale",
+            "category__categoryDescription", "category__categoryDescription_locale", "category__categoryImage",
+            "category__categoryImageUrl", "category__image_selection"
+        ).first()
 
     if product_category:
-        if product_category.category:
-            product_data["categories"].append({
-                "id": product_category.category.pk,
-                "plu": product_category.category.categoryPLU,
-                "name": product_category.category.categoryName,
-                "name_locale": product_category.category.categoryName_locale,
-                "description": product_category.category.categoryDescription if product_category.category.categoryDescription else "",
-                "description_locale": product_category.category.categoryDescription_locale if product_category.category.categoryDescription_locale else "",
-                "image_path": product_category.category.categoryImage.url if product_category.category.categoryImage else "",
-                "image_url": product_category.category.categoryImageUrl if product_category.category.categoryImageUrl else "",
-                "image_selection": product_category.category.image_selection if product_category.category.image_selection else ""
-            })
+        product_data["categories"].append({
+            "id": product_category["category__pk"],
+            "plu": product_category["category__categoryPLU"],
+            "name": product_category["category__categoryName"],
+            "name_locale": product_category["category__categoryName_locale"],
+            "description": product_category["category__categoryDescription"] or "",
+            "description_locale": product_category["category__categoryDescription_locale"] or "",
+            "image_path": product_category["category__categoryImage"] or "",
+            "image_url": product_category["category__categoryImageUrl"] or "",
+            "image_selection": product_category["category__image_selection"] or ""
+        })
 
-    product_images = ProductImage.objects.filter(product=product_instance.pk, vendorId=vendor_id)
+    product_images = ProductImage.objects.filter(product = product_instance.pk, vendorId = vendor_id).values("pk", "url")
 
     if product_images:
+        product_data["selected_image"] = product_images.first()["url"]
+
         for product_image in product_images:
-            if product_image.url:
+            if product_image["url"]:
                 product_data["images"].append({
-                    "id": product_image.pk,
-                    "image": product_image.url,
+                    "id": product_image["pk"],
+                    "image": product_image["url"],
                     "is_selected": True
                 })
 
-    product_modifier_groups = ProductAndModifierGroupJoint.objects.filter(product=product_instance.pk, vendorId=vendor_id)
-    
+    product_modifier_groups = ProductAndModifierGroupJoint.objects.filter(
+        product = product_instance.pk, vendorId = vendor_id
+    ).select_related("modifierGroup").values(
+        "modifierGroup__pk", "modifierGroup__PLU", "modifierGroup__name", "modifierGroup__name_locale",
+        "modifierGroup__modifier_group_description", "modifierGroup__modifier_group_description_locale",
+        "modifierGroup__min", "modifierGroup__max", "modifierGroup__active"
+    )
+
     if product_modifier_groups:
         for modifier_group in product_modifier_groups:
             modifier_data = []
 
-            joint_details = ProductModifierAndModifierGroupJoint.objects.filter(modifierGroup=modifier_group.modifierGroup.pk, vendor=vendor_id)
+            modifiers = ProductModifierAndModifierGroupJoint.objects.filter(
+                modifierGroup = modifier_group["modifierGroup__pk"], vendor = vendor_id
+            ).select_related("modifier").values(
+                "modifier__pk", "modifier__modifierPLU", "modifier__modifierName", "modifier__modifierName_locale",
+                "modifier__modifierDesc", "modifier__modifierDesc_locale", "modifier__modifierPrice",
+                "modifier__modifierImg", "modifier__active"
+            )
 
-            if joint_details.count() > 0:
-                for joint in joint_details:
+            if modifiers.count() > 0:
+                for modifier in modifiers:
                     modifier_data.append({
-                        "id": joint.modifier.pk,
-                        "plu": joint.modifier.modifierPLU,
-                        "name": joint.modifier.modifierName,
-                        "name_locale": joint.modifier.modifierName_locale,
-                        "description": joint.modifier.modifierDesc if joint.modifier.modifierDesc else "",
-                        "description_locale": joint.modifier.modifierDesc_locale if joint.modifier.modifierDesc_locale else "",
-                        "price": joint.modifier.modifierPrice,
-                        "image": joint.modifier.modifierImg if joint.modifier.modifierImg else "",
-                        "is_active": joint.modifier.active,
+                        "id": modifier["modifier__pk"],
+                        "plu": modifier["modifier__modifierPLU"],
+                        "name": modifier["modifier__modifierName"],
+                        "name_locale": modifier["modifier__modifierName_locale"],
+                        "description": modifier["modifier__modifierDesc"] or "",
+                        "description_locale": modifier["modifier__modifierDesc_locale"] or "",
+                        "price": modifier["modifier__modifierPrice"],
+                        "image": modifier["modifier__modifierImg"] or "",
+                        "is_active": modifier["modifier__active"],
                     })
             
             product_data["modifier_groups"].append({
-                "id": modifier_group.modifierGroup.pk,
-                "plu": modifier_group.modifierGroup.PLU,
-                "name": modifier_group.modifierGroup.name,
-                "name_locale": modifier_group.modifierGroup.name_locale,
-                "description": modifier_group.modifierGroup.modifier_group_description if modifier_group.modifierGroup.modifier_group_description else "",
-                "description_locale": modifier_group.modifierGroup.modifier_group_description_locale if modifier_group.modifierGroup.modifier_group_description_locale else "",
-                "min": modifier_group.modifierGroup.min,
-                "max": modifier_group.modifierGroup.max,
-                "is_active": modifier_group.modifierGroup.active,
+                "id": modifier_group["modifierGroup__pk"],
+                "plu": modifier_group["modifierGroup__PLU"],
+                "name": modifier_group["modifierGroup__name"],
+                "name_locale": modifier_group["modifierGroup__name_locale"],
+                "description": modifier_group["modifierGroup__modifier_group_description"] or "",
+                "description_locale": modifier_group["modifierGroup__modifier_group_description_locale"] or "",
+                "min": modifier_group["modifierGroup__min"],
+                "max": modifier_group["modifierGroup__max"],
+                "is_active": modifier_group["modifierGroup__active"],
                 "modifiers": modifier_data
             })
 
@@ -1063,3 +1079,86 @@ def get_order_info_for_socket(order_info, language, vendor_id):
     single_order["franchise_location"] = order_info["vendorId__franchise_location"] or ""
 
     return single_order
+
+
+# def update_images(product_instance, images_data):
+#     existing_image_ids = set(
+#             ProductImage.objects.filter(product = product_instance.pk, vendorId = product_instance.vendorId.pk) \
+#                 .values_list("pk", flat = True)
+#     )
+    
+#     received_image_ids = set()
+
+#     for image in images_data:
+#         image_id = image.get("id")
+#         image_url = image.get("url")
+
+#         received_image_ids.add(image_id)
+
+#         if image_id in existing_image_ids:
+#             existing_image = ProductImage.objects.get(id = image_id)
+
+#             if image_url != existing_image.url:
+#                 existing_image.url = image_url
+#                 existing_image.save()
+
+#         else:
+#             ProductImage.objects.create(url = image_url, product = product_instance, vendorId = product_instance.vendorId)
+
+#     images_to_delete = existing_image_ids - received_image_ids
+
+#     ProductImage.objects.filter(pk__in = images_to_delete).delete()
+    
+#     image_list = []
+    
+#     product_images = ProductImage.objects.filter(product = product_instance.pk, vendorId = product_instance.vendorId.pk) \
+#         .values("pk", "url", "is_image_selected")
+    
+#     for image in product_images:
+#         image_list.append({"id": image["pk"], "url": image["url"], "is_image_selected": image["is_image_selected"]})
+
+#     return image_list
+
+
+# def update_categories(product_instance, received_category_ids):
+#     received_category_ids = set(received_category_ids)
+
+#     existing_category_ids = set(
+#         ProductCategoryJoint.objects.filter(product = product_instance.pk) \
+#             .select_related("category").values_list('category__pk', flat = True)
+#     )
+
+#     categories_to_delete = existing_category_ids - received_category_ids
+
+#     ProductCategoryJoint.objects.filter(
+#         product = product_instance, category__pk__in = categories_to_delete, vendorId = product_instance.vendorId.pk
+#     ).delete()
+    
+#     for category_id in received_category_ids:
+#         if category_id not in existing_category_ids:
+#             category_instance = ProductCategory.objects.get(pk = category_id, vendorId = product_instance.vendorId.pk)
+
+#             ProductCategoryJoint.objects.create(
+#                 product = product_instance, category = category_instance, vendorId = product_instance.vendorId
+#             )
+
+#     category_list = []
+    
+#     categories = ProductCategoryJoint.objects.filter(product = product_instance.pk, vendorId = product_instance.vendorId.pk) \
+#         .values(
+#             "category__pk", "category__categoryPLU", "category__categoryName", "category__categoryName_locale",
+#             "category__categoryDescription", "category__categoryDescription_locale", "category__categoryImageUrl"
+#         )
+    
+#     for category in categories:
+#         category_list.append({
+#             'id': category["category__pk"],
+#             'categoryPLU': category["category__categoryPLU"],
+#             'categoryName': category["category__categoryName"],
+#             'categoryName_locale': category["category__categoryName_locale"],
+#             'categoryDescription': category["category__categoryDescription"] or "",
+#             'categoryDescription_locale': category["category__categoryDescription_locale"] or "",
+#             'categoryImageUrl': category["category__categoryImageUrl"] or ""
+#         })
+
+#     return category_list

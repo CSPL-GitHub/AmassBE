@@ -54,7 +54,7 @@ from pos.filters import WaiterFilter, ChefFilter
 from core.excel_file_upload import process_excel
 from pos.utils import (
     order_count, get_product_by_category_data, get_product_data, get_modifier_data, process_product_excel,
-    get_department_wise_categories, get_order_info_for_socket,
+    get_department_wise_categories, get_order_info_for_socket#, update_images, update_categories,
 )
 from inventory.utils import (
     single_category_sync_with_odoo, delete_category_in_odoo, single_product_sync_with_odoo,
@@ -3412,67 +3412,60 @@ def get_products(request):
     product_name = request.GET.get("productName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "English")
 
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=404)
+    if not vendor_id:
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
     
-    vendor_id = int(vendor_id)
+    try:
+        vendor_id = int(vendor_id)
+        page_number = int(page_number)
+        page_size = int(page_size)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor_id <= 0 or page_number <= 0 or page_size <= 0:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
+    except:
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+
+    products = Product.objects.filter(vendorId = vendor_id).order_by('-pk')
+    
     if product_name:
-        if language == "English":
-            products = Product.objects.filter(productName__icontains=product_name, vendorId=vendor_id).order_by('-pk')
+        products = products.filter(Q(productName__icontains = product_name) | Q(productName_locale__icontains = product_name))  
 
-        else:
-            products = Product.objects.filter(productName_locale__icontains=product_name, vendorId=vendor_id).order_by('-pk')
-    
-    else:
-        products = Product.objects.filter(vendorId=vendor_id).order_by('-pk')
-
-    if products:
-        paginator = Paginator(products, page_size)
-
-        try:
-            paginated_products = paginator.page(page_number)
-        
-        except PageNotAnInteger:
-            paginated_products = paginator.page(1)
-        
-        except EmptyPage:
-            paginated_products = paginator.page(paginator.num_pages)
-
-        response_data = []
-        current_page = paginated_products.number
-        total_pages = paginator.num_pages
-
-        for single_product in paginated_products:
-            product_info = get_product_data(single_product, vendor_id)
-
-            response_data.append(product_info)
-
-        response = {
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "page_size": int(page_size),
-            "results": response_data,
-        }
-
-        return JsonResponse(response, status=200)
-
-    else:
-        response = {
+    if not products:
+        return JsonResponse({
             "total_pages": 0,
             "current_page": 0,
             "page_size": 0,
             "results": [],
-        }
+        }, status = status.HTTP_200_OK)
+    
+    paginator = Paginator(products, page_size)
 
-        return JsonResponse(response, status=200)   
+    paginated_products = paginator.page(page_number)
+
+    current_page = paginated_products.number
+    
+    total_pages = paginator.num_pages
+
+    response_data = []
+
+    for single_product in paginated_products:
+        product_info = get_product_data(single_product, vendor_id)
+
+        response_data.append(product_info)
+
+    response = {
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "page_size": page_size,
+        "results": response_data,
+    }
+
+    return JsonResponse(response, status = status.HTTP_200_OK)
 
 
 @api_view(["POST"])
@@ -3480,25 +3473,24 @@ def create_product(request):
     plu = request.data.get('PLU')
     vendor_id = request.data.get('vendorId')
 
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id:
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
-    except ValueError:
-        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+    except:
+        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    if not Vendor.objects.filter(pk=vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
 
-    existing_product = Product.objects.filter(PLU=plu, vendorId=vendor_id).first()
+    existing_product = Product.objects.filter(PLU = plu, vendorId = vendor_id).first()
 
     if existing_product:
-        return Response({'error': 'Product with this PLU already exists.'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'error': 'Product with this PLU already exists.'}, status = status.HTTP_400_BAD_REQUEST)
 
-    product_serializer = ProductSerializer(data=request.data)
+    product_serializer = ProductSerializer(data = request.data)
 
     if product_serializer.is_valid():
         categories_data = []
