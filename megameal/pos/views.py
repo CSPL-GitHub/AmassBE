@@ -3805,65 +3805,60 @@ def get_modifiers(request):
     modifier_name = request.GET.get("modifierName", None)
     page_number = request.GET.get("page", 1)
     page_size = request.GET.get("page_size", 10)
-    language = request.GET.get("language", "English")
 
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=status.HTTP_404_NOT_FOUND)
+    if not vendor_id:
+        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
     
-    vendor_id = int(vendor_id)
+    try:
+        vendor_id = int(vendor_id)
+        page_number = int(page_number)
+        page_size = int(page_size)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor_id <= 0 or page_number <= 0 or page_size <= 0:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
+    except:
+        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+
+    modifiers = ProductModifier.objects.filter(vendorId = vendor_id).order_by('-pk')
+    
     if modifier_name:
-        if language == "English":
-            modifiers = ProductModifier.objects.filter(modifierName__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
+        modifiers = modifiers.filter(
+            Q(modifierName__icontains = modifier_name, vendorId = vendor_id) | Q(modifierName_locale__icontains = modifier_name)
+        )
 
-        else:
-            modifiers = ProductModifier.objects.filter(modifierName_locale__icontains=modifier_name, vendorId=vendor_id).order_by('-pk')
-            
-    else:
-        modifiers = ProductModifier.objects.filter(vendorId=vendor_id).order_by('-pk')
-
-    if modifiers:
-        paginator = Paginator(modifiers, page_size)
-
-        try:
-            paginated_modifiers = paginator.page(page_number)
-        except PageNotAnInteger:
-            paginated_modifiers = paginator.page(1)
-        except EmptyPage:
-            paginated_modifiers = paginator.page(paginator.num_pages)
-
-        response_data = []
-        current_page = paginated_modifiers.number
-        total_pages = paginator.num_pages
-
-        for single_modifier in paginated_modifiers:
-            modifier_info = get_modifier_data(single_modifier, vendor_id)
-
-            response_data.append(modifier_info)
-
-        response = {
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "page_size": int(page_size),
-            "results": response_data,
-        }
-
-        return JsonResponse(response, status=200)
-    
-    else:
-        response = {
+    if not modifiers:
+        return JsonResponse({
             "total_pages": 0,
             "current_page": 0,
             "page_size": 0,
             "results": [],
-        }
+        }, status = status.HTTP_200_OK)
+    
+    paginator = Paginator(modifiers, page_size)
 
-        return JsonResponse(response, status=200)
+    paginated_modifiers = paginator.page(page_number)
+
+    current_page = paginated_modifiers.number
+
+    total_pages = paginator.num_pages
+
+    response_data = []
+
+    for single_modifier in paginated_modifiers:
+        modifier_info = get_modifier_data(single_modifier, vendor_id)
+
+        response_data.append(modifier_info)
+
+    return JsonResponse({
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "page_size": page_size,
+        "results": response_data,
+    }, status = status.HTTP_200_OK)
 
         
 @api_view(["POST"])

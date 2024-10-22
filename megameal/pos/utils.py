@@ -299,28 +299,32 @@ def get_modifier_data(modifier_instance, vendor_id):
         "plu": modifier_instance.modifierPLU,
         "name": modifier_instance.modifierName,
         "name_locale": modifier_instance.modifierName_locale,
-        "description": modifier_instance.modifierDesc if modifier_instance.modifierDesc else "",
-        "description_locale": modifier_instance.modifierDesc_locale if modifier_instance.modifierDesc_locale else "",
-        "image": modifier_instance.modifierImg if modifier_instance.modifierImg else "",
+        "description": modifier_instance.modifierDesc or "",
+        "description_locale": modifier_instance.modifierDesc_locale or "",
+        "image": modifier_instance.modifierImg or "",
         "price": modifier_instance.modifierPrice,
         "is_active": modifier_instance.active,
         "vendorId": modifier_instance.vendorId.pk,
         "modifier_groups": [],
     }
 
-    modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(modifier=modifier_instance.pk, vendor=vendor_id)
+    modifier_group_joint = ProductModifierAndModifierGroupJoint.objects.filter(
+        modifier = modifier_instance.pk, vendor = vendor_id
+    ).select_related("modifierGroup")
 
     for joint in modifier_group_joint:
+        modifier_group = joint.modifierGroup
+
         modifier_data["modifier_groups"].append({
-            "id": joint.modifierGroup.pk,
-            "plu": joint.modifierGroup.PLU,
-            "name": joint.modifierGroup.name,
-            "name_locale": joint.modifierGroup.name_locale,
-            "description": joint.modifierGroup.modifier_group_description if joint.modifierGroup.modifier_group_description else "",
-            "description_locale": joint.modifierGroup.modifier_group_description_locale if joint.modifierGroup.modifier_group_description_locale else "",
-            "min": joint.modifierGroup.min,
-            "max": joint.modifierGroup.max,
-            "is_active": joint.modifierGroup.active,
+            "id": modifier_group.pk,
+            "plu": modifier_group.PLU,
+            "name": modifier_group.name,
+            "name_locale": modifier_group.name_locale,
+            "description": modifier_group.modifier_group_description or "",
+            "description_locale": modifier_group.modifier_group_description_locale or "",
+            "min": modifier_group.min,
+            "max": modifier_group.max,
+            "is_active": modifier_group.active,
         })
 
     return modifier_data
