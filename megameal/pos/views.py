@@ -3751,46 +3751,52 @@ def update_product(request, product_id):
 
 @api_view(["DELETE"])
 def delete_product(request, product_id):
-    vendor_id = request.GET.get('vendorId', None)
+    vendor_id = request.GET.get('vendorId')
 
-    if not vendor_id:
-        return Response("Vendor ID cannot be empty", status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id or not product_id:
+        return Response("Vendor ID or Product ID empty", status = status.HTTP_400_BAD_REQUEST)
 
-    vendor_id = int(vendor_id)
+    try:
+        vendor_id = int(vendor_id)
+        product_id = int(product_id)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor_id <= 0 or product_id <=0:
+            return Response("Invalid Vendor ID or Product ID", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
+    except:
+        return Response("Invalid Vendor ID or Product ID", status = status.HTTP_400_BAD_REQUEST)
+
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    if not product_id:
-        return Response("Product ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
-    product = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
+    product = Product.objects.filter(pk = product_id, vendorId = vendor_id).first()
 
-    if product:
+    if not product:
+        return Response("Product not found", status = status.HTTP_400_BAD_REQUEST)
+
+    with transaction.atomic():
         try:
-            with transaction.atomic():
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
+            inventory_platform_url = Platform.objects.filter(
+                Name = "Inventory", isActive = True, VendorId = vendor_id
+            ).values_list("baseUrl", flat = True).first()
 
-                if inventory_platform:
-                    delete_status, error_message, request_data = delete_product_in_odoo(inventory_platform.baseUrl, product.PLU, vendor_id)
+            if inventory_platform_url:
+                delete_status, error_message, request_data = delete_product_in_odoo(inventory_platform_url, product.PLU, vendor_id)
+            
+                if delete_status == 0:
+                    notify(type = 3, msg = '0', desc = 'Category did not synced with Inventory', stn = ['POS'], vendorId = vendor_id)
                 
-                    if delete_status == 0:
-                        notify(type=3, msg='0', desc='Category did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Category synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                product.delete()
+                else:
+                    notify(type = 3, msg = '0', desc = 'Category synced with Inventory', stn = ['POS'], vendorId = vendor_id)
+            
+            product.delete()
 
-                return Response(status=status.HTTP_204_NO_CONTENT)
-                
+            return Response(status = status.HTTP_204_NO_CONTENT)
+            
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    else:
-        return Response("Product not found", status=status.HTTP_404_NOT_FOUND)
+            transaction.set_rollback(True)
+
+            return Response({'error': str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(["GET",])
