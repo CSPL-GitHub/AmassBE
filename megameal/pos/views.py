@@ -4039,49 +4039,52 @@ def update_modifier(request, modifier_id):
 
 @api_view(["DELETE"])
 def delete_modifier(request, modifier_id):
-    vendor_id = request.GET.get('vendorId', None)
+    vendor_id = request.GET.get('vendorId')
 
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
+    if not vendor_id or not modifier_id:
+        return Response("Vendor ID or Modifier ID empty", status = status.HTTP_400_BAD_REQUEST)
     
     try:
         vendor_id = int(vendor_id)
-    except ValueError:
-        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        modifier_id = int(modifier_id)
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor_id <=0 or modifier_id <= 0:
+            return Response("Invalid Vendor ID or Modifier ID", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+    except:
+        return Response("Invalid Vendor ID or Modifier ID", status = status.HTTP_400_BAD_REQUEST)
+
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    if not modifier_id:
-        return Response("Modifier ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
-    modifier = ProductModifier.objects.filter(pk=modifier_id, vendorId=vendor_id).first()
+    modifier = ProductModifier.objects.filter(pk = modifier_id, vendorId = vendor_id).first()
 
-    if modifier:
+    if not modifier:
+        return Response("Modifier not found", status = status.HTTP_400_BAD_REQUEST)
+    
+    with transaction.atomic():
         try:
-            with transaction.atomic():
-                inventory_platform = Platform.objects.filter(Name="Inventory", isActive=True, VendorId=vendor_id).first()
-                
-                if inventory_platform:
-                    sync_status = delete_modifier_in_odoo(inventory_platform.baseUrl, modifier.modifierPLU, vendor_id)
-                        
-                    if sync_status == 0:
-                        notify(type=3, msg='0', desc='Modifier did not synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                    
-                    else:
-                        notify(type=3, msg='0', desc='Modifier synced with Inventory', stn=['POS'], vendorId=vendor_id)
-                
-                modifier.delete()
+            inventory_platform_url = Platform.objects.filter(
+                Name ="Inventory", isActive =True, VendorId = vendor_id
+            ).values_list("baseUrl", flat = True).first()
             
-                return Response(status=status.HTTP_204_NO_CONTENT)
+            if inventory_platform_url:
+                sync_status = delete_modifier_in_odoo(inventory_platform_url, modifier.modifierPLU, vendor_id)
+                    
+                if sync_status == 0:
+                    notify(type = 3, msg = '0', desc = 'Modifier did not synced with Inventory', stn = ['POS'], vendorId = vendor_id)
+                
+                else:
+                    notify(type = 3, msg = '0', desc = 'Modifier synced with Inventory', stn = ['POS'], vendorId = vendor_id)
+            
+            modifier.delete()
+        
+            return Response(status = status.HTTP_204_NO_CONTENT)
 
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-    
-    else:
-        return Response("Modifier not found", status=status.HTTP_404_NOT_FOUND)
+            transaction.set_rollback(True)
+            
+            return Response({'error': str(e)}, status = status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 
 @api_view(["GET",])
