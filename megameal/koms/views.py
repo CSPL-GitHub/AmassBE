@@ -1088,9 +1088,9 @@ def updateTicketStatus(request):
                 
                 master_order_instance.save()
                 
-                waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
-                
                 updateCoreOrder(order=Order.objects.get(pk=ticketId,vendorId=vendorId))
+                
+                waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
                 
                 allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
                 
@@ -1176,12 +1176,11 @@ def updateTicketStatus(request):
             
             allStationWiseRemove(id=orders.pk, old=str(oldStatus), current=str(orderStatus), vendorId=vendorId)
             allStationWiseSingle(id=ticketId, vendorId=vendorId)
-           
-            waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
-            
             allStationWiseCategory(vendorId=vendorId)  # all stations sidebar category wise counts
-            
+           
             updateCoreOrder(order=Order.objects.get(pk=ticketId))
+            
+            waiteOrderUpdate(orderid=ticketId, language=language, vendorId=vendorId)
 
             return Response(serializedData.data, status=status.HTTP_200_OK)
         
