@@ -1555,9 +1555,9 @@ def updateTicketStatus(request):
                 
                 master_order_instance.save()
                 
-                waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
-                
                 updateCoreOrder(order = Order.objects.get(pk = koms_order_id, vendorId = vendor_id))
+                
+                waiteOrderUpdate(orderid=koms_order_id, language=language, vendorId=vendor_id)
                 
                 allStationWiseCategory(vendorId = vendor_id)  # all stations sidebar category wise counts
                 
