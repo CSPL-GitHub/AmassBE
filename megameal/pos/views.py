@@ -4476,22 +4476,23 @@ def update_customer(request):
 
 @api_view(["DELETE"])
 def delete_customer(request, customer_id):
-    if not customer_id:
-        return Response("Modifier ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
-    customer = Customer.objects.filter(pk=customer_id).first()
+    try:
+        customer_id = int(customer_id)
 
-    if customer:
-        try:
-            with transaction.atomic():
-                customer.delete()
-            
-                return Response(status=status.HTTP_204_NO_CONTENT)
-        except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        if customer_id <= 0:
+            return Response("Invalid Customer ID", status = status.HTTP_400_BAD_REQUEST)
+
+    except:
+        return Response("Invalid Customer ID", status = status.HTTP_400_BAD_REQUEST)
+
+    customer = Customer.objects.filter(pk = customer_id).first()
+
+    if not customer:
+        return Response("Customer not found", status = status.HTTP_400_BAD_REQUEST)
     
-    else:
-        return Response("Customer not found", status=status.HTTP_404_NOT_FOUND)
+    customer.delete()
+            
+    return Response(status = status.HTTP_204_NO_CONTENT)
 
 
 @api_view(["GET"])
