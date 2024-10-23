@@ -790,7 +790,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             data_locale["customer_details"] = customer_details
             data_locale["total_points_redeemed"] = total_points_redeemed
 
-        if master_order.Status == 2:
+        if master_order.Status == 2 or master_order.Status == 3:
             for order in listOrder:
                 order.tableId.status = 1 # EMPTY TABLE
                 order.tableId.guestCount = 0
@@ -1390,22 +1390,19 @@ def getOrder(ticketId, vendorId, language="English"):
     for singleContent in orderContentList:
         mapOfSingleContent = {}
 
-        product_name = ""
-        station_name = ""
-
         product_instance = Product.objects.filter(PLU=singleContent.SKU, vendorId=vendorId).first()
         
-        if language == "English":
-            product_name = product_instance.productName
-            station_name = singleContent.stationId.station_name
+        product_name = product_instance.productName
+        station_name = singleContent.stationId.station_name
 
-        else:
+        if language != "English":
             product_name = product_instance.productName_locale
             station_name = singleContent.stationId.station_name_locale
 
         mapOfSingleContent["id"] = singleContent.pk
         mapOfSingleContent["plu"] = singleContent.SKU
         mapOfSingleContent["name"] = product_name
+        mapOfSingleContent["tag"] = product_instance.tag
         mapOfSingleContent["quantity"] = singleContent.quantity
         mapOfSingleContent["status"] = singleContent.status
         mapOfSingleContent["stationId"] = singleContent.stationId.pk
