@@ -1357,8 +1357,8 @@ def order_status_type_summary(request):
         try:
             vendor_id = int(request.data.get('vendor_id'))
             order_type_code = int(request.data.get('order_type_code'))
-            page_number = int(request.data.get('page_number'))
-            page_limit = int(request.data.get('page_limit'))
+            page_number = int(request.data.get('page_number', 1))
+            page_limit = int(request.data.get('page_limit', 10))
 
             start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
             end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
@@ -1445,8 +1445,8 @@ def top_selling_product_details(request):
             product_id = int(request.data.get('product_id'))
             start_date = datetime.strptime(request.data.get('start_date'), '%Y-%m-%d').date()
             end_date = datetime.strptime(request.data.get('end_date'), '%Y-%m-%d').date()
-            page_number = int(request.data.get('page_number'))
-            page_limit = int(request.data.get('page_limit'))
+            page_number = int(request.data.get('page_number', 1))
+            page_limit = int(request.data.get('page_limit', 10))
 
             if vendor_id <= 0 or product_id <=0 or page_limit <= 0 or page_number <= 0 or start_date > end_date:
                 return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
@@ -2240,7 +2240,7 @@ def createOrder(request):
 def get_orders(request):
     try:
         vendor_id = request.data.get("vendor_id")
-        page_number = request.data.get("page_number")
+        page_number = request.data.get("page_number", 1)
         search = request.data.get("search")
         order_status = request.data.get("order_status")
         order_type = request.data.get("order_type")
@@ -2417,14 +2417,13 @@ def platform_list(request):
 
 @api_view(['POST'])
 def make_payment(request):
-    vendorId = request.GET.get('vendorId')
     language = request.GET.get('language', 'English')
 
-    if not vendorId:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendorId = int(vendorId)
+        vendorId = int(request.GET.get('vendorId'))
+
+        if vendorId <= 0:
+            return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
     except:
         return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
@@ -3408,18 +3407,12 @@ def delete_excel(request):
 
 @api_view(["GET",])
 def get_products(request):
-    vendor_id = request.GET.get("vendorId", None)
-    product_name = request.GET.get("productName", None)
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 10)
+    product_name = request.GET.get("productName")
 
-    if not vendor_id:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
-        page_number = int(page_number)
-        page_size = int(page_size)
+        vendor_id = int(request.GET.get("vendorId"))
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
 
         if vendor_id <= 0 or page_number <= 0 or page_size <= 0:
             return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
@@ -3471,13 +3464,12 @@ def get_products(request):
 @api_view(["POST"])
 def create_product(request):
     plu = request.data.get('PLU')
-    vendor_id = request.data.get('vendorId')
 
-    if not vendor_id:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
+        vendor_id = int(request.data.get('vendorId'))
+
+        if vendor_id <= 0:
+            return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
     except:
         return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
@@ -3594,20 +3586,16 @@ def create_product(request):
 
 @api_view(["PUT", "PATCH"])
 def update_product(request, product_id):
-    vendor_id = request.POST.get('vendorId', None)
-    
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
-    except ValueError:
-        return Response("Invalid Vendor ID", status=status.HTTP_400_BAD_REQUEST)
+        vendor_id = int(request.POST.get('vendorId', None))
+
+    except:
+        return Response("Invalid Vendor ID", status = status.HTTP_400_BAD_REQUEST)
 
     vendor = Vendor.objects.filter(pk=vendor_id).first()
 
     if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_400_BAD_REQUEST)
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
 
     if product_id:
         product = Product.objects.filter(pk=product_id, vendorId=vendor_id).first()
@@ -3751,13 +3739,8 @@ def update_product(request, product_id):
 
 @api_view(["DELETE"])
 def delete_product(request, product_id):
-    vendor_id = request.GET.get('vendorId')
-
-    if not vendor_id or not product_id:
-        return Response("Vendor ID or Product ID empty", status = status.HTTP_400_BAD_REQUEST)
-
     try:
-        vendor_id = int(vendor_id)
+        vendor_id = int(request.GET.get('vendorId'))
         product_id = int(product_id)
 
         if vendor_id <= 0 or product_id <=0:
@@ -3801,18 +3784,12 @@ def delete_product(request, product_id):
 
 @api_view(["GET",])
 def get_modifiers(request):
-    vendor_id = request.GET.get("vendorId", None)
-    modifier_name = request.GET.get("modifierName", None)
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 10)
+    modifier_name = request.GET.get("modifierName")
 
-    if not vendor_id:
-        return Response("Vendor ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
-        page_number = int(page_number)
-        page_size = int(page_size)
+        vendor_id = int(request.GET.get("vendorId"))
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
 
         if vendor_id <= 0 or page_number <= 0 or page_size <= 0:
             return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
@@ -4039,16 +4016,11 @@ def update_modifier(request, modifier_id):
 
 @api_view(["DELETE"])
 def delete_modifier(request, modifier_id):
-    vendor_id = request.GET.get('vendorId')
-
-    if not vendor_id or not modifier_id:
-        return Response("Vendor ID or Modifier ID empty", status = status.HTTP_400_BAD_REQUEST)
-    
     try:
-        vendor_id = int(vendor_id)
+        vendor_id = int(request.GET.get('vendorId'))
         modifier_id = int(modifier_id)
 
-        if vendor_id <=0 or modifier_id <= 0:
+        if vendor_id <= 0 or modifier_id <= 0:
             return Response("Invalid Vendor ID or Modifier ID", status = status.HTTP_400_BAD_REQUEST)
 
     except:
@@ -4089,163 +4061,132 @@ def delete_modifier(request, modifier_id):
 
 @api_view(["GET",])
 def get_customers(request):
-    vendor_id = request.GET.get("vendorId", None)
     search_parameter = request.GET.get("search_parameter", None)
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 10)
 
-    if vendor_id is None:
-        return Response("Vendor ID empty", status=status.HTTP_400_BAD_REQUEST)
-    
-    vendor_id = int(vendor_id)
+    try:
+        vendor_id = int(request.GET.get("vendorId"))
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
 
-    vendor = Vendor.objects.filter(pk=vendor_id).first()
+        if vendor_id <= 0 or page_number <= 0 or page_size <= 0:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    if not vendor:
-        return Response("Vendor does not exist", status=status.HTTP_404_NOT_FOUND)
+    except:
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    customers = None
+    if not Vendor.objects.filter(pk=vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
+
+    customers = Customer.objects.filter(VendorId = vendor_id).order_by('-pk')
     
     if search_parameter:
-        expression = r'\d+'
-        mobile_number = re.search(expression, search_parameter)
-        
-        if mobile_number:
-            # when a match is found, group() returns the actual substring that matched the pattern specified in the regular expression
-            mobile_number = mobile_number.group()
+        customers = customers.filter(
+                Q(Phone_Number__icontains = search_parameter) | \
+                Q(FirstName__icontains = search_parameter) | \
+                Q(LastName__icontains = search_parameter)
+        )
 
-            customers = Customer.objects.filter(Phone_Number__icontains=mobile_number, VendorId=vendor_id).order_by("pk")
-
-        else:
-            customers = Customer.objects.filter(
-                Q(FirstName__icontains=search_parameter) | Q(LastName__icontains=search_parameter),
-                VendorId=vendor_id
-            ).order_by('FirstName')
-
-    else:
-        customers = Customer.objects.filter(VendorId=vendor_id).order_by('-pk')
-
-    if customers:
-        paginator = Paginator(customers, page_size)
-
-        try:
-            paginated_customers = paginator.page(page_number)
-
-        except PageNotAnInteger:
-            paginated_customers = paginator.page(1)
-
-        except EmptyPage:
-            paginated_customers = paginator.page(paginator.num_pages)
-
-        response_data = []
-        
-        current_page = paginated_customers.number
-        total_pages = paginator.num_pages
-
-        for customer in paginated_customers:
-            shipping_address = {}
-
-            customer_address = Address.objects.filter(customer=customer.pk, type="shipping_address", is_selected=True).first()
-            
-            if customer_address:
-                shipping_address = {
-                    "id": customer_address.pk,
-                    "address_line_1": customer_address.address_line1 if customer_address.address_line1 else "",
-                    "address_line_2": customer_address.address_line2 if customer_address.address_line2 else "",
-                    "city": customer_address.city if customer_address.city else "",
-                    "state": customer_address.state if customer_address.state else "",
-                    "country": customer_address.country if customer_address.country else "",
-                    "zipcode": customer_address.zipcode if customer_address.zipcode else "",
-                    "type": customer_address.type,
-                    "is_selected": customer_address.is_selected
-                }
-
-            else:
-                shipping_address = {
-                    "id": 0,
-                    "address_line_1": "",
-                    "address_line_2": "",
-                    "city": "",
-                    "state": "",
-                    "country": "",
-                    "zipcode": "",
-                    "type": "",
-                    "is_selected": ""
-                }
-            
-            total_revenue = 0.0
-
-            loyalty_points_history = []
-
-            orders = Order.objects.filter(customerId=customer.pk, vendorId=vendor_id)
-
-            if orders:
-                total_revenue = orders.aggregate(total_revenue=Sum('subtotal'))['total_revenue']
-
-                for order in orders:
-                    loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(customer=customer.pk, order=order.pk, vendor=vendor_id).order_by("-credit_datetime")
-
-                    if loyalty_points_credit_history:
-                        for credit_point in loyalty_points_credit_history:
-                            credit_transactions = {}
-                            # redeem_transactions = []
-
-                            loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer.pk, credit_history=credit_point.pk, vendor=vendor_id)
-
-                            if loyalty_points_redeem_history:
-                                # for redeem_point in loyalty_points_redeem_history:
-                                #     redeem_history = {}
-
-                                #     redeem_history["id"] = redeem_point.pk
-                                #     redeem_history["order_id"] = redeem_point.order.externalOrderId
-                                #     redeem_history["points_redeemed"] = redeem_point.points_redeemed
-                                #     redeem_history["redeem_datetime"] = redeem_point.redeem_datetime
-                                #     redeem_history["redeemed_by"] = redeem_point.redeemed_by
-
-                                #     redeem_transactions.append(redeem_history)
-
-                                credit_transactions["id"] = credit_point.pk
-                                credit_transactions["order_id"] = credit_point.order.externalOrderId
-                                credit_transactions["points_credited"] = credit_point.points_credited
-                                credit_transactions["credit_datetime"] = credit_point.credit_datetime
-                                credit_transactions["expiry_date"] = credit_point.expiry_date
-                                credit_transactions["is_expired"] = credit_point.is_expired
-                                credit_transactions["total_points_redeemed"] = credit_point.total_points_redeemed
-                                credit_transactions["balance_points"] = credit_point.balance_points
-                                # credit_transactions["redeem_history"] = redeem_transactions
-
-                                loyalty_points_history.append(credit_transactions)
-
-            response_data.append({
-                "id": customer.pk,
-                "FirstName": customer.FirstName if customer.FirstName else "",
-                "LastName": customer.LastName if customer.LastName else "",
-                "Email": customer.Email if customer.Email else "",
-                "Phone_Number": customer.Phone_Number,
-                "loyalty_points_balance": customer.loyalty_points_balance,
-                "Shipping_Address": shipping_address,
-                "total_revenue": total_revenue,
-                "loyalty_points_history": loyalty_points_history
-            })
-
-        response = {
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "page_size": int(page_size),
-            "results": response_data,
-        }
-
-        return JsonResponse(response, status=status.HTTP_200_OK)
-    
-    else:
-        response = {
+    if not customers.exists():
+        return JsonResponse({
             "total_pages": 0,
             "current_page": 0,
             "page_size": 0,
             "results": [],
-        }
+        }, status = status.HTTP_200_OK)
 
-        return JsonResponse(response, status=status.HTTP_200_OK)
+    paginator = Paginator(customers, page_size)
+
+    paginated_customers = paginator.page(page_number)
+
+    current_page = paginated_customers.number
+    
+    total_pages = paginator.num_pages
+
+    response_data = []
+
+    for customer in paginated_customers:
+        shipping_address = {}
+
+        customer_address = Address.objects.filter(customer = customer.pk, type = "shipping_address", is_selected = True).first()
+        
+        if customer_address:
+            shipping_address = {
+                "id": customer_address.pk,
+                "address_line_1": customer_address.address_line1 or "",
+                "address_line_2": customer_address.address_line2 or "",
+                "city": customer_address.city or "",
+                "state": customer_address.state or "",
+                "country": customer_address.country or "",
+                "zipcode": customer_address.zipcode or "",
+                "type": customer_address.type,
+                "is_selected": customer_address.is_selected
+            }
+
+        else:
+            shipping_address = {
+                "id": 0,
+                "address_line_1": "",
+                "address_line_2": "",
+                "city": "",
+                "state": "",
+                "country": "",
+                "zipcode": "",
+                "type": "",
+                "is_selected": ""
+            }
+        
+        total_revenue = 0.0
+
+        loyalty_points_history = []
+
+        orders = Order.objects.filter(customerId = customer.pk, vendorId = vendor_id)
+
+        if orders:
+            total_revenue = orders.aggregate(total_revenue = Sum('subtotal'))['total_revenue']
+
+            for order in orders:
+                loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(
+                    customer = customer.pk, order = order.pk, vendor = vendor_id
+                ).order_by("-credit_datetime")
+
+                if loyalty_points_credit_history:
+                    for credit_point in loyalty_points_credit_history:
+                        credit_transactions = {}
+
+                        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+                            customer = customer.pk, credit_history = credit_point.pk, vendor = vendor_id
+                        )
+
+                        if loyalty_points_redeem_history:
+                            credit_transactions["id"] = credit_point.pk
+                            credit_transactions["order_id"] = credit_point.order.externalOrderId
+                            credit_transactions["points_credited"] = credit_point.points_credited
+                            credit_transactions["credit_datetime"] = credit_point.credit_datetime
+                            credit_transactions["expiry_date"] = credit_point.expiry_date
+                            credit_transactions["is_expired"] = credit_point.is_expired
+                            credit_transactions["total_points_redeemed"] = credit_point.total_points_redeemed
+                            credit_transactions["balance_points"] = credit_point.balance_points
+
+                            loyalty_points_history.append(credit_transactions)
+
+        response_data.append({
+            "id": customer.pk,
+            "FirstName": customer.FirstName or "",
+            "LastName": customer.LastName or "",
+            "Email": customer.Email or "",
+            "Phone_Number": customer.Phone_Number,
+            "loyalty_points_balance": customer.loyalty_points_balance,
+            "Shipping_Address": shipping_address,
+            "total_revenue": total_revenue,
+            "loyalty_points_history": loyalty_points_history
+        })
+
+    return JsonResponse({
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "page_size": page_size,
+        "results": response_data,
+    }, status = status.HTTP_200_OK)
 
 
 @api_view(["POST"])
