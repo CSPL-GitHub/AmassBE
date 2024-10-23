@@ -704,7 +704,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             data_locale["customer_details"] = customer_details
             data_locale["total_points_redeemed"] = total_points_redeemed
 
-        if master_order.Status == 2:
+        if master_order.Status == 2 or master_order.Status == 3:
             for order in listOrder:
                 order.tableId.status = 1 # EMPTY TABLE
                 order.tableId.guestCount = 0
@@ -1663,12 +1663,11 @@ def updateTicketStatus(request):
             
             allStationWiseRemove(id = orders.pk, old = str(old_order_status), current = str(koms_order_status), vendorId = vendor_id)
             allStationWiseSingle(id = koms_order_id, vendorId = vendor_id)
-           
-            waiteOrderUpdate(orderid = koms_order_id, language = language, vendorId = vendor_id)
-            
             allStationWiseCategory(vendorId = vendor_id)
-            
+           
             updateCoreOrder(order = Order.objects.get(pk = koms_order_id))
+            
+            waiteOrderUpdate(orderid = koms_order_id, language = language, vendorId = vendor_id)
 
             return Response(serialized_order_content.data, status = status.HTTP_200_OK)
         
