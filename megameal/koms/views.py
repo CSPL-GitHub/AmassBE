@@ -790,7 +790,7 @@ def waiteOrderUpdate(orderid, vendorId, language="English"):
             data_locale["customer_details"] = customer_details
             data_locale["total_points_redeemed"] = total_points_redeemed
 
-        if master_order.Status == 2:
+        if master_order.Status == 2 or master_order.Status == 3:
             for order in listOrder:
                 order.tableId.status = 1 # EMPTY TABLE
                 order.tableId.guestCount = 0
