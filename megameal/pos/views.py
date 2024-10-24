@@ -4702,119 +4702,30 @@ def get_orders_of_customer(request):
 
 @api_view(["GET"])
 def get_loyalty_point_transactions_of_customer(request):
-    vendor_id = request.GET.get("vendorId", None)
-    customer_id = request.GET.get("customerId", None)
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 10)
-
-    if not all((vendor_id, customer_id)):
-        return Response("Vendor ID or Customer ID is empty", status=status.HTTP_400_BAD_REQUEST)
-
     try:
-        vendor_id, customer_id = map(int, (vendor_id, customer_id))
-    except ValueError:
-        return Response("Invalid Vendor ID or Customer ID", status=status.HTTP_400_BAD_REQUEST)
+        vendor_id = int(request.GET.get("vendorId"))
+        customer_id = int(request.GET.get("customerId"))
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-    customer_instance = Customer.objects.filter(pk=customer_id).first()
+        if vendor_id <= 0 or customer_id <= 0 or page_number <= 0 or page_size <= 0:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    if not all((vendor_instance, customer_instance)):
-        return Response("Vendor or Customer does not exist", status=status.HTTP_404_NOT_FOUND)
+    except:
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
+
+    if not Vendor.objects.filter(pk = vendor_id).exists():
+        return Response("Vendor does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    orders = Order.objects.filter(customerId=customer_id, vendorId=vendor_id).order_by("-OrderDate")
+    customer_instance = Customer.objects.filter(pk = customer_id, VendorId = vendor_id).first()
 
-    if orders:
-        paginator = Paginator(orders, page_size)
-
-        try:
-            paginated_orders = paginator.page(page_number)
-        except PageNotAnInteger:
-            paginated_orders = paginator.page(1)
-        except EmptyPage:
-            paginated_orders = paginator.page(paginator.num_pages)
-
-        transaction_list = []
-
-        current_page = paginated_orders.number
-        total_pages = paginator.num_pages
-
-        loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(customer=customer_id)
-
-        sum_of_points_credited = loyalty_points_credit_history.aggregate(Sum('points_credited'))['points_credited__sum']
-        sum_of_balance_points = loyalty_points_credit_history.aggregate(Sum('balance_points'))['balance_points__sum']
-        sum_of_points_redeemed = loyalty_points_credit_history.aggregate(Sum('total_points_redeemed'))['total_points_redeemed__sum']
-
-        if not sum_of_points_credited:
-            sum_of_points_credited = 0
-
-        if not sum_of_balance_points:
-            sum_of_balance_points = 0
-
-        if not sum_of_points_redeemed:
-            sum_of_points_redeemed = 0
-        
-        loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer=customer_id)
-        
-        for order in paginated_orders:
-            credit_transaction = {}
-            redeem_transaction = []
-
-            credit_history = loyalty_points_credit_history.filter(order=order.pk).first()
-
-            if credit_history:
-                credit_transaction["points_credited"] = credit_history.points_credited
-                credit_transaction["credit_datetime"] = credit_history.credit_datetime
-                credit_transaction["expiry_date"] = credit_history.expiry_date
-                credit_transaction["is_expired"] = credit_history.is_expired
-            
-            else:
-                credit_transaction["points_credited"] = 0
-                credit_transaction["credit_datetime"] = ""
-                credit_transaction["expiry_date"] = ""
-                credit_transaction["is_expired"] = False
-
-            redeem_history = loyalty_points_redeem_history.filter(order=order.pk)
-
-            if redeem_history:
-                redeemed_points = redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                for history in redeem_history:
-                    redeem_transaction.append({
-                        "credit_history_id": history.credit_history.pk,
-                        "points_redeemed": history.points_redeemed,
-                        "redeem_datetime": history.redeem_datetime,
-                        "redeemed_by": history.redeemed_by
-                    })    
-            
-            else:
-                redeemed_points = 0
-            
-            order_data = {
-                "order_id": order.pk,
-                "external_order_id": order.externalOrderId,
-                "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
-                "credit_history": credit_transaction,
-                "redeemed_points": redeemed_points,
-                "redeem_history": redeem_transaction
-            }
-
-            transaction_list.append(order_data)
-        
-        response = {
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "page_size": int(page_size),
-            "current_points_balance": customer_instance.loyalty_points_balance,
-            "sum_of_points_credited": sum_of_points_credited,
-            "sum_of_balance_points": sum_of_balance_points,
-            "sum_of_points_redeemed": sum_of_points_redeemed,
-            "results": transaction_list
-        }
-
-        return JsonResponse(response, status=status.HTTP_200_OK)
+    if not customer_instance:
+        return Response("Customer does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    else:
-        response = {
+    orders = Order.objects.filter(customerId = customer_id, vendorId = vendor_id).order_by("-OrderDate")
+
+    if not orders.exists():
+        return JsonResponse({
             "total_pages": 0,
             "current_page": 0,
             "page_size": 0,
@@ -4823,9 +4734,81 @@ def get_loyalty_point_transactions_of_customer(request):
             "sum_of_balance_points": 0,
             "sum_of_points_redeemed": 0,
             "results": [],
+        }, status = status.HTTP_200_OK)
+    
+    paginator = Paginator(orders, page_size)
+
+    paginated_orders = paginator.page(page_number)
+
+    current_page = paginated_orders.number
+
+    total_pages = paginator.num_pages
+    
+    transaction_list = []
+
+    loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(customer = customer_id, vendor = vendor_id)
+
+    sum_of_points_credited = loyalty_points_credit_history.aggregate(Sum('points_credited'))['points_credited__sum'] or 0
+    sum_of_balance_points = loyalty_points_credit_history.aggregate(Sum('balance_points'))['balance_points__sum'] or 0
+    sum_of_points_redeemed = loyalty_points_credit_history.aggregate(Sum('total_points_redeemed'))['total_points_redeemed__sum'] or 0
+    
+    loyalty_points_credit_history = loyalty_points_credit_history.filter(order__in = paginated_orders)
+    
+    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(customer = customer_id, vendor = vendor_id)
+
+    loyalty_points_redeem_history = loyalty_points_redeem_history.filter(order__in = paginated_orders)
+    
+    for order in paginated_orders:
+        credit_transaction = {}
+        redeem_transaction = []
+
+        credit_history = loyalty_points_credit_history.filter(order = order.pk).first()
+
+        if credit_history:
+            credit_transaction["points_credited"] = credit_history.points_credited
+            credit_transaction["credit_datetime"] = credit_history.credit_datetime
+            credit_transaction["expiry_date"] = credit_history.expiry_date
+            credit_transaction["is_expired"] = credit_history.is_expired
+        
+        else:
+            credit_transaction["points_credited"] = 0
+            credit_transaction["credit_datetime"] = ""
+            credit_transaction["expiry_date"] = ""
+            credit_transaction["is_expired"] = False
+
+        redeem_history = loyalty_points_redeem_history.filter(order = order.pk)
+
+        redeemed_points = redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum'] or 0
+
+        for history in redeem_history:
+            redeem_transaction.append({
+                "credit_history_id": history.credit_history.pk,
+                "points_redeemed": history.points_redeemed,
+                "redeem_datetime": history.redeem_datetime,
+                "redeemed_by": history.redeemed_by
+            })
+        
+        order_data = {
+            "order_id": order.pk,
+            "external_order_id": order.externalOrderId,
+            "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+            "credit_history": credit_transaction,
+            "redeemed_points": redeemed_points,
+            "redeem_history": redeem_transaction
         }
 
-        return JsonResponse(response, status=status.HTTP_200_OK)
+        transaction_list.append(order_data)
+
+    return JsonResponse({
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "page_size": page_size,
+        "current_points_balance": customer_instance.loyalty_points_balance,
+        "sum_of_points_credited": sum_of_points_credited,
+        "sum_of_balance_points": sum_of_balance_points,
+        "sum_of_points_redeemed": sum_of_points_redeemed,
+        "results": transaction_list
+    }, status = status.HTTP_200_OK)
 
 
 @api_view(['GET'])
