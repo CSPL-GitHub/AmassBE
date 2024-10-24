@@ -4497,244 +4497,208 @@ def delete_customer(request, customer_id):
 
 @api_view(["GET"])
 def get_orders_of_customer(request):
-    vendor_id = request.GET.get("vendorId", None)
-    customer_id = request.GET.get("customerId", None)
-    page_number = request.GET.get("page", 1)
-    page_size = request.GET.get("page_size", 10)
     language = request.GET.get("language", "English")
 
-    if not all((vendor_id, customer_id)):
-        return Response("Vendor ID or Customer ID is empty", status=status.HTTP_400_BAD_REQUEST)
-
     try:
-        vendor_id, customer_id = map(int, (vendor_id, customer_id))
+        vendor_id = int(request.GET.get("vendorId"))
+        customer_id = int(request.GET.get("customerId"))
+        page_number = int(request.GET.get("page", 1))
+        page_size = int(request.GET.get("page_size", 10))
 
-    except ValueError:
-        return Response("Invalid Vendor ID or Customer ID", status=status.HTTP_400_BAD_REQUEST)
+        if vendor_id <= 0 or customer_id <= 0 or page_number <= 0 or page_size <= 0:
+            return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    vendor_instance = Vendor.objects.filter(pk=vendor_id).first()
-    customer_instance = Customer.objects.filter(pk=customer_id).first()
+    except:
+        return Response("Invalid request data", status = status.HTTP_400_BAD_REQUEST)
 
-    if not all((vendor_instance, customer_instance)):
-        return Response("Vendor or Customer does not exist", status=status.HTTP_404_NOT_FOUND)
+    if not Vendor.objects.filter(pk = vendor_id).exists() or not Customer.objects.filter(pk = customer_id).exists():
+        return Response("Vendor or Customer does not exist", status = status.HTTP_400_BAD_REQUEST)
     
-    loyalty_settings = LoyaltyProgramSettings.objects.get(vendor=vendor_instance.pk)
+    loyalty_settings = LoyaltyProgramSettings.objects.get(vendor = vendor_id)
     
-    orders = Order.objects.filter(customerId=customer_id, vendorId=vendor_id).order_by("-arrivalTime")
+    orders = Order.objects.filter(customerId = customer_id, vendorId = vendor_id) \
+        .order_by("-arrivalTime").select_related("platform")
 
-    if orders:
-        paginator = Paginator(orders, page_size)
-
-        try:
-            paginated_orders = paginator.page(page_number)
-
-        except PageNotAnInteger:
-            paginated_orders = paginator.page(1)
-            
-        except EmptyPage:
-            paginated_orders = paginator.page(paginator.num_pages)
-
-        order_list = []
-
-        current_page = paginated_orders.number
-        total_pages = paginator.num_pages
-        
-        for order in paginated_orders:
-            koms_order = KOMSOrder.objects.filter(master_order=order.pk)                       # This is a temparory    
-            if koms_order:                                                                     # Fix for Broken orders between 
-                koms_order = koms_order.last()                                                  # core and KOMS
-                koms_order = KOMSOrder.objects.filter(master_order=order.pk).last()
-
-                order_contents = Order_content.objects.filter(orderId=koms_order.pk)
-
-                order_items = []
-                for content in order_contents:
-                    product = ProductCategoryJoint.objects.get(product__vendorId=vendor_id, product__PLU=content.SKU)
-
-                    modifier_list = []
-                        
-                    modifiers = Order_modifer.objects.filter(contentID=content.pk)
-                        
-                    if modifiers:
-                        for modifier in modifiers:
-                            product_modifier = ProductModifier.objects.filter(modifierPLU=modifier.SKU, vendorId=vendor_id).first()
-
-                            if language == "English":
-                                modifier_name = product_modifier.modifierName
-
-                            else:
-                                modifier_name = product_modifier.modifierName_locale
-                            
-                            modifier_list.append({
-                                'modifier_name': modifier_name,
-                                'modifier_plu': product_modifier.modifierPLU,
-                                'modifier_quantity': modifier.quantity,
-                                'modifier_price': product_modifier.modifierPrice if product_modifier else 0.0,
-                                'modifier_img': product_modifier.modifierImg if product_modifier else ""
-                            })
-
-                    product_image = ProductImage.objects.filter(product=product.product.pk).first()
-
-                    if product_image:
-                        image_url = product_image.url
-
-                    else:
-                        image_url = 'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
-                    
-                    if language == "English":
-                        product_name = product.product.productName
-                        category_name = product.category.categoryName
-                    
-                    else:
-                        product_name = product.product.productName_locale
-                        category_name = product.category.categoryName_locale
-                    
-                    order_items.append({
-                        'quantity': content.quantity,
-                        'product_plu': content.SKU,
-                        'product_name': product_name,
-                        'tag': product.product.tag,
-                        'is_unlimited': product.product.is_unlimited,
-                        'preparation_time': product.product.preparationTime,
-                        'is_taxable': product.product.taxable,
-                        'product_image': image_url,
-                        'category': category_name,
-                        "product_note": content.note if content.note else "",
-                        "unit_price": product.product.productPrice,
-                        'modifiers': modifier_list
-                    })
-                
-                payment_data = {}
-                
-                payment_details = OrderPayment.objects.filter(orderId=order.pk).last()
-                
-                if payment_details:
-                    payment_type = payment_details.type
-
-                    if payment_type == payment_type_number["Cash"]:
-                        payment_data['paymentKey'] = ''
-                        payment_data['platform'] = ''
-                        payment_data["mode"] = "Cash"
-
-                        if language != "English":
-                            payment_data["mode"] = language_localization["Cash"]
-
-                    else:
-                        payment_data["paymentKey"] = payment_details.paymentKey if payment_details.paymentKey else ''
-                        payment_data["platform"] = payment_details.platform if payment_details.platform else ''
-                        payment_data["mode"] = payment_type_english[payment_type]
-
-                        if language != "English":
-                            payment_data["mode"] = language_localization[payment_type_english[payment_type]]
-                    
-                    payment_data["status"] = payment_details.status
-
-                else:
-                    payment_data = {
-                        "paymentKey": "",
-                        "platform": "",
-                        "status": False,
-                        "mode": "Cash" if language != "English" else language_localization["Cash"]
-                    }
-
-                table_numbers_list = ""
-
-                table_details = Order_tables.objects.filter(orderId = koms_order.pk)
-
-                if table_details:
-                    for table in table_details:
-                        table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
-
-                    table_numbers_list = table_numbers_list[:-1]
-
-                loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
-                    order = order.pk,
-                    customer = customer_id,
-                    vendor = vendor_id
-                )
-
-                if loyalty_points_redeem_history:
-                    total_points_redeemed = loyalty_points_redeem_history.aggregate(Sum('points_redeemed'))['points_redeemed__sum']
-
-                    if not total_points_redeemed:
-                        total_points_redeemed = 0
-
-                else:
-                    total_points_redeemed = 0
-                
-                platform_name = order.platform.Name
-
-                if language != "English":
-                    platform_name = order.platform.Name_locale
-
-                credit_points = 0
-                
-                loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(
-                    order = order.pk,
-                    customer = customer_id,
-                    vendor = vendor_id
-                ).first()
-                
-                if loyalty_settings.is_active == True:
-                    if (koms_order.order_status == 10) and (payment_details.status == True):
-                        if loyalty_points_credit_history:
-                            credit_points = loyalty_points_credit_history.points_credited
-
-                    else:
-                        if loyalty_settings.redeem_limit_applied_on == "subtotal":
-                            credit_points = round(order.subtotal / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
-
-                        elif loyalty_settings.redeem_limit_applied_on == "final_total":
-                            credit_points = round(order.TotalAmount / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
-
-                else:
-                    if loyalty_points_credit_history:
-                        credit_points = loyalty_points_credit_history.points_credited
-                
-                order_data = {
-                    "orderId": order.pk,
-                    "staging_order_id": koms_order.pk,
-                    "external_order_id": order.externalOrderId,
-                    "status": koms_order.order_status,
-                    "order_note": order.Notes if order.Notes else "",
-                    "total_tax": order.tax,
-                    "total_discount": order.discount,
-                    "delivery_charge": order.delivery_charge,
-                    "subtotal": order.subtotal,
-                    "total_amount": order.TotalAmount,
-                    "pickup_time": koms_order.pickupTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "arrival_time": order.arrivalTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
-                    "order_type": order.orderType,
-                    "platform_name": platform_name,
-                    "table_numbers": table_numbers_list,
-                    "items": order_items,
-                    "payment": payment_data,
-                    "total_points_redeemed": total_points_redeemed,
-                    "points_earned": credit_points # Key required for NextJS Webiste to show points immediately after placing order
-                }
-
-                order_list.append(order_data)
-            
-        response = {
-            "total_pages": total_pages,
-            "current_page": current_page,
-            "page_size": int(page_size),
-            "results": order_list
-        }
-
-        return JsonResponse(response, status=status.HTTP_200_OK)
-    
-    else:
-        response = {
+    if not orders.exists():
+        return JsonResponse({
             "total_pages": 0,
             "current_page": 0,
             "page_size": 0,
             "results": [],
+        }, status = status.HTTP_200_OK)
+    
+    paginator = Paginator(orders, page_size)
+
+    paginated_orders = paginator.page(page_number)
+
+    current_page = paginated_orders.number
+
+    total_pages = paginator.num_pages
+
+    koms_orders = KOMSOrder.objects.filter(master_order__in = paginated_orders)
+
+    all_order_content = Order_content.objects.filter(orderId__in = koms_orders)
+
+    all_order_modifiers = Order_modifer.objects.filter(contentID__in = all_order_content.values_list("pk", flat = True))
+
+    all_products = ProductCategoryJoint.objects.filter(
+        product__PLU__in = all_order_content.values_list("SKU", flat = True), product__vendorId = vendor_id
+    ).select_related("product", "category")
+
+    product_images = ProductImage.objects.filter(product__in = all_products.values_list("product__pk", flat = True))
+    
+    all_modifiers = ProductModifier.objects.filter(
+        modifierPLU__in = all_order_modifiers.values_list("SKU", flat = True), vendorId = vendor_id
+    )
+
+    order_payments = OrderPayment.objects.filter(orderId__in = paginated_orders)
+
+    all_order_tables = Order_tables.objects.filter(orderId__in = koms_orders)
+
+    loyalty_points_redeem_history = LoyaltyPointsRedeemHistory.objects.filter(
+        order__in = paginated_orders, customer = customer_id, vendor = vendor_id
+    )
+
+    loyalty_points_credit_history = LoyaltyPointsCreditHistory.objects.filter(
+        order__in = paginated_orders, customer = customer_id, vendor = vendor_id
+    )
+    
+    order_list = []
+    
+    for order in paginated_orders:
+        koms_order_info = koms_orders.filter(master_order = order.pk).values("pk", "order_status", "pickupTime").last()
+
+        order_items = []
+
+        order_contents = all_order_content.filter(orderId = koms_order_info["pk"])
+
+        for content in order_contents:
+            product_info = all_products.filter(product__PLU = content.SKU, product__vendorId = vendor_id) \
+                .values(
+                    "product__pk", "product__productName", "product__productName_locale", "product__tag",
+                    "product__is_unlimited", "product__preparationTime", "product__taxable", "product__productPrice",
+                    "category__categoryName", "category__categoryName_locale"
+                ).first()
+
+            modifier_list = []
+            
+            modifiers = all_order_modifiers.filter(contentID = content.pk)
+                
+            for modifier in modifiers:
+                product_modifier = all_modifiers.filter(modifierPLU = modifier.SKU, vendorId = vendor_id).first()
+
+                modifier_name = product_modifier.modifierName if language == "English" else product_modifier.modifierName_locale
+
+                modifier_list.append({
+                    'modifier_name': modifier_name,
+                    'modifier_plu': product_modifier.modifierPLU,
+                    'modifier_quantity': modifier.quantity,
+                    'modifier_price': product_modifier.modifierPrice or 0.0,
+                    'modifier_img': product_modifier.modifierImg or ""
+                })
+
+            image_url = product_images.filter(product = product_info["product__pk"]).first().url or \
+                'https://www.stockvault.net/data/2018/08/31/254135/preview16.jpg'
+            
+            product_name = product_info["product__productName"] if language == "English" else product_info["product__productName_locale"]
+            category_name = product_info["category__categoryName"] if language == "English" else product_info["category__categoryName_locale"]
+            
+            order_items.append({
+                'quantity': content.quantity,
+                'product_plu': content.SKU,
+                'product_name': product_name,
+                'tag': product_info["product__tag"],
+                'is_unlimited': product_info["product__is_unlimited"],
+                'preparation_time': product_info["product__preparationTime"],
+                'is_taxable': product_info["product__taxable"],
+                'product_image': image_url,
+                'category': category_name,
+                "product_note": content.note or "",
+                "unit_price": product_info["product__productPrice"],
+                'modifiers': modifier_list
+            })
+        
+        payment_data = {
+            "paymentKey": "",
+            "platform": "",
+            "status": False,
+            "mode": "Cash" if language == "English" else language_localization["Cash"]
+        }
+        
+        payment_details = order_payments.filter(orderId = order.pk).last()
+        
+        if payment_details:
+            payment_data["status"] = payment_details.status
+            
+            if payment_details.type != payment_type_number["Cash"]:
+                payment_data["paymentKey"] = payment_details.paymentKey or ""
+                payment_data["platform"] = payment_details.platform or ""
+                payment_data["mode"] = payment_type_english[payment_details.type]
+                
+                if language != "English":
+                    payment_data["mode"] = language_localization[payment_type_english[payment_details.type]]  
+
+        table_numbers_list = ""
+
+        table_details = all_order_tables.filter(orderId = koms_order_info["pk"])
+
+        for table in table_details:
+            table_numbers_list = table_numbers_list + str(table.tableId.tableNumber) + ","
+
+        table_numbers_list = table_numbers_list[:-1]
+
+        total_loyalty_points_redeemed = loyalty_points_redeem_history.filter(
+            order = order.pk, customer = customer_id,  vendor = vendor_id
+        ).aggregate(Sum('points_redeemed'))['points_redeemed__sum'] or 0
+        
+        platform_name = order.platform.Name if language == "English" else order.platform.Name_locale
+
+        credit_points = loyalty_points_credit_history.filter(
+            order = order.pk, customer = customer_id, vendor = vendor_id
+        ).values_list("points_credited", flat = True).first()
+        
+        if koms_order_info["order_status"] == 10 and payment_details.status == True:
+            pass
+
+        else:
+            if loyalty_settings.redeem_limit_applied_on == "subtotal":
+                credit_points = round(order.subtotal / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+
+            elif loyalty_settings.redeem_limit_applied_on == "final_total":
+                credit_points = round(order.TotalAmount / loyalty_settings.amount_spent_in_rupees_to_earn_unit_point)
+        
+        order_data = {
+            "orderId": order.pk,
+            "staging_order_id": koms_order_info["pk"],
+            "external_order_id": order.externalOrderId,
+            "status": koms_order_info["order_status"],
+            "order_note": order.Notes or "",
+            "total_tax": order.tax,
+            "total_discount": order.discount,
+            "delivery_charge": order.delivery_charge,
+            "subtotal": order.subtotal,
+            "total_amount": order.TotalAmount,
+            "pickup_time": koms_order_info["pickupTime"].astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+            "order_datetime": order.OrderDate.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+            "arrival_time": order.arrivalTime.astimezone(local_timezone).strftime("%Y-%m-%dT%H:%M:%S"),
+            "order_type": order.orderType,
+            "platform_name": platform_name,
+            "table_numbers": table_numbers_list,
+            "items": order_items,
+            "payment": payment_data,
+            "total_points_redeemed": total_loyalty_points_redeemed,
+            "points_earned": credit_points # Key required for NextJS webiste to show points immediately after placing order
         }
 
-        return JsonResponse(response, status=status.HTTP_200_OK)
-    
+        order_list.append(order_data)
+        
+    return JsonResponse({
+        "total_pages": total_pages,
+        "current_page": current_page,
+        "page_size": int(page_size),
+        "results": order_list
+    }, status = status.HTTP_200_OK)
+
 
 @api_view(["GET"])
 def get_loyalty_point_transactions_of_customer(request):
